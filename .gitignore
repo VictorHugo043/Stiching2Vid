@@ -1,0 +1,25 @@
+# python
+.venv/
+__pycache__/
+.idea/
+*.pyc
+
+# data & outputs (你的项目通常很大)
+data/raw/
+outputs/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.mpeg
+
+*.xml
+*.iml
+
+# mac
+.DS_Store
+
+
+backup_before_rollback_4p2/
+background/
+reports/

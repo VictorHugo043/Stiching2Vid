@@ -1,0 +1,1006 @@
+pairs:
+  - id: basketball_sequence_match5_c0_c1
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c0.avi
+    right: data/raw/Videos/Basketball sequence/match5-c1.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: false
+    meta:
+      scene: match5
+      cameras: [c0, c1]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: basketball_sequence_match5_c0_c2
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c0.avi
+    right: data/raw/Videos/Basketball sequence/match5-c2.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: true
+    meta:
+      scene: match5
+      cameras: [c0, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: basketball_sequence_match5_c0_c3
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c0.avi
+    right: data/raw/Videos/Basketball sequence/match5-c3.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: true
+    meta:
+      scene: match5
+      cameras: [c0, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: basketball_sequence_match5_c1_c2
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c1.avi
+    right: data/raw/Videos/Basketball sequence/match5-c2.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: true
+    meta:
+      scene: match5
+      cameras: [c1, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: basketball_sequence_match5_c1_c3
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c1.avi
+    right: data/raw/Videos/Basketball sequence/match5-c3.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: true
+    meta:
+      scene: match5
+      cameras: [c1, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: basketball_sequence_match5_c2_c3
+    dataset: Basketball sequence
+    input_type: video
+    left: data/raw/Videos/Basketball sequence/match5-c2.avi
+    right: data/raw/Videos/Basketball sequence/match5-c3.avi
+    calib: data/raw/Videos/Basketball sequence/calibration-basketball.txt
+    optional: true
+    meta:
+      scene: match5
+      cameras: [c2, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: campus_sequences_campus4_c0_c1
+    dataset: Campus sequences
+    input_type: video
+    left: data/raw/Videos/Campus sequences/campus4-c0.avi
+    right: data/raw/Videos/Campus sequences/campus4-c1.avi
+    calib: data/raw/Videos/Campus sequences/calibration.txt
+    optional: false
+    meta:
+      scene: campus4
+      cameras: [c0, c1]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: campus_sequences_campus4_c0_c2
+    dataset: Campus sequences
+    input_type: video
+    left: data/raw/Videos/Campus sequences/campus4-c0.avi
+    right: data/raw/Videos/Campus sequences/campus4-c2.avi
+    calib: data/raw/Videos/Campus sequences/calibration.txt
+    optional: true
+    meta:
+      scene: campus4
+      cameras: [c0, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: campus_sequences_campus4_c1_c2
+    dataset: Campus sequences
+    input_type: video
+    left: data/raw/Videos/Campus sequences/campus4-c1.avi
+    right: data/raw/Videos/Campus sequences/campus4-c2.avi
+    calib: data/raw/Videos/Campus sequences/calibration.txt
+    optional: true
+    meta:
+      scene: campus4
+      cameras: [c1, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right
+    dataset: DynamicStereo
+    input_type: frames
+    left: data/raw/Videos/DynamicStereo/real_000/ignacio_waving/test/frames_rect
+    right: data/raw/Videos/DynamicStereo/real_000/ignacio_waving/test/frames_rect
+    calib: null
+    optional: false
+    meta:
+      scene: real_000/ignacio_waving/test/frames_rect
+      cameras: [left, right]
+      frame_pattern: 000*-left.jpg
+      frame_pattern_right: 000*-right.jpg
+      frame_count_left: 189
+      frame_count_right: 189
+      fps: null
+      resolution: '(1280, 720)'
+      potential_issue: dynamic_scene_masks_available
+  - id: dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right
+    dataset: DynamicStereo
+    input_type: frames
+    left: data/raw/Videos/DynamicStereo/real_000/nikita_reading/test/frames_rect
+    right: data/raw/Videos/DynamicStereo/real_000/nikita_reading/test/frames_rect
+    calib: null
+    optional: false
+    meta:
+      scene: real_000/nikita_reading/test/frames_rect
+      cameras: [left, right]
+      frame_pattern: 000*-left.jpg
+      frame_pattern_right: 000*-right.jpg
+      frame_count_left: 83
+      frame_count_right: 83
+      fps: null
+      resolution: '(1280, 720)'
+      potential_issue: dynamic_scene_masks_available
+  - id: dynamicstereo_real_000_teddy_static_test_frames_rect_left_right
+    dataset: DynamicStereo
+    input_type: frames
+    left: data/raw/Videos/DynamicStereo/real_000/teddy_static/test/frames_rect
+    right: data/raw/Videos/DynamicStereo/real_000/teddy_static/test/frames_rect
+    calib: null
+    optional: false
+    meta:
+      scene: real_000/teddy_static/test/frames_rect
+      cameras: [left, right]
+      frame_pattern: 000*-left.jpg
+      frame_pattern_right: 000*-right.jpg
+      frame_count_left: 218
+      frame_count_right: 218
+      fps: null
+      resolution: '(1280, 720)'
+      potential_issue: dynamic_scene_masks_available
+
+  - id: epfl_rlc_dataset_cam0_cam1
+    dataset: EPFL-RLC_dataset
+    input_type: frames
+    left: data/raw/Videos/EPFL-RLC_dataset/frames/cam0
+    right: data/raw/Videos/EPFL-RLC_dataset/frames/cam1
+    calib: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration.list
+    optional: false
+    meta:
+      scene: EPFL-RLC_dataset
+      cameras: [cam0, cam1]
+      frame_pattern: RLCAFTCONF-C0_10*.jpeg
+      frame_pattern_right: RLCAFTCONF-C1_10*.jpeg
+      frame_count_left: 8001
+      frame_count_right: 8001
+      fps: null
+      resolution: '(480, 270)'
+      index_csv: data/manifests/epfl_frames_index.csv
+      calib_left: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam0.xml
+      calib_right: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam1.xml
+  - id: epfl_rlc_dataset_cam0_cam2
+    dataset: EPFL-RLC_dataset
+    input_type: frames
+    left: data/raw/Videos/EPFL-RLC_dataset/frames/cam0
+    right: data/raw/Videos/EPFL-RLC_dataset/frames/cam2
+    calib: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration.list
+    optional: true
+    meta:
+      scene: EPFL-RLC_dataset
+      cameras: [cam0, cam2]
+      frame_pattern: RLCAFTCONF-C0_10*.jpeg
+      frame_pattern_right: RLCAFTCONF-C2_10*.jpeg
+      frame_count_left: 8001
+      frame_count_right: 8001
+      fps: null
+      resolution: '(480, 270)'
+      index_csv: data/manifests/epfl_frames_index.csv
+      calib_left: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam0.xml
+      calib_right: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam2.xml
+  - id: epfl_rlc_dataset_cam1_cam2
+    dataset: EPFL-RLC_dataset
+    input_type: frames
+    left: data/raw/Videos/EPFL-RLC_dataset/frames/cam1
+    right: data/raw/Videos/EPFL-RLC_dataset/frames/cam2
+    calib: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration.list
+    optional: true
+    meta:
+      scene: EPFL-RLC_dataset
+      cameras: [cam1, cam2]
+      frame_pattern: RLCAFTCONF-C1_10*.jpeg
+      frame_pattern_right: RLCAFTCONF-C2_10*.jpeg
+      frame_count_left: 8001
+      frame_count_right: 8001
+      fps: null
+      resolution: '(480, 270)'
+      index_csv: data/manifests/epfl_frames_index.csv
+      calib_left: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam1.xml
+      calib_right: data/raw/Videos/EPFL-RLC_dataset/calibration/calibration_cam2.xml
+
+  - id: karlsruhe_dataset_2010_03_04_drive_0033_i1_i2
+    dataset: Karlsruhe Dataset
+    input_type: frames
+    left: data/raw/Videos/Karlsruhe Dataset/2010_03_04_drive_0033
+    right: data/raw/Videos/Karlsruhe Dataset/2010_03_04_drive_0033
+    calib: data/raw/Videos/Karlsruhe Dataset/2010_03_04_calib.txt
+    optional: false
+    meta:
+      scene: 2010_03_04_drive_0033
+      cameras: [i1, i2]
+      frame_pattern: I1_*.png
+      frame_pattern_right: I2_*.png
+      frame_count_left: 400
+      frame_count_right: 400
+      fps: null
+      resolution: '(1348, 374)'
+  - id: karlsruhe_dataset_2010_03_17_drive_0046_i1_i2
+    dataset: Karlsruhe Dataset
+    input_type: frames
+    left: data/raw/Videos/Karlsruhe Dataset/2010_03_17_drive_0046
+    right: data/raw/Videos/Karlsruhe Dataset/2010_03_17_drive_0046
+    calib: data/raw/Videos/Karlsruhe Dataset/2010_03_17_calib.txt
+    optional: false
+    meta:
+      scene: 2010_03_17_drive_0046
+      cameras: [i1, i2]
+      frame_pattern: I1_*.png
+      frame_pattern_right: I2_*.png
+      frame_count_left: 967
+      frame_count_right: 967
+      fps: null
+      resolution: '(1365, 369)'
+
+  - id: laboratory_sequences1_4p_c0_c1
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c0.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c1.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: false
+    meta:
+      scene: 4p
+      cameras: [c0, c1]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: laboratory_sequences1_4p_c0_c2
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c0.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c2.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: true
+    meta:
+      scene: 4p
+      cameras: [c0, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: laboratory_sequences1_4p_c0_c3
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c0.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c3.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: true
+    meta:
+      scene: 4p
+      cameras: [c0, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: laboratory_sequences1_4p_c1_c2
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c1.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c2.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: true
+    meta:
+      scene: 4p
+      cameras: [c1, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: laboratory_sequences1_4p_c1_c3
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c1.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c3.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: true
+    meta:
+      scene: 4p
+      cameras: [c1, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: laboratory_sequences1_4p_c2_c3
+    dataset: Laboratory sequences1
+    input_type: video
+    left: data/raw/Videos/Laboratory sequences1/4p-c2.avi
+    right: data/raw/Videos/Laboratory sequences1/4p-c3.avi
+    calib: data/raw/Videos/Laboratory sequences1/calibration-4p.txt
+    optional: true
+    meta:
+      scene: 4p
+      cameras: [c2, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: multiscene360_dataset_scene_s001_cam01_cam02
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam02.mpeg
+    calib: null
+    optional: false
+    meta:
+      scene: scene_S001
+      cameras: [cam01, cam02]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s001_cam01_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S001
+      cameras: [cam01, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s001_cam01_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S001
+      cameras: [cam01, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s001_cam02_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S001
+      cameras: [cam02, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s001_cam02_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S001
+      cameras: [cam02, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s001_cam03_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam03.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S001/scene_S001_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S001
+      cameras: [cam03, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: multiscene360_dataset_scene_s003_cam01_cam02
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam02.mpeg
+    calib: null
+    optional: false
+    meta:
+      scene: scene_S003
+      cameras: [cam01, cam02]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s003_cam01_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S003
+      cameras: [cam01, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s003_cam01_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S003
+      cameras: [cam01, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s003_cam02_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S003
+      cameras: [cam02, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s003_cam02_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S003
+      cameras: [cam02, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s003_cam03_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam03.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S003/scene_S003_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S003
+      cameras: [cam03, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: multiscene360_dataset_scene_s004_cam01_cam02
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam02.mpeg
+    calib: null
+    optional: false
+    meta:
+      scene: scene_S004
+      cameras: [cam01, cam02]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s004_cam01_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S004
+      cameras: [cam01, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s004_cam01_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S004
+      cameras: [cam01, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s004_cam02_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S004
+      cameras: [cam02, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s004_cam02_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S004
+      cameras: [cam02, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s004_cam03_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam03.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S004/scene_S004_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S004
+      cameras: [cam03, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: multiscene360_dataset_scene_s008_cam01_cam02
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam02.mpeg
+    calib: null
+    optional: false
+    meta:
+      scene: scene_S008
+      cameras: [cam01, cam02]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s008_cam01_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S008
+      cameras: [cam01, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s008_cam01_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S008
+      cameras: [cam01, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s008_cam02_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S008
+      cameras: [cam02, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s008_cam02_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S008
+      cameras: [cam02, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s008_cam03_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam03.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S008/scene_S008_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S008
+      cameras: [cam03, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: multiscene360_dataset_scene_s009_cam01_cam02
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam02.mpeg
+    calib: null
+    optional: false
+    meta:
+      scene: scene_S009
+      cameras: [cam01, cam02]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s009_cam01_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S009
+      cameras: [cam01, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s009_cam01_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam01.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S009
+      cameras: [cam01, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s009_cam02_cam03
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam03.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S009
+      cameras: [cam02, cam03]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s009_cam02_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam02.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S009
+      cameras: [cam02, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: multiscene360_dataset_scene_s009_cam03_cam04
+    dataset: MultiScene360 Dataset
+    input_type: video
+    left: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam03.mpeg
+    right: data/raw/Videos/MultiScene360 Dataset/scene_S009/scene_S009_cam04.mpeg
+    calib: null
+    optional: true
+    meta:
+      scene: scene_S009
+      cameras: [cam03, cam04]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+
+  - id: terrace_sequences1_terrace1_c0_c1
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c0.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c1.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: false
+    meta:
+      scene: terrace1
+      cameras: [c0, c1]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: terrace_sequences1_terrace1_c0_c2
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c0.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c2.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: true
+    meta:
+      scene: terrace1
+      cameras: [c0, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: terrace_sequences1_terrace1_c0_c3
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c0.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c3.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: true
+    meta:
+      scene: terrace1
+      cameras: [c0, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: terrace_sequences1_terrace1_c1_c2
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c1.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c2.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: true
+    meta:
+      scene: terrace1
+      cameras: [c1, c2]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: terrace_sequences1_terrace1_c1_c3
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c1.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c3.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: true
+    meta:
+      scene: terrace1
+      cameras: [c1, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: terrace_sequences1_terrace1_c2_c3
+    dataset: Terrace sequences1
+    input_type: video
+    left: data/raw/Videos/Terrace sequences1/terrace1-c2.avi
+    right: data/raw/Videos/Terrace sequences1/terrace1-c3.avi
+    calib: data/raw/Videos/Terrace sequences1/calibration-terrace.txt
+    optional: true
+    meta:
+      scene: terrace1
+      cameras: [c2, c3]
+      length_left: null
+      length_right: null
+      fps: null
+      resolution: null
+  - id: mine_source_autumn_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/autumn/left.mp4
+    right: data/raw/Videos/mine_source/autumn/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: autumn
+      cameras: [left, right]
+      length_left: 78
+      length_right: 78
+      fps: 30.0
+      resolution: [1280, 720]
+  - id: mine_source_bow1_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/bow1/left.mp4
+    right: data/raw/Videos/mine_source/bow1/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: bow1
+      cameras: [left, right]
+      length_left: 149
+      length_right: 149
+      fps: 25.0
+      resolution: [1280, 720]
+  - id: mine_source_bow2_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/bow2/left.mp4
+    right: data/raw/Videos/mine_source/bow2/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: bow2
+      cameras: [left, right]
+      length_left: 112
+      length_right: 112
+      fps: 25.0
+      resolution: [1280, 720]
+  - id: mine_source_lake_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/lake/left.mp4
+    right: data/raw/Videos/mine_source/lake/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: lake
+      cameras: [left, right]
+      length_left: 91
+      length_right: 91
+      fps: 29.000081441010153
+      resolution: [1280, 720]
+  - id: mine_source_robot_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/robot/left.mp4
+    right: data/raw/Videos/mine_source/robot/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: robot
+      cameras: [left, right]
+      length_left: 259
+      length_right: 259
+      fps: 30.0
+      resolution: [1280, 720]
+  - id: mine_source_church_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/church/left.mp4
+    right: data/raw/Videos/mine_source/church/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: church
+      cameras: [left, right]
+      length_left: 148
+      length_right: 148
+      fps: 30.001621709281583
+      resolution: [1920, 1080]
+  - id: mine_source_park1_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/park1/left.mp4
+    right: data/raw/Videos/mine_source/park1/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: park1
+      cameras: [left, right]
+      length_left: 241
+      length_right: 241
+      fps: 30.125292884791936
+      resolution: [1920, 1080]
+  - id: mine_source_pujiang1_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/pujiang1/left.mp4
+    right: data/raw/Videos/mine_source/pujiang1/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: pujiang1
+      cameras: [left, right]
+      length_left: 205
+      length_right: 205
+      fps: 30.14720660395394
+      resolution: [1920, 1080]
+  - id: mine_source_pujiang2_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/pujiang2/left.mp4
+    right: data/raw/Videos/mine_source/pujiang2/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: pujiang2
+      cameras: [left, right]
+      length_left: 208
+      length_right: 208
+      fps: 30.001394295568222
+      resolution: [1920, 1080]
+  - id: mine_source_pujiang3_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/pujiang3/left.mp4
+    right: data/raw/Videos/mine_source/pujiang3/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: pujiang3
+      cameras: [left, right]
+      length_left: 124
+      length_right: 124
+      fps: 30.00169364399603
+      resolution: [1920, 1080]
