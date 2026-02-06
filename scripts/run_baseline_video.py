@@ -56,8 +56,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--blend",
         default="feather",
-        choices=["none", "feather"],
+        choices=["none", "feather", "hard"],
         help="Blending mode",
+    )
+    parser.add_argument(
+        "--seam",
+        default="none",
+        choices=["none", "hard"],
+        help="Seam mode for overlap selection",
     )
     parser.add_argument(
         "--smooth_h",
@@ -255,15 +261,36 @@ def _save_snapshot(
     save_image(snapshots_dir / f"overlay_sm_{frame_idx:06d}.png", overlay_sm_bgr)
 
 
-def _blend_frames(left_warped, right_warped, mode: str):
-    from stitching.blending import blend_none, feather_blend  # noqa: WPS433,E402
+def _blend_frames(
+    left_warped,
+    right_warped,
+    mode: str,
+    mask_left=None,
+    mask_right=None,
+    seam_side_mask=None,
+):
+    from stitching.blending import (  # noqa: WPS433,E402
+        blend_none,
+        composite_hard_seam,
+        feather_blend,
+    )
 
     if mode == "none":
         return blend_none(left_warped, right_warped)
+    if mode == "hard":
+        if mask_left is None or mask_right is None:
+            raise ValueError("mask_left/mask_right are required for hard blending.")
+        return composite_hard_seam(
+            left_warped,
+            right_warped,
+            mask_left=mask_left,
+            mask_right=mask_right,
+            seam_side_mask=seam_side_mask,
+        )
     return feather_blend(left_warped, right_warped)
 
 
-def _compute_alpha_for_blend(left_bgr, right_bgr, mode: str):
+def _compute_alpha_for_blend(left_bgr, right_bgr, mode: str, seam_side_mask=None):
     """Compute left alpha used by the current blend mode, constrained by validity."""
     import cv2  # type: ignore
     import numpy as np  # type: ignore
@@ -276,6 +303,18 @@ def _compute_alpha_for_blend(left_bgr, right_bgr, mode: str):
 
     if mode == "none":
         alpha = left_bin.astype(np.float32)
+    elif mode == "hard":
+        if seam_side_mask is None:
+            seam_bool = left_bin.astype(bool)
+        else:
+            seam_arr = np.asarray(seam_side_mask)
+            if seam_arr.ndim == 3:
+                seam_arr = seam_arr[..., 0]
+            seam_bool = seam_arr > 0
+        alpha = np.zeros_like(left_bin, dtype=np.float32)
+        alpha[(left_bin == 1) & (right_bin == 0)] = 1.0
+        alpha[(left_bin == 0) & (right_bin == 1)] = 0.0
+        alpha[(left_bin == 1) & (right_bin == 1)] = seam_bool[(left_bin == 1) & (right_bin == 1)]
     else:
         dist_left = cv2.distanceTransform(left_bin, cv2.DIST_L2, 3)
         dist_right = cv2.distanceTransform(right_bin, cv2.DIST_L2, 3)
@@ -388,6 +427,7 @@ def main() -> int:
             "min_matches": args.min_matches,
             "ransac_thresh": args.ransac_thresh,
             "blend": args.blend,
+            "seam": args.seam,
             "smooth_h": args.smooth_h,
             "smooth_alpha": args.smooth_alpha,
             "smooth_window": args.smooth_window,
@@ -409,6 +449,8 @@ def main() -> int:
         "fallback_frames": 0,
         "initial_failure": None,
         "canvas_size": None,
+        "blend": args.blend,
+        "seam": args.seam,
         "smooth_h": args.smooth_h,
         "smooth_alpha": args.smooth_alpha,
         "smooth_window": args.smooth_window,
@@ -697,12 +739,36 @@ def main() -> int:
                 overlay_raw = overlay_images(left_raw_warped, right_raw_warped, alpha=0.5)
                 overlay_sm = overlay_images(left_sm_warped, right_sm_warped, alpha=0.5)
                 overlay_active = overlay_sm if args.smooth_h != "none" else overlay_raw
-                stitched = _blend_frames(left_active, right_active, args.blend)
+                seam_side_mask = None
+                if args.blend == "hard" or args.seam == "hard":
+                    from stitching.blending import resolve_hard_seam_side  # noqa: E402
+
+                    _, base_mask_left, base_mask_right, _ = _compute_alpha_for_blend(
+                        left_active,
+                        right_active,
+                        mode="none",
+                    )
+                    seam_side_mask = resolve_hard_seam_side(
+                        base_mask_left,
+                        base_mask_right,
+                        seam_side_mask=None,
+                    )
+                    stitched = _blend_frames(
+                        left_active,
+                        right_active,
+                        args.blend,
+                        mask_left=base_mask_left,
+                        mask_right=base_mask_right,
+                        seam_side_mask=seam_side_mask,
+                    )
+                else:
+                    stitched = _blend_frames(left_active, right_active, args.blend)
 
                 alpha_left, mask_left, mask_right, overlap_bin = _compute_alpha_for_blend(
                     left_active,
                     right_active,
                     args.blend,
+                    seam_side_mask=seam_side_mask,
                 )
                 alpha_float = ensure_float_mask(alpha_left, shape=mask_left.shape)
                 alpha_u8 = (alpha_float * 255.0).clip(0, 255).astype("uint8")
@@ -717,6 +783,21 @@ def main() -> int:
                         overlap_u8,
                     )
                     save_mask_png(snapshots_dir / f"alpha_{source_idx:06d}.png", alpha_u8)
+                    if args.blend == "hard":
+                        seam_hard_u8 = ensure_uint8_mask(
+                            seam_side_mask.astype("uint8"),
+                            shape=mask_left.shape,
+                        )
+                        save_mask_png(
+                            snapshots_dir / f"seam_hard_{source_idx:06d}.png",
+                            seam_hard_u8,
+                        )
+                        from stitching.viz import save_image  # noqa: E402
+
+                        save_image(
+                            snapshots_dir / f"stitched_hard_{source_idx:06d}.png",
+                            stitched,
+                        )
 
                     for name, m in [
                         ("mask_left", mask_left),
