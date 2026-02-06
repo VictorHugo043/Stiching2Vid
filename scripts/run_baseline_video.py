@@ -61,9 +61,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--seam",
-        default="none",
-        choices=["none", "hard"],
+        default="hard",
+        choices=["none", "hard", "graphcut"],
         help="Seam mode for overlap selection",
+    )
+    parser.add_argument(
+        "--seam_scale",
+        type=float,
+        default=0.5,
+        help="Scale for seam computation within overlap ROI",
     )
     parser.add_argument(
         "--smooth_h",
@@ -378,6 +384,10 @@ def main() -> int:
         save_mask_png,
         summarize_mask,
     )
+    from stitching.seam import (  # noqa: E402
+        compute_seam_mask_graphcut,
+        overlap_diff_roi_image,
+    )
     from stitching.geometry import (  # noqa: E402
         compute_canvas_and_transform,
         estimate_homography,
@@ -396,6 +406,7 @@ def main() -> int:
     stride = max(1, int(args.stride))
     snapshot_every = max(1, int(args.snapshot_every))
     snapshot_stride = max(1, int(args.snapshot_stride))
+    seam_scale = min(1.0, max(0.2, float(args.seam_scale)))
     debug_masks = bool(args.debug_masks)
 
     run_id = args.run_id
@@ -428,6 +439,7 @@ def main() -> int:
             "ransac_thresh": args.ransac_thresh,
             "blend": args.blend,
             "seam": args.seam,
+            "seam_scale": seam_scale,
             "smooth_h": args.smooth_h,
             "smooth_alpha": args.smooth_alpha,
             "smooth_window": args.smooth_window,
@@ -451,10 +463,12 @@ def main() -> int:
         "canvas_size": None,
         "blend": args.blend,
         "seam": args.seam,
+        "seam_scale": seam_scale,
         "smooth_h": args.smooth_h,
         "smooth_alpha": args.smooth_alpha,
         "smooth_window": args.smooth_window,
         "jitter_summary": {},
+        "seam_summary": {},
         "notes": [],
         "errors": [],
         "runtime_ms": None,
@@ -555,6 +569,8 @@ def main() -> int:
     frame_runtimes: List[float] = []
     jitter_raw_values: List[float] = []
     jitter_sm_values: List[float] = []
+    seam_compute_values: List[float] = []
+    overlap_area_values: List[int] = []
     prev_raw_corners = None
     prev_sm_corners = None
 
@@ -740,7 +756,14 @@ def main() -> int:
                 overlay_sm = overlay_images(left_sm_warped, right_sm_warped, alpha=0.5)
                 overlay_active = overlay_sm if args.smooth_h != "none" else overlay_raw
                 seam_side_mask = None
-                if args.blend == "hard" or args.seam == "hard":
+                seam_meta = {
+                    "overlap_area": 0,
+                    "overlap_bbox": None,
+                    "seam_method": args.seam,
+                    "seam_scale": seam_scale,
+                    "seam_compute_ms": 0.0,
+                }
+                if args.blend == "hard" or args.seam in {"hard", "graphcut"}:
                     from stitching.blending import resolve_hard_seam_side  # noqa: E402
 
                     _, base_mask_left, base_mask_right, _ = _compute_alpha_for_blend(
@@ -748,11 +771,34 @@ def main() -> int:
                         right_active,
                         mode="none",
                     )
-                    seam_side_mask = resolve_hard_seam_side(
-                        base_mask_left,
-                        base_mask_right,
-                        seam_side_mask=None,
-                    )
+                    if args.seam == "graphcut":
+                        seam_side_mask_gc, seam_meta_gc = compute_seam_mask_graphcut(
+                            left_active,
+                            right_active,
+                            mask_left=base_mask_left,
+                            mask_right=base_mask_right,
+                            scale=seam_scale,
+                        )
+                        seam_meta.update(seam_meta_gc)
+                        seam_compute_values.append(float(seam_meta.get("seam_compute_ms", 0.0)))
+                        overlap_area_values.append(int(seam_meta.get("overlap_area", 0)))
+                        if seam_side_mask_gc is None:
+                            note_parts.append(
+                                f"seam_graphcut_fallback={seam_meta.get('note', 'unknown')}"
+                            )
+                            seam_side_mask = resolve_hard_seam_side(
+                                base_mask_left,
+                                base_mask_right,
+                                seam_side_mask=None,
+                            )
+                        else:
+                            seam_side_mask = seam_side_mask_gc
+                    else:
+                        seam_side_mask = resolve_hard_seam_side(
+                            base_mask_left,
+                            base_mask_right,
+                            seam_side_mask=None,
+                        )
                     stitched = _blend_frames(
                         left_active,
                         right_active,
@@ -798,6 +844,27 @@ def main() -> int:
                             snapshots_dir / f"stitched_hard_{source_idx:06d}.png",
                             stitched,
                         )
+                    if args.seam == "graphcut" and seam_side_mask is not None:
+                        seam_gc_full_u8 = ensure_uint8_mask(
+                            seam_side_mask.astype("uint8"),
+                            shape=mask_left.shape,
+                        )
+                        seam_gc_u8 = ((seam_gc_full_u8 > 0) & (overlap_u8 > 0)).astype("uint8") * 255
+                        save_mask_png(
+                            snapshots_dir / f"seam_graphcut_{source_idx:06d}.png",
+                            seam_gc_u8,
+                        )
+                        from stitching.viz import save_image  # noqa: E402
+
+                        overlap_diff = overlap_diff_roi_image(
+                            left_active,
+                            right_active,
+                            seam_meta.get("overlap_bbox"),
+                        )
+                        save_image(
+                            snapshots_dir / f"overlap_diff_{source_idx:06d}.png",
+                            overlap_diff,
+                        )
 
                     for name, m in [
                         ("mask_left", mask_left),
@@ -816,6 +883,13 @@ def main() -> int:
                             stats["unique_count"],
                             stats["overlap_ratio"],
                         )
+
+                if args.seam in {"hard", "graphcut"}:
+                    debug["overlap_area"] = int(seam_meta.get("overlap_area", 0))
+                    debug["overlap_bbox"] = seam_meta.get("overlap_bbox")
+                    debug["seam_method"] = seam_meta.get("seam_method", args.seam)
+                    debug["seam_scale"] = seam_scale
+                    debug["seam_compute_ms"] = float(seam_meta.get("seam_compute_ms", 0.0))
 
                 writer.write(stitched)
 
@@ -943,12 +1017,24 @@ def main() -> int:
     )
     jitter_raw_p95 = _quantile95(jitter_raw_values)
     jitter_sm_p95 = _quantile95(jitter_sm_values)
+    seam_compute_mean = (
+        float(sum(seam_compute_values) / len(seam_compute_values)) if seam_compute_values else 0.0
+    )
+    overlap_area_mean = (
+        float(sum(overlap_area_values) / len(overlap_area_values)) if overlap_area_values else 0.0
+    )
 
     debug["jitter_summary"] = {
         "mean_raw": jitter_raw_mean,
         "p95_raw": jitter_raw_p95,
         "mean_sm": jitter_sm_mean,
         "p95_sm": jitter_sm_p95,
+    }
+    debug["seam_summary"] = {
+        "seam_method": args.seam,
+        "seam_scale": seam_scale,
+        "seam_compute_ms_mean": seam_compute_mean,
+        "overlap_area_mean": overlap_area_mean,
     }
 
     metrics_preview = {
@@ -966,6 +1052,8 @@ def main() -> int:
         "mean_jitter_sm": jitter_sm_mean,
         "p95_jitter_raw": jitter_raw_p95,
         "p95_jitter_sm": jitter_sm_p95,
+        "seam_compute_ms_mean": seam_compute_mean,
+        "overlap_area_mean": overlap_area_mean,
     }
 
     _write_json(metrics_path, metrics_preview)
