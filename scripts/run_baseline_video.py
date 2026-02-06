@@ -90,6 +90,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Save snapshot images every K processed frames",
     )
     parser.add_argument(
+        "--debug_masks",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="Enable mask debug snapshots and stats logging",
+    )
+    parser.add_argument(
+        "--snapshot_stride",
+        type=int,
+        default=50,
+        help="Stride for mask debug snapshots",
+    )
+    parser.add_argument(
         "--out_dir",
         default=None,
         help="Optional output directory (default: outputs/runs/<run_id>)",
@@ -250,6 +263,32 @@ def _blend_frames(left_warped, right_warped, mode: str):
     return feather_blend(left_warped, right_warped)
 
 
+def _compute_alpha_for_blend(left_bgr, right_bgr, mode: str):
+    """Compute left alpha used by the current blend mode, constrained by validity."""
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    mask_left = ((left_bgr.sum(axis=2) > 0).astype(np.uint8) * 255)
+    mask_right = ((right_bgr.sum(axis=2) > 0).astype(np.uint8) * 255)
+    left_bin = (mask_left > 0).astype(np.uint8)
+    right_bin = (mask_right > 0).astype(np.uint8)
+    overlap_bin = (left_bin & right_bin).astype(np.uint8)
+
+    if mode == "none":
+        alpha = left_bin.astype(np.float32)
+    else:
+        dist_left = cv2.distanceTransform(left_bin, cv2.DIST_L2, 3)
+        dist_right = cv2.distanceTransform(right_bin, cv2.DIST_L2, 3)
+        denom = dist_left + dist_right
+        denom[denom == 0] = 1.0
+        alpha = (dist_left / denom).astype(np.float32)
+        alpha[(left_bin == 1) & (right_bin == 0)] = 1.0
+        alpha[(left_bin == 0) & (right_bin == 1)] = 0.0
+        alpha[(left_bin == 0) & (right_bin == 0)] = 0.0
+
+    return alpha, mask_left, mask_right, overlap_bin
+
+
 def _build_transform_columns() -> List[str]:
     columns = [
         "frame_idx",
@@ -294,6 +333,12 @@ def main() -> int:
     from stitching.io import get_pair, load_pairs, open_pair  # noqa: E402
     from stitching.features import detect_and_describe  # noqa: E402
     from stitching.matching import draw_matches, match_descriptors  # noqa: E402
+    from stitching.mask_utils import (  # noqa: E402
+        ensure_float_mask,
+        ensure_uint8_mask,
+        save_mask_png,
+        summarize_mask,
+    )
     from stitching.geometry import (  # noqa: E402
         compute_canvas_and_transform,
         estimate_homography,
@@ -311,6 +356,8 @@ def main() -> int:
     keyframe_every = max(1, int(args.keyframe_every))
     stride = max(1, int(args.stride))
     snapshot_every = max(1, int(args.snapshot_every))
+    snapshot_stride = max(1, int(args.snapshot_stride))
+    debug_masks = bool(args.debug_masks)
 
     run_id = args.run_id
     if run_id is None:
@@ -346,6 +393,8 @@ def main() -> int:
             "smooth_window": args.smooth_window,
             "fps_cli": args.fps,
             "snapshot_every": snapshot_every,
+            "debug_masks": int(debug_masks),
+            "snapshot_stride": snapshot_stride,
         },
         "fps": None,
         "fps_source": None,
@@ -649,6 +698,43 @@ def main() -> int:
                 overlay_sm = overlay_images(left_sm_warped, right_sm_warped, alpha=0.5)
                 overlay_active = overlay_sm if args.smooth_h != "none" else overlay_raw
                 stitched = _blend_frames(left_active, right_active, args.blend)
+
+                alpha_left, mask_left, mask_right, overlap_bin = _compute_alpha_for_blend(
+                    left_active,
+                    right_active,
+                    args.blend,
+                )
+                alpha_float = ensure_float_mask(alpha_left, shape=mask_left.shape)
+                alpha_u8 = (alpha_float * 255.0).clip(0, 255).astype("uint8")
+                overlap_u8 = ensure_uint8_mask(overlap_bin, shape=mask_left.shape)
+
+                if debug_masks and (processed_idx % snapshot_stride == 0):
+                    snapshots_dir = output_dir / "snapshots"
+                    save_mask_png(snapshots_dir / f"mask_left_{source_idx:06d}.png", mask_left)
+                    save_mask_png(snapshots_dir / f"mask_right_{source_idx:06d}.png", mask_right)
+                    save_mask_png(
+                        snapshots_dir / f"mask_overlap_{source_idx:06d}.png",
+                        overlap_u8,
+                    )
+                    save_mask_png(snapshots_dir / f"alpha_{source_idx:06d}.png", alpha_u8)
+
+                    for name, m in [
+                        ("mask_left", mask_left),
+                        ("mask_right", mask_right),
+                        ("mask_overlap", overlap_u8),
+                        ("alpha", alpha_u8),
+                    ]:
+                        stats = summarize_mask(name, m)
+                        logging.info(
+                            "mask_stats frame=%s name=%s min=%.3f max=%.3f mean=%.3f unique=%.0f overlap_ratio=%.4f",
+                            source_idx,
+                            name,
+                            stats["min"],
+                            stats["max"],
+                            stats["mean"],
+                            stats["unique_count"],
+                            stats["overlap_ratio"],
+                        )
 
                 writer.write(stitched)
 
