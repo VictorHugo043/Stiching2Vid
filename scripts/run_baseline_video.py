@@ -56,8 +56,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--blend",
         default="feather",
-        choices=["none", "feather"],
+        choices=["none", "feather", "multiband"],
         help="Blending mode",
+    )
+    parser.add_argument(
+        "--mb_levels",
+        type=int,
+        default=5,
+        help="Number of bands when --blend=multiband",
+    )
+    parser.add_argument(
+        "--seam",
+        default="opencv_dp_color",
+        choices=["none", "opencv_dp_color", "opencv_dp_colorgrad", "opencv_voronoi"],
+        help="Seam finder mode (computed on warped low-res ROI)",
+    )
+    parser.add_argument(
+        "--seam_megapix",
+        type=float,
+        default=0.1,
+        help="Megapixel budget used for seam estimation scale",
+    )
+    parser.add_argument(
+        "--seam_dilate",
+        type=int,
+        default=1,
+        help="Dilate iterations for seam mask before resizing to full compose mask",
     )
     parser.add_argument(
         "--smooth_h",
@@ -242,12 +266,134 @@ def _save_snapshot(
     save_image(snapshots_dir / f"overlay_sm_{frame_idx:06d}.png", overlay_sm_bgr)
 
 
-def _blend_frames(left_warped, right_warped, mode: str):
-    from stitching.blending import blend_none, feather_blend  # noqa: WPS433,E402
+def _seam_cli_to_method(seam_mode: str) -> str:
+    mapping = {
+        "none": "none",
+        "opencv_dp_color": "dp_color",
+        "opencv_dp_colorgrad": "dp_colorgrad",
+        "opencv_voronoi": "voronoi",
+    }
+    return mapping.get(seam_mode, "dp_color")
+
+
+def _compose_single_roi_on_canvas(canvas_size, roi_img, roi_mask, corner):
+    import numpy as np  # type: ignore
+
+    from stitching.seam_opencv import place_mask_on_canvas, place_roi_on_canvas  # noqa: WPS433,E402
+
+    canvas_w, canvas_h = int(canvas_size[0]), int(canvas_size[1])
+    canvas_img = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+    canvas_mask = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
+
+    place_roi_on_canvas(canvas_img, roi_img, corner)
+    place_mask_on_canvas(canvas_mask, roi_mask, corner)
+    return canvas_img, canvas_mask
+
+
+def _mask_ratio(mask) -> float:
+    import numpy as np  # type: ignore
+
+    arr = np.asarray(mask)
+    if arr.size == 0:
+        return 0.0
+    return float((arr > 0).sum()) / float(arr.size)
+
+
+def _resolve_seam_masks(left_mask_full, right_mask_full, seam_left_full, seam_right_full):
+    import numpy as np  # type: ignore
+
+    l_valid = left_mask_full > 0
+    r_valid = right_mask_full > 0
+    overlap = l_valid & r_valid
+    left_only = l_valid & (~r_valid)
+    right_only = r_valid & (~l_valid)
+
+    seam_left = (seam_left_full > 0) & overlap
+    seam_right = (seam_right_full > 0) & overlap
+
+    unresolved = overlap & (~(seam_left | seam_right))
+    seam_left = seam_left | unresolved
+
+    final_left = (left_only | seam_left).astype(np.uint8) * 255
+    final_right = (right_only | seam_right).astype(np.uint8) * 255
+    return final_left, final_right
+
+
+def _mean_overlap_diff(left_img, right_img, left_mask, right_mask) -> float:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    overlap = (left_mask > 0) & (right_mask > 0)
+    if not overlap.any():
+        return 0.0
+
+    diff = cv2.absdiff(left_img, right_img)
+    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    return float(gray[overlap].mean())
+
+
+def _blend_frames(
+    left_warped,
+    right_warped,
+    mode: str,
+    left_mask=None,
+    right_mask=None,
+    mb_levels: int = 5,
+):
+    from stitching.blending import (  # noqa: WPS433,E402
+        blend_none,
+        feather_blend,
+        multiband_blend,
+    )
 
     if mode == "none":
-        return blend_none(left_warped, right_warped)
-    return feather_blend(left_warped, right_warped)
+        return blend_none(left_warped, right_warped, left_mask=left_mask, right_mask=right_mask)
+    if mode == "multiband":
+        return multiband_blend(
+            left_warped,
+            right_warped,
+            left_mask=left_mask,
+            right_mask=right_mask,
+            levels=mb_levels,
+        )
+    return feather_blend(left_warped, right_warped, left_mask=left_mask, right_mask=right_mask)
+
+
+def _save_seam_debug(
+    output_dir: Path,
+    frame_idx: int,
+    left_low,
+    right_low,
+    left_mask_low,
+    right_mask_low,
+    seam_left_low,
+    seam_right_low,
+    seam_overlay_low,
+    overlap_diff_low,
+) -> None:
+    snapshots_dir = output_dir / "snapshots"
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
+
+    from stitching.viz import save_image  # noqa: WPS433,E402
+
+    save_image(snapshots_dir / f"warp_left_roi_{frame_idx:06d}.png", left_low)
+    save_image(snapshots_dir / f"warp_right_roi_{frame_idx:06d}.png", right_low)
+    save_image(snapshots_dir / f"mask_left_roi_{frame_idx:06d}.png", left_mask_low)
+    save_image(snapshots_dir / f"mask_right_roi_{frame_idx:06d}.png", right_mask_low)
+    save_image(snapshots_dir / f"seam_mask_left_{frame_idx:06d}.png", seam_left_low)
+    save_image(snapshots_dir / f"seam_mask_right_{frame_idx:06d}.png", seam_right_low)
+    save_image(snapshots_dir / f"seam_overlay_{frame_idx:06d}.png", seam_overlay_low)
+    save_image(snapshots_dir / f"overlap_diff_{frame_idx:06d}.png", overlap_diff_low)
+
+    # Stable aliases for quick inspection of latest keyframe.
+    save_image(snapshots_dir / "warp_left_roi.png", left_low)
+    save_image(snapshots_dir / "warp_right_roi.png", right_low)
+    save_image(snapshots_dir / "mask_left_roi.png", left_mask_low)
+    save_image(snapshots_dir / "mask_right_roi.png", right_mask_low)
+    save_image(snapshots_dir / "seam_mask_left.png", seam_left_low)
+    save_image(snapshots_dir / "seam_mask_right.png", seam_right_low)
+    save_image(snapshots_dir / "seam_overlay.png", seam_overlay_low)
+    save_image(snapshots_dir / "overlap_diff.png", overlap_diff_low)
 
 
 def _build_transform_columns() -> List[str]:
@@ -304,6 +450,18 @@ def main() -> int:
         compute_jitter,
         transform_corners,
     )
+    from stitching.seam_opencv import (  # noqa: E402
+        compute_seam_masks_opencv,
+        compute_seam_scale,
+        overlap_absdiff_preview,
+        place_mask_on_canvas,
+        place_roi_on_canvas,
+        resize_seam_to_compose,
+        scale_homography,
+        seam_overlay_preview,
+        summarize_overlap,
+        warp_to_roi,
+    )
     from stitching.viz import overlay_images  # noqa: E402
 
     start_time = time.perf_counter()
@@ -341,6 +499,10 @@ def main() -> int:
             "min_matches": args.min_matches,
             "ransac_thresh": args.ransac_thresh,
             "blend": args.blend,
+            "mb_levels": args.mb_levels,
+            "seam": args.seam,
+            "seam_megapix": args.seam_megapix,
+            "seam_dilate": args.seam_dilate,
             "smooth_h": args.smooth_h,
             "smooth_alpha": args.smooth_alpha,
             "smooth_window": args.smooth_window,
@@ -363,6 +525,10 @@ def main() -> int:
         "smooth_h": args.smooth_h,
         "smooth_alpha": args.smooth_alpha,
         "smooth_window": args.smooth_window,
+        "seam": args.seam,
+        "seam_megapix": args.seam_megapix,
+        "seam_dilate": args.seam_dilate,
+        "seam_keyframe_stats": [],
         "jitter_summary": {},
         "notes": [],
         "errors": [],
@@ -464,8 +630,10 @@ def main() -> int:
     frame_runtimes: List[float] = []
     jitter_raw_values: List[float] = []
     jitter_sm_values: List[float] = []
+    seam_keyframe_ms: List[float] = []
     prev_raw_corners = None
     prev_sm_corners = None
+    seam_cache: Optional[Dict[str, object]] = None
 
     processed_idx = 0
     source_idx = int(args.start)
@@ -623,20 +791,8 @@ def main() -> int:
                     if not writer.isOpened():
                         raise RuntimeError("Failed to open VideoWriter for stitched.mp4")
 
-                left_raw_warped, right_raw_warped = warp_pair(
-                    left,
-                    right,
-                    H_raw,
-                    canvas_size,
-                    T,
-                )
-                left_sm_warped, right_sm_warped = warp_pair(
-                    left,
-                    right,
-                    H_sm,
-                    canvas_size,
-                    T,
-                )
+                left_raw_warped, right_raw_warped = warp_pair(left, right, H_raw, canvas_size, T)
+                left_sm_warped, right_sm_warped = warp_pair(left, right, H_sm, canvas_size, T)
 
                 if args.smooth_h == "none":
                     left_active = left_raw_warped
@@ -648,7 +804,227 @@ def main() -> int:
                 overlay_raw = overlay_images(left_raw_warped, right_raw_warped, alpha=0.5)
                 overlay_sm = overlay_images(left_sm_warped, right_sm_warped, alpha=0.5)
                 overlay_active = overlay_sm if args.smooth_h != "none" else overlay_raw
-                stitched = _blend_frames(left_active, right_active, args.blend)
+
+                seam_method = _seam_cli_to_method(args.seam)
+                seam_compute_ms = 0.0
+                overlap_diff_before = 0.0
+                overlap_diff_after = 0.0
+
+                stitched = _blend_frames(
+                    left_active,
+                    right_active,
+                    args.blend,
+                    mb_levels=args.mb_levels,
+                )
+
+                if seam_method != "none":
+                    try:
+                        # Build full-resolution warped ROIs with corner metadata.
+                        M_left_full = T
+                        M_right_full = T @ H_active
+                        left_roi_full, left_roi_mask_full, left_corner_full = warp_to_roi(
+                            left,
+                            M_left_full,
+                        )
+                        right_roi_full, right_roi_mask_full, right_corner_full = warp_to_roi(
+                            right,
+                            M_right_full,
+                        )
+
+                        left_canvas, left_mask_full = _compose_single_roi_on_canvas(
+                            canvas_size,
+                            left_roi_full,
+                            left_roi_mask_full,
+                            left_corner_full,
+                        )
+                        right_canvas, right_mask_full = _compose_single_roi_on_canvas(
+                            canvas_size,
+                            right_roi_full,
+                            right_roi_mask_full,
+                            right_corner_full,
+                        )
+
+                        overlap_diff_before = _mean_overlap_diff(
+                            left_canvas,
+                            right_canvas,
+                            left_mask_full,
+                            right_mask_full,
+                        )
+
+                        if is_keyframe or seam_cache is None:
+                            seam_t0 = time.perf_counter()
+                            seam_scale = compute_seam_scale(
+                                args.seam_megapix,
+                                image_shape=(left.shape[0], left.shape[1]),
+                            )
+
+                            left_w = max(1, int(round(left.shape[1] * seam_scale)))
+                            left_h = max(1, int(round(left.shape[0] * seam_scale)))
+                            right_w = max(1, int(round(right.shape[1] * seam_scale)))
+                            right_h = max(1, int(round(right.shape[0] * seam_scale)))
+
+                            left_small = cv2.resize(
+                                left,
+                                (left_w, left_h),
+                                interpolation=cv2.INTER_AREA,
+                            )
+                            right_small = cv2.resize(
+                                right,
+                                (right_w, right_h),
+                                interpolation=cv2.INTER_AREA,
+                            )
+
+                            T_small = scale_homography(T, seam_scale)
+                            H_small = scale_homography(H_active, seam_scale)
+
+                            left_low, left_low_mask, left_low_corner = warp_to_roi(left_small, T_small)
+                            right_low, right_low_mask, right_low_corner = warp_to_roi(
+                                right_small,
+                                T_small @ H_small,
+                            )
+
+                            seam_masks_low = compute_seam_masks_opencv(
+                                [left_low, right_low],
+                                [left_low_corner, right_low_corner],
+                                [left_low_mask, right_low_mask],
+                                method=seam_method,
+                            )
+                            if len(seam_masks_low) != 2:
+                                raise RuntimeError("seam finder did not return 2 seam masks")
+
+                            seam_cache = {
+                                "seam_scale": seam_scale,
+                                "left_mask_low": seam_masks_low[0],
+                                "right_mask_low": seam_masks_low[1],
+                            }
+
+                            seam_compute_ms = (time.perf_counter() - seam_t0) * 1000.0
+                            seam_keyframe_ms.append(seam_compute_ms)
+
+                            # Debug: project low-res seam/masks to one low-res canvas.
+                            if debug["canvas_size"] is None:
+                                canvas_low_size = (left_w, left_h)
+                            else:
+                                canvas_low_size = (
+                                    max(1, int(round(debug["canvas_size"][0] * seam_scale))),
+                                    max(1, int(round(debug["canvas_size"][1] * seam_scale))),
+                                )
+                            left_low_canvas, left_low_full_mask = _compose_single_roi_on_canvas(
+                                canvas_low_size,
+                                left_low,
+                                left_low_mask,
+                                left_low_corner,
+                            )
+                            right_low_canvas, right_low_full_mask = _compose_single_roi_on_canvas(
+                                canvas_low_size,
+                                right_low,
+                                right_low_mask,
+                                right_low_corner,
+                            )
+
+                            seam_left_low_full = np.zeros_like(left_low_full_mask, dtype=np.uint8)
+                            seam_right_low_full = np.zeros_like(right_low_full_mask, dtype=np.uint8)
+                            place_mask_on_canvas(
+                                seam_left_low_full,
+                                seam_masks_low[0],
+                                left_low_corner,
+                            )
+                            place_mask_on_canvas(
+                                seam_right_low_full,
+                                seam_masks_low[1],
+                                right_low_corner,
+                            )
+
+                            seam_overlay_low = seam_overlay_preview(
+                                left_low_canvas,
+                                right_low_canvas,
+                                left_low_full_mask,
+                                right_low_full_mask,
+                                seam_left_low_full,
+                                seam_right_low_full,
+                            )
+                            overlap_diff_low = overlap_absdiff_preview(
+                                left_low_canvas,
+                                right_low_canvas,
+                                left_low_full_mask,
+                                right_low_full_mask,
+                            )
+
+                            _save_seam_debug(
+                                output_dir=output_dir,
+                                frame_idx=source_idx,
+                                left_low=left_low_canvas,
+                                right_low=right_low_canvas,
+                                left_mask_low=left_low_full_mask,
+                                right_mask_low=right_low_full_mask,
+                                seam_left_low=seam_left_low_full,
+                                seam_right_low=seam_right_low_full,
+                                seam_overlay_low=seam_overlay_low,
+                                overlap_diff_low=overlap_diff_low,
+                            )
+
+                        if seam_cache is None:
+                            raise RuntimeError("seam_cache is unavailable while seam mode is enabled")
+
+                        seam_left_roi = resize_seam_to_compose(
+                            seam_cache["left_mask_low"],
+                            left_roi_mask_full,
+                            dilate_iter=args.seam_dilate,
+                        )
+                        seam_right_roi = resize_seam_to_compose(
+                            seam_cache["right_mask_low"],
+                            right_roi_mask_full,
+                            dilate_iter=args.seam_dilate,
+                        )
+
+                        seam_left_full = np.zeros_like(left_mask_full, dtype=np.uint8)
+                        seam_right_full = np.zeros_like(right_mask_full, dtype=np.uint8)
+                        place_mask_on_canvas(seam_left_full, seam_left_roi, left_corner_full)
+                        place_mask_on_canvas(seam_right_full, seam_right_roi, right_corner_full)
+
+                        final_left_mask, final_right_mask = _resolve_seam_masks(
+                            left_mask_full,
+                            right_mask_full,
+                            seam_left_full,
+                            seam_right_full,
+                        )
+
+                        overlap_diff_after = _mean_overlap_diff(
+                            left_canvas,
+                            right_canvas,
+                            final_left_mask,
+                            final_right_mask,
+                        )
+
+                        if is_keyframe:
+                            overlap_stats = summarize_overlap(left_mask_full, right_mask_full)
+                            debug["seam_keyframe_stats"].append(
+                                {
+                                    "frame_idx": int(source_idx),
+                                    "method": seam_method,
+                                    "seam_scale": float(seam_cache["seam_scale"]),
+                                    "overlap_area_px": int(overlap_stats["overlap_area"]),
+                                    "seam_mask_nonzero_ratio_left": _mask_ratio(final_left_mask),
+                                    "seam_mask_nonzero_ratio_right": _mask_ratio(final_right_mask),
+                                    "overlap_diff_mean_before": float(overlap_diff_before),
+                                    "overlap_diff_mean_after": float(overlap_diff_after),
+                                    "runtime_ms_seam_keyframe": float(seam_compute_ms),
+                                }
+                            )
+
+                        stitched = _blend_frames(
+                            left_canvas,
+                            right_canvas,
+                            args.blend,
+                            left_mask=final_left_mask,
+                            right_mask=final_right_mask,
+                            mb_levels=args.mb_levels,
+                        )
+                    except Exception as seam_exc:
+                        warning = f"seam_fallback frame={source_idx}: {seam_exc}"
+                        debug["warnings"].append(warning)
+                        logging.warning(warning)
+                        note_parts.append("seam_fallback")
 
                 writer.write(stitched)
 
@@ -700,6 +1076,13 @@ def main() -> int:
                     debug["success_frames"] += 1
                 if status == "FALLBACK":
                     debug["fallback_frames"] += 1
+                if seam_method != "none":
+                    note_parts.append(f"seam={seam_method}")
+                    if seam_compute_ms > 0:
+                        note_parts.append(f"seam_ms={seam_compute_ms:.2f}")
+                    note_parts.append(
+                        f"overlap_diff={overlap_diff_before:.2f}->{overlap_diff_after:.2f}"
+                    )
 
                 row = {
                     "frame_idx": source_idx,
@@ -784,6 +1167,29 @@ def main() -> int:
         "p95_sm": jitter_sm_p95,
     }
 
+    seam_stats = debug.get("seam_keyframe_stats", [])
+    if seam_stats:
+        overlap_areas = [float(s.get("overlap_area_px", 0)) for s in seam_stats]
+        overlap_before_vals = [
+            float(s.get("overlap_diff_mean_before", 0.0)) for s in seam_stats
+        ]
+        overlap_after_vals = [
+            float(s.get("overlap_diff_mean_after", 0.0)) for s in seam_stats
+        ]
+        debug["seam_summary"] = {
+            "keyframe_count": len(seam_stats),
+            "runtime_ms_mean": float(sum(seam_keyframe_ms) / len(seam_keyframe_ms))
+            if seam_keyframe_ms
+            else 0.0,
+            "overlap_area_mean": float(sum(overlap_areas) / len(overlap_areas)),
+            "overlap_diff_mean_before": float(
+                sum(overlap_before_vals) / len(overlap_before_vals)
+            ),
+            "overlap_diff_mean_after": float(
+                sum(overlap_after_vals) / len(overlap_after_vals)
+            ),
+        }
+
     metrics_preview = {
         "total_frames": (
             debug["total_frames"] if debug["total_frames"] is not None else processed_frames
@@ -799,6 +1205,10 @@ def main() -> int:
         "mean_jitter_sm": jitter_sm_mean,
         "p95_jitter_raw": jitter_raw_p95,
         "p95_jitter_sm": jitter_sm_p95,
+        "seam_keyframe_count": len(debug.get("seam_keyframe_stats", [])),
+        "seam_runtime_ms_mean": float(sum(seam_keyframe_ms) / len(seam_keyframe_ms))
+        if seam_keyframe_ms
+        else 0.0,
     }
 
     _write_json(metrics_path, metrics_preview)
