@@ -1004,3 +1004,17 @@ pairs:
       length_right: 124
       fps: 30.00169364399603
       resolution: [1920, 1080]
+  - id: mine_source_indoor_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/indoor/indoor_left.mp4
+    right: data/raw/Videos/mine_source/indoor/indoor_right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: indoor
+      cameras: [left, right]
+      length_left: null
+      length_right: null
+      fps: 30
+      resolution: [1920, 1080]
