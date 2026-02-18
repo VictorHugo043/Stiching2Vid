@@ -122,7 +122,7 @@
   - 检查点：`H_s = S*H*S^-1` 是否正确；`corner` 是否在同一坐标系。
   - 修复：低分辨率 seam 全链路（warp/corner/mask）保持统一 scale 与坐标系。
 
-## 4.2.x Crop Before Seam（LIR）
+## 4.2.1 Crop Before Seam（LIR）
 - 目标：在 seam 之前先做 `Crop(Largest Interior Rectangle)`，减少黑边干扰，让 transition line 只在有效重叠区决策，避免“大矩形重影/整块叠加”。
 - 流程图（关键帧）：
   - `warp_low_roi -> panorama_mask_low -> LIR -> crop_low + crop_final -> seam(low) -> resize_to_final -> blend`
@@ -131,7 +131,7 @@
   - 仅修改 seam/blend 阶段使用的 ROI 与坐标系；
   - 非关键帧继续复用 seam cache（包含 crop rectangles）。
 
-## 4.2.x 参数
+## 4.2.2 参数
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `--crop/--no_crop` | `--crop` | 是否启用 seam 前 crop |
@@ -139,7 +139,7 @@
 | `--lir_erode` | `2` | fallback 路径腐蚀迭代次数 |
 | `--crop_debug` | `1` | 输出 crop 中间可视化 |
 
-## 4.2.x Debug 输出
+## 4.2.3 Debug 输出
 - `snapshots/panorama_mask_low.png`
 - `snapshots/lir_on_mask_low.png`
 - `snapshots/cropped_low_masks.png`
@@ -149,12 +149,12 @@
   - `crop_keyframe_stats[*].lir_method_used / lir_rect / crop_time_ms`
   - `crop_keyframe_stats[*].mask_area_before/after`
 
-## 4.2.x DoD
+## 4.2.4 DoD
 - `--no_crop`：可稳定运行，输出几何与 4.1/4.2 原流程一致（允许轻微像素差）。
 - `--crop`：黑边比例下降（`black_border_ratio_low`），seam 输入确实来自 cropped ROIs（日志含 shape/corner before/after）。
 - smoke test 必须产出 `mask/lir/cropped_final_as_is` 三类 snapshots。
 
-## 4.2.x Ablation（Crop）
+## 4.2.5 Ablation（Crop）
 - 脚本：`scripts/ablate_crop.py`
 - A/B 两组：
   - A：`warp -> seam -> blend`（`--no_crop`）

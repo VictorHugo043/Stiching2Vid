@@ -445,6 +445,11 @@ class VideoStitcher:
             "seam_scale": float(low_data["seam_scale"]),
             "crop_applied": bool(crop_out.get("crop_applied", False)),
             "crop_method": crop_out.get("crop_method", "none"),
+            "crop_aspect": (
+                float(crop_out.get("crop_aspect"))
+                if crop_out.get("crop_aspect") is not None
+                else None
+            ),
             "crop_rect": (
                 {
                     "x": int(crop_out["lir_rect"].x),
@@ -489,28 +494,20 @@ class VideoStitcher:
             raise RuntimeError("VideoStitcher state is not initialized")
 
         final_data = self._compute_final_rois(left_frame, right_frame, H, T, canvas_size)
-        low_data = self._compute_low(left_frame, right_frame, H, T)
         crop_applied = False
         crop_method = "none"
         crop_rect = self.state.metadata.get("crop_rect")
+        low_data = None
 
         if self.state.cropper_state is not None:
             cropper = self.state.cropper_state
             try:
                 crop_applied = True
                 crop_method = str(self.state.metadata.get("crop_method", "fallback"))
-                low_data["imgs"] = list(cropper.crop_images(low_data["imgs"]))
-                low_data["masks"] = list(cropper.crop_images(low_data["masks"]))
-                low_data["corners"], low_data["sizes"] = cropper.crop_rois(
-                    low_data["corners"],
-                    low_data["sizes"],
-                )
-
-                aspect_candidates: List[float] = []
-                for (fw, fh), (lw, lh) in zip(final_data["sizes"], low_data["sizes"]):
-                    aspect_candidates.append(float(fw) / float(max(1, lw)))
-                    aspect_candidates.append(float(fh) / float(max(1, lh)))
-                crop_aspect = max(min(aspect_candidates) - 1e-6, 1e-6)
+                crop_aspect = self.state.metadata.get("crop_aspect")
+                if crop_aspect is None:
+                    raise RuntimeError("missing cached crop_aspect in video state")
+                crop_aspect = float(crop_aspect)
                 final_data["imgs"] = list(cropper.crop_images(final_data["imgs"], aspect=crop_aspect))
                 final_data["masks"] = list(cropper.crop_images(final_data["masks"], aspect=crop_aspect))
                 final_data["corners"] = [
@@ -524,6 +521,17 @@ class VideoStitcher:
 
         seam_t0 = time.perf_counter()
         if recompute_seam or self.state.seam_masks_low is None:
+            # In default frame0 reuse mode we should not be here. When seam refresh is
+            # requested, low-res warp/crop is recomputed explicitly for this frame.
+            low_data = self._compute_low(left_frame, right_frame, H, T)
+            if self.state.cropper_state is not None and crop_applied:
+                cropper = self.state.cropper_state
+                low_data["imgs"] = list(cropper.crop_images(low_data["imgs"]))
+                low_data["masks"] = list(cropper.crop_images(low_data["masks"]))
+                low_data["corners"], low_data["sizes"] = cropper.crop_rois(
+                    low_data["corners"],
+                    low_data["sizes"],
+                )
             seam_low = self._compute_seam_masks_low(low_data["imgs"], low_data["corners"], low_data["masks"])
             seam_compute_ms = (time.perf_counter() - seam_t0) * 1000.0
             if self.reuse_mode in {"frame0_all", "frame0_seam"}:

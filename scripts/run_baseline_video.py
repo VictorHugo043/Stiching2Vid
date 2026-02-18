@@ -120,9 +120,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--video_mode",
         type=int,
-        default=0,
+        default=1,
         choices=[0, 1],
-        help="Enable frame0-reuse video stitching mode",
+        help="Enable frame0-reuse video stitching mode (default: enabled)",
     )
     parser.add_argument(
         "--reuse_mode",
@@ -1107,10 +1107,6 @@ def main() -> int:
                     debug["overlap_area_samples"].append(
                         {"frame_idx": int(source_idx), "overlap_area_current": overlap_current}
                     )
-                    left_warped_v, right_warped_v = warp_pair(left, right, H_video, canvas_size, T)
-                    overlay_raw = overlay_images(left_warped_v, right_warped_v, alpha=0.5)
-                    overlay_sm = overlay_raw
-                    overlay_active = overlay_raw
 
                     if writer is None:
                         raise RuntimeError("VideoWriter is not initialized")
@@ -1150,6 +1146,11 @@ def main() -> int:
                     )
 
                     if processed_idx % snapshot_every == 0:
+                        # Skip expensive debug overlays on non-snapshot frames.
+                        left_warped_v, right_warped_v = warp_pair(left, right, H_video, canvas_size, T)
+                        overlay_raw = overlay_images(left_warped_v, right_warped_v, alpha=0.5)
+                        overlay_sm = overlay_raw
+                        overlay_active = overlay_raw
                         _save_snapshot(
                             output_dir,
                             source_idx,
