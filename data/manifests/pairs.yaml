@@ -1142,3 +1142,313 @@ pairs:
       frame_count_right: 87
       fps: null
       resolution: '(1242, 375)'
+
+  - id: kitti_raw_data_2011_09_26_drive_0019_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0019_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0019_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_26/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_26_drive_0019_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 481
+      frame_count_right: 481
+      fps: null
+      resolution: '(1242, 375)'
+  - id: kitti_raw_data_2011_09_26_drive_0019_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0019_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0019_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_26/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_26_drive_0019_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 481
+      frame_count_right: 481
+      fps: null
+      resolution: '(1242, 375)'
+
+  - id: kitti_raw_data_2011_09_26_drive_0020_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0020_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0020_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_26/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_26_drive_0020_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 86
+      frame_count_right: 86
+      fps: null
+      resolution: '(1242, 375)'
+  - id: kitti_raw_data_2011_09_26_drive_0020_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0020_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_26/2011_09_26_drive_0020_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_26/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_26_drive_0020_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 86
+      frame_count_right: 86
+      fps: null
+      resolution: '(1242, 375)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0016_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0016_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0016_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0016_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 186
+      frame_count_right: 186
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0016_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0016_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0016_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0016_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 186
+      frame_count_right: 186
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0021_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0021_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0021_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0021_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 209
+      frame_count_right: 209
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0021_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0021_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0021_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0021_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 209
+      frame_count_right: 209
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0035_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0035_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0035_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0035_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 35
+      frame_count_right: 35
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0035_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0035_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0035_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0035_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 35
+      frame_count_right: 35
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0043_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0043_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0043_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0043_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 145
+      frame_count_right: 145
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0043_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0043_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0043_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0043_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 145
+      frame_count_right: 145
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0053_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0053_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0053_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0053_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 68
+      frame_count_right: 68
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0053_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0053_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0053_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0053_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 68
+      frame_count_right: 68
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0057_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0057_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0057_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0057_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 74
+      frame_count_right: 74
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0057_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0057_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0057_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0057_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 74
+      frame_count_right: 74
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0089_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0089_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0089_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0089_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 38
+      frame_count_right: 38
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0089_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0089_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0089_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0089_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 38
+      frame_count_right: 38
+      fps: null
+      resolution: '(1224, 370)'
+
+  - id: kitti_raw_data_2011_09_28_drive_0119_image_02_image_03
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0119_sync/image_02/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0119_sync/image_03/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: false
+    meta:
+      scene: 2011_09_28_drive_0119_sync
+      cameras: [image_02, image_03]
+      frame_pattern: "*.png"
+      frame_count_left: 77
+      frame_count_right: 77
+      fps: null
+      resolution: '(1224, 370)'
+  - id: kitti_raw_data_2011_09_28_drive_0119_image_00_image_01
+    dataset: KITTI Raw Data
+    input_type: frames
+    left: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0119_sync/image_00/data
+    right: data/raw/Videos/KITTI Raw Data/2011_09_28/2011_09_28_drive_0119_sync/image_01/data
+    calib: data/raw/Videos/KITTI Raw Data/2011_09_28/calib_cam_to_cam.txt
+    optional: true
+    meta:
+      scene: 2011_09_28_drive_0119_sync
+      cameras: [image_00, image_01]
+      frame_pattern: "*.png"
+      frame_count_left: 77
+      frame_count_right: 77
+      fps: null
+      resolution: '(1224, 370)'
