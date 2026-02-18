@@ -13,6 +13,7 @@
 - 关键帧策略：第 0 帧强制估计 H；每隔 `keyframe_every` 帧重估一次；其余帧复用最近有效 H。
 - 画布策略：以第一帧（或首个可用 H）估计的画布为固定画布，避免输出尺寸抖动。
 - 融合策略：`blend=none|feather`，默认 feather（distance transform 权重）。
+- 4.2.x 顺序：`warp -> crop(LIR) -> seam -> blend`（crop 默认开启，可用 `--no_crop` 关闭）。
 
 ## FPS 决策规则（已实现）
 - 优先：`input_type=video` 且 `source.fps()` 有效。
@@ -60,6 +61,20 @@
 - 已新增 `src/stitching/temporal.py`：对单应轨迹进行时序平滑，并输出 `raw/smoothed` 双轨诊断。
 - 已新增 `jitter_timeseries.csv` 与 `overlay_raw/overlay_sm` 快照，用于量化和目视验证抖动改善。
 
+## P2 Seam 接入原则（4.2）
+- 插入点：在 `warp` 之后先执行 `crop(LIR)`，再执行 `seam`，最后 `blend`。
+- 核心安全约束：
+  - seam 仅在 overlap 有效区生成与生效；
+  - seam mask 必须先 resize 到 ROI full mask，再 `bitwise_and`；
+  - compositing 前需将 seam ROI mask 按 corner 放回 full canvas；
+  - crop 后若 `corners/sizes` 出现负值或越界，立即 raise（禁止静默纠错）；
+  - non-overlap 区域禁止半透明混合。
+- 关键帧缓存策略：
+  - 仅关键帧计算 seam（低分辨率）并缓存；
+  - 仅关键帧估计 LIR/crop rectangles，并随 seam cache 复用到非关键帧；
+  - 非关键帧复用 seam cache，保持与 `keyframe_every` 一致；
+  - `smooth_h` 与 seam cache 并行工作，不改变 4.1 temporal 逻辑。
+
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |
 | --- | --- | --- | --- |
@@ -70,3 +85,7 @@
 | scripts/run_baseline_video.py | 新增 smooth_h 参数、Hraw/Hsm 记录、jitter 诊断输出 | Codex | 完成 |
 | scripts/ablate_temporal.py | 新增 temporal ablation 自动对比脚本 | Codex | 完成 |
 | ai-docs/current/04_quality_improvement/04_quality_improvement.md | 新增阶段 4.1 文档 | Codex | 完成 |
+| src/stitching/seam_opencv.py | 新增 seam ROI/resize/AND 工具链 | Codex | 完成 |
+| src/stitching/blending.py | seam mask 兼容的 blending 与 multiband | Codex | 完成 |
+| scripts/run_baseline_video.py | seam 参数与 keyframe seam cache 接入 | Codex | 完成 |
+| scripts/ablate_seam.py | 新增 seam ablation（A/B/C/D） | Codex | 完成 |
