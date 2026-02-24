@@ -255,10 +255,3 @@ Planned:
 - Expand stronger matching / robust geometry options for challenging overlap.
 - Improve evaluation metrics and reporting automation.
 
-## License & Credits
-
-- License:
-  - `TODO`: no repository `LICENSE` file detected at root.
-- Credits:
-  - OpenCV stitching/detail APIs for seam finding and blending workflow.
-  - OpenStitching (`stitching-0.6.1`) as local reference for crop/video pipeline semantics.
