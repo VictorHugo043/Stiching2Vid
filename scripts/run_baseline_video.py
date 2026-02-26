@@ -391,6 +391,28 @@ def _mask_bbox_area(mask) -> int:
     return int((xs.max() - xs.min() + 1) * (ys.max() - ys.min() + 1))
 
 
+def _mask_union_bbox(mask_a, mask_b) -> Optional[Tuple[int, int, int, int]]:
+    import numpy as np  # type: ignore
+
+    union = (np.asarray(mask_a) > 0) | (np.asarray(mask_b) > 0)
+    if not union.any():
+        return None
+    ys, xs = np.where(union)
+    x0, x1 = int(xs.min()), int(xs.max())
+    y0, y1 = int(ys.min()), int(ys.max())
+    return x0, y0, int(x1 - x0 + 1), int(y1 - y0 + 1)
+
+
+def _crop_frame_to_rect(img, rect: Tuple[int, int, int, int]):
+    x, y, w, h = [int(v) for v in rect]
+    if w <= 0 or h <= 0:
+        raise ValueError(f"invalid crop rect size: {rect}")
+    ih, iw = int(img.shape[0]), int(img.shape[1])
+    if x < 0 or y < 0 or (x + w) > iw or (y + h) > ih:
+        raise ValueError(f"crop rect out of frame bounds: {rect} vs {(iw, ih)}")
+    return img[y : y + h, x : x + w]
+
+
 def _compose_masks_panorama(masks, corners, sizes):
     """Compose masks into one panorama canvas by OR, with corner offsets."""
 
@@ -498,7 +520,13 @@ def _validate_rois_or_raise(name: str, imgs, masks, corners, sizes, canvas_size=
             raise ValueError(f"{name}[{idx}] exceeds canvas height: {corner} + {h} > {canvas_h}")
 
 
-def _resolve_seam_masks(left_mask_full, right_mask_full, seam_left_full, seam_right_full):
+def _resolve_seam_masks(
+    left_mask_full,
+    right_mask_full,
+    seam_left_full,
+    seam_right_full,
+    limit_mask_full=None,
+):
     import numpy as np  # type: ignore
 
     l_valid = left_mask_full > 0
@@ -515,6 +543,12 @@ def _resolve_seam_masks(left_mask_full, right_mask_full, seam_left_full, seam_ri
 
     final_left = (left_only | seam_left).astype(np.uint8) * 255
     final_right = (right_only | seam_right).astype(np.uint8) * 255
+
+    if limit_mask_full is not None:
+        limit = np.asarray(limit_mask_full) > 0
+        final_left = (((final_left > 0) & limit).astype(np.uint8)) * 255
+        final_right = (((final_right > 0) & limit).astype(np.uint8)) * 255
+
     return final_left, final_right
 
 
@@ -757,6 +791,7 @@ def main() -> int:
         "lir_erode": int(args.lir_erode),
         "crop_debug": int(args.crop_debug),
         "crop_fallback_to_no_crop": False,
+        "output_crop_rect": None,
         "crop_keyframe_stats": [],
         "video_mode": int(args.video_mode),
         "reuse_mode": args.reuse_mode,
@@ -848,6 +883,7 @@ def main() -> int:
     canvas_size: Optional[Tuple[int, int]] = None
     T = None
     writer = None
+    output_crop_rect: Optional[Tuple[int, int, int, int]] = None
 
     last_stats = {
         "n_kp_left": None,
@@ -1056,10 +1092,6 @@ def main() -> int:
                                 H_use_init,
                             )
                             debug["canvas_size"] = [int(canvas_size[0]), int(canvas_size[1])]
-                            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                            writer = cv2.VideoWriter(str(video_path), fourcc, fps_value, canvas_size)
-                            if not writer.isOpened():
-                                raise RuntimeError("Failed to open VideoWriter for stitched.mp4")
 
                         if video_stitcher.state.initialized:
                             debug["reinit_count"] = int(debug.get("reinit_count", 0)) + 1
@@ -1102,15 +1134,35 @@ def main() -> int:
                         recompute_seam=recompute_seam,
                     )
                     stitched = stitch_out["stitched"]
+                    stitched_written = stitched
                     overlap_current = int(stitch_out.get("overlap_area", 0))
                     debug["overlap_area_current"] = int(overlap_current)
                     debug["overlap_area_samples"].append(
                         {"frame_idx": int(source_idx), "overlap_area_current": overlap_current}
                     )
+                    proposed_output_bbox = stitch_out.get("output_bbox")
+                    if (
+                        bool(args.crop)
+                        and output_crop_rect is None
+                        and proposed_output_bbox is not None
+                    ):
+                        output_crop_rect = tuple(int(v) for v in proposed_output_bbox)
+                        debug["output_crop_rect"] = {
+                            "x": int(output_crop_rect[0]),
+                            "y": int(output_crop_rect[1]),
+                            "w": int(output_crop_rect[2]),
+                            "h": int(output_crop_rect[3]),
+                        }
+                    if bool(args.crop) and output_crop_rect is not None:
+                        stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
 
                     if writer is None:
-                        raise RuntimeError("VideoWriter is not initialized")
-                    writer.write(stitched)
+                        out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
+                        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                        writer = cv2.VideoWriter(str(video_path), fourcc, fps_value, (out_w, out_h))
+                        if not writer.isOpened():
+                            raise RuntimeError("Failed to open VideoWriter for stitched.mp4")
+                    writer.write(stitched_written)
 
                     H_raw = H_video
                     H_sm = H_video
@@ -1156,7 +1208,7 @@ def main() -> int:
                             source_idx,
                             left,
                             right,
-                            stitched,
+                            stitched_written,
                             overlay_active,
                             overlay_raw,
                             overlay_sm,
@@ -1347,11 +1399,6 @@ def main() -> int:
                     )
                     debug["canvas_size"] = [int(canvas_size[0]), int(canvas_size[1])]
 
-                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                    writer = cv2.VideoWriter(str(video_path), fourcc, fps_value, canvas_size)
-                    if not writer.isOpened():
-                        raise RuntimeError("Failed to open VideoWriter for stitched.mp4")
-
                 left_raw_warped, right_raw_warped = warp_pair(left, right, H_raw, canvas_size, T)
                 left_sm_warped, right_sm_warped = warp_pair(left, right, H_sm, canvas_size, T)
 
@@ -1374,6 +1421,7 @@ def main() -> int:
                 crop_applied = 0
                 crop_method_used = "none"
                 crop_lir_rect = None
+                output_bbox_current = None
 
                 stitched = _blend_frames(
                     left_active,
@@ -1895,12 +1943,28 @@ def main() -> int:
                         place_mask_on_canvas(seam_left_full, seam_left_roi, seam_target_corners_abs[0])
                         place_mask_on_canvas(seam_right_full, seam_right_roi, seam_target_corners_abs[1])
 
+                        crop_limit_full = None
+                        if crop_applied:
+                            crop_limit_full = np.zeros_like(left_mask_full, dtype=np.uint8)
+                            place_mask_on_canvas(
+                                crop_limit_full,
+                                seam_target_masks[0],
+                                seam_target_corners_abs[0],
+                            )
+                            place_mask_on_canvas(
+                                crop_limit_full,
+                                seam_target_masks[1],
+                                seam_target_corners_abs[1],
+                            )
+
                         final_left_mask, final_right_mask = _resolve_seam_masks(
                             left_mask_full,
                             right_mask_full,
                             seam_left_full,
                             seam_right_full,
+                            limit_mask_full=crop_limit_full,
                         )
+                        output_bbox_current = _mask_union_bbox(final_left_mask, final_right_mask)
 
                         overlap_diff_after = _mean_overlap_diff(
                             left_canvas,
@@ -1938,7 +2002,25 @@ def main() -> int:
                         _warn_and_record(debug, f"seam_fallback frame={source_idx}: {seam_exc}")
                         note_parts.append("seam_fallback")
 
-                writer.write(stitched)
+                stitched_written = stitched
+                if bool(args.crop) and output_crop_rect is None and output_bbox_current is not None:
+                    output_crop_rect = tuple(int(v) for v in output_bbox_current)
+                    debug["output_crop_rect"] = {
+                        "x": int(output_crop_rect[0]),
+                        "y": int(output_crop_rect[1]),
+                        "w": int(output_crop_rect[2]),
+                        "h": int(output_crop_rect[3]),
+                    }
+                if bool(args.crop) and output_crop_rect is not None:
+                    stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
+
+                if writer is None:
+                    out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
+                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                    writer = cv2.VideoWriter(str(video_path), fourcc, fps_value, (out_w, out_h))
+                    if not writer.isOpened():
+                        raise RuntimeError("Failed to open VideoWriter for stitched.mp4")
+                writer.write(stitched_written)
 
                 raw_corners = transform_corners(
                     H_raw,
@@ -1975,7 +2057,7 @@ def main() -> int:
                         source_idx,
                         left,
                         right,
-                        stitched,
+                        stitched_written,
                         overlay_active,
                         overlay_raw,
                         overlay_sm,

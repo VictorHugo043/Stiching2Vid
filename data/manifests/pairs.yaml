@@ -864,15 +864,15 @@ pairs:
       length_right: null
       fps: null
       resolution: null
-  - id: mine_source_autumn_left_right
+  - id: mine_source_leaves_left_right
     dataset: mine_source
     input_type: video
-    left: data/raw/Videos/mine_source/autumn/left.mp4
-    right: data/raw/Videos/mine_source/autumn/right.mp4
+    left: data/raw/Videos/mine_source/leaves/left.mp4
+    right: data/raw/Videos/mine_source/leaves/right.mp4
     calib: null
     optional: false
     meta:
-      scene: autumn
+      scene: leaves
       cameras: [left, right]
       length_left: 78
       length_right: 78

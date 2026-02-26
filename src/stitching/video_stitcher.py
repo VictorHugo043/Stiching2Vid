@@ -30,7 +30,13 @@ def _as_u8(mask):
     return (arr > 0).astype(np.uint8) * 255
 
 
-def _resolve_seam_masks(left_mask_full, right_mask_full, seam_left_full, seam_right_full):
+def _resolve_seam_masks(
+    left_mask_full,
+    right_mask_full,
+    seam_left_full,
+    seam_right_full,
+    limit_mask_full=None,
+):
     import numpy as np  # type: ignore
 
     l_valid = left_mask_full > 0
@@ -46,6 +52,10 @@ def _resolve_seam_masks(left_mask_full, right_mask_full, seam_left_full, seam_ri
 
     final_left = (left_only | seam_left).astype(np.uint8) * 255
     final_right = (right_only | seam_right).astype(np.uint8) * 255
+    if limit_mask_full is not None:
+        limit = np.asarray(limit_mask_full) > 0
+        final_left = (((final_left > 0) & limit).astype(np.uint8)) * 255
+        final_right = (((final_right > 0) & limit).astype(np.uint8)) * 255
     return final_left, final_right
 
 
@@ -70,6 +80,31 @@ def _mask_bbox_area(mask) -> int:
         return 0
     ys, xs = np.where(valid)
     return int((xs.max() - xs.min() + 1) * (ys.max() - ys.min() + 1))
+
+
+def _mask_union_bbox(mask_a, mask_b) -> Optional[Tuple[int, int, int, int]]:
+    import numpy as np  # type: ignore
+
+    union = (np.asarray(mask_a) > 0) | (np.asarray(mask_b) > 0)
+    if not union.any():
+        return None
+    ys, xs = np.where(union)
+    x0, x1 = int(xs.min()), int(xs.max())
+    y0, y1 = int(ys.min()), int(ys.max())
+    return x0, y0, int(x1 - x0 + 1), int(y1 - y0 + 1)
+
+
+def _compose_limit_mask(canvas_masks, roi_masks, corners):
+    import numpy as np  # type: ignore
+
+    from stitching.seam_opencv import place_mask_on_canvas
+
+    if not roi_masks or not corners:
+        return None
+    base = np.zeros_like(canvas_masks[0], dtype=np.uint8)
+    for mask, corner in zip(roi_masks, corners):
+        place_mask_on_canvas(base, _as_u8(mask), corner)
+    return base
 
 
 def _compose_masks_panorama(masks, corners, sizes):
@@ -321,7 +356,7 @@ class VideoStitcher:
 
         return compute_seam_masks_opencv(imgs, corners, masks, method=self.seam_method)
 
-    def _compose_final_masks(self, seam_masks_low, final_data):
+    def _compose_final_masks(self, seam_masks_low, final_data, limit_mask_full=None):
         import numpy as np  # type: ignore
 
         from stitching.seam_opencv import place_mask_on_canvas, resize_seam_to_compose
@@ -350,6 +385,7 @@ class VideoStitcher:
             right_canvas_mask,
             seam_left_full,
             seam_right_full,
+            limit_mask_full=limit_mask_full,
         )
         return final_left_mask, final_right_mask
 
@@ -373,7 +409,19 @@ class VideoStitcher:
         low_data, final_data, crop_out = self._maybe_crop(low_data, final_data, frame_idx)
 
         seam_low = self._compute_seam_masks_low(low_data["imgs"], low_data["corners"], low_data["masks"])
-        final_left_mask, final_right_mask = self._compose_final_masks(seam_low, final_data)
+        crop_limit_mask = None
+        if crop_out.get("crop_applied", False):
+            crop_limit_mask = _compose_limit_mask(
+                final_data["canvas_masks"],
+                final_data["masks"],
+                final_data["corners"],
+            )
+        final_left_mask, final_right_mask = self._compose_final_masks(
+            seam_low,
+            final_data,
+            limit_mask_full=crop_limit_mask,
+        )
+        output_bbox = _mask_union_bbox(final_left_mask, final_right_mask)
         stitched = self._blend(
             final_data["canvas_imgs"][0],
             final_data["canvas_imgs"][1],
@@ -466,6 +514,16 @@ class VideoStitcher:
             "mask_area_after": int(crop_out.get("mask_area_after", 0)),
             "mask_bbox_before": int(crop_out.get("mask_bbox_before", 0)),
             "mask_bbox_after": int(crop_out.get("mask_bbox_after", 0)),
+            "output_bbox": (
+                {
+                    "x": int(output_bbox[0]),
+                    "y": int(output_bbox[1]),
+                    "w": int(output_bbox[2]),
+                    "h": int(output_bbox[3]),
+                }
+                if output_bbox is not None
+                else None
+            ),
             "init_ms": float((time.perf_counter() - init_t0) * 1000.0),
         }
         return {
@@ -475,6 +533,7 @@ class VideoStitcher:
             "crop_applied": bool(crop_out.get("crop_applied", False)),
             "crop_method": str(crop_out.get("crop_method", "none")),
             "crop_rect": self.state.metadata.get("crop_rect"),
+            "output_bbox": output_bbox,
             "seam_compute_ms": 0.0,
         }
 
@@ -540,7 +599,19 @@ class VideoStitcher:
             seam_low = self.state.seam_masks_low
             seam_compute_ms = 0.0
 
-        final_left_mask, final_right_mask = self._compose_final_masks(seam_low, final_data)
+        crop_limit_mask = None
+        if crop_applied:
+            crop_limit_mask = _compose_limit_mask(
+                final_data["canvas_masks"],
+                final_data["masks"],
+                final_data["corners"],
+            )
+        final_left_mask, final_right_mask = self._compose_final_masks(
+            seam_low,
+            final_data,
+            limit_mask_full=crop_limit_mask,
+        )
+        output_bbox = _mask_union_bbox(final_left_mask, final_right_mask)
         stitched = self._blend(
             final_data["canvas_imgs"][0],
             final_data["canvas_imgs"][1],
@@ -555,4 +626,5 @@ class VideoStitcher:
             "crop_applied": bool(crop_applied),
             "crop_method": crop_method,
             "crop_rect": crop_rect,
+            "output_bbox": output_bbox,
         }
