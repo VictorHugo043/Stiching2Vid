@@ -110,6 +110,37 @@ python3 scripts/run_baseline_frame.py \
   --frame_index 0
 ```
 
+## Side-by-Side Preprocess (mine_source)
+
+Use this script to split side-by-side stereo videos (expected `2560x720`) into
+left/right streams and append pair entries to `data/manifests/pairs.yaml`.
+
+```bash
+python3 scripts/preprocess/split_sbs_stereo.py
+```
+
+Defaults:
+- Input scan dir: `data/preprocess` (`.avi/.mp4/.mov`)
+- Output root: `data/raw/Videos/mine_source`
+- Manifest: `data/manifests/pairs.yaml`
+- Output naming: `data/raw/Videos/mine_source/<stem>/left|right.<ext>`
+- Output ext: inferred from existing `mine_source` outputs (currently `mp4`)
+
+Common options:
+
+```bash
+python3 scripts/preprocess/split_sbs_stereo.py \
+  --dry_run \
+  --ext mp4 \
+  --overwrite
+```
+
+Notes:
+- Prefers `ffmpeg` crop; falls back to OpenCV if `ffmpeg` is unavailable.
+- Checks input resolution strictly (`2560x720`), otherwise exits with error.
+- Backs up manifest before write to `data/manifests/pairs.yaml.bak`.
+- Rejects pair id conflicts (`mine_source_<stem>_left_right`) to avoid duplicates.
+
 ## Data Format
 
 Pair registration is defined in `data/manifests/pairs.yaml` under top-level `pairs`.
@@ -254,4 +285,3 @@ Planned:
 - Add dedicated crop and video-reuse ablation scripts with unified summaries.
 - Expand stronger matching / robust geometry options for challenging overlap.
 - Improve evaluation metrics and reporting automation.
-

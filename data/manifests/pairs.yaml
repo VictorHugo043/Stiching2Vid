@@ -1019,6 +1019,21 @@ pairs:
       fps: 30
       resolution: [1920, 1080]
 
+  - id: mine_source_indoor2_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/indoor2/left.mp4
+    right: data/raw/Videos/mine_source/indoor2/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: indoor2
+      cameras: [left, right]
+      length_left: 628
+      length_right: 628
+      fps: 29.958866476328
+      resolution: [1280, 720]
+
   - id: kitti_raw_data_2011_09_26_drive_0001_image_02_image_03
     dataset: KITTI Raw Data
     input_type: frames

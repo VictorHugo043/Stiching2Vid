@@ -6,6 +6,8 @@ __pycache__/
 
 # data & outputs (你的项目通常很大)
 data/raw/
+data/preprocess/
+scripts/preprocess/
 outputs/
 *.mp4
 *.avi
@@ -24,3 +26,4 @@ backup_before_rollback_4p2/
 background/
 reports/
 stitching-0.6.1/
+data/manifests/pairs.yaml.bak
