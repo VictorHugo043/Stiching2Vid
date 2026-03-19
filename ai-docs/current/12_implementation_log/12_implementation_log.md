@@ -164,3 +164,94 @@
 - 下一步建议：
   - 继续完成 Phase 0 的 bundle/schema 冻结，检查下游脚本是否需要读取 `geometry_mode / jitter_meaningful`。
   - 然后再进入 Method B 的最小子任务计划，先单帧设计再视频接入。
+
+## IMP-20260319-03
+- 状态：done
+- 标题：Phase 0 收尾：降级旧 ablation 脚本并确认冻结边界完成
+- 本步目标：
+  - 回顾 Phase 0 当前冻结项是否已经足以支撑进入 Phase 1。
+  - 将 `scripts/ablate_temporal.py` 与 `scripts/ablate_seam.py` 明确降级为 legacy / optional utility，而不是当前正式工作流入口。
+  - 在 ai-docs 中写清楚 Phase 0 的“已完成 / 延后项 / 不再依赖项”。
+- 关联上一步结论：
+  - `DEC-20260319-05`：运行模式文档层显式拆分为 `fixed_geometry / keyframe_update / adaptive_update`。
+  - `DEC-20260319-07`：先保留 legacy CLI 参数，同时冻结导出语义字段。
+  - `ISSUE-20260319-06`：下游 ablation 脚本尚未统一消费新字段。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+- 本步回读代码：
+  - `scripts/ablate_temporal.py`
+  - `scripts/ablate_seam.py`
+- 准备修改文件：
+  - `scripts/ablate_temporal.py`
+  - `scripts/ablate_seam.py`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 两个脚本当前只是旧实验便捷入口，继续把它们当作 Phase 0 闭环的一部分会误导后续排期。
+  - master plan、evaluation 和 quality 文档需要同步反映“脚本存在，但不是当前正式入口”的状态。
+  - 决策 / 实施 / issue 文档需要记录 Phase 0 的完成边界。
+- 风险点：
+  - 直接删除脚本会让已有输出目录和历史参考入口断裂。
+  - 只改一处文档会导致别处继续把旧脚本视为正式路径。
+  - 过度扩大为 experiment driver 重构会越过“最小改动”边界。
+- 验收标准：
+  - `ablate_temporal.py`、`ablate_seam.py` 被明确标注为 legacy / optional utility。
+  - ai-docs 明确 Phase 0 的已完成项、延后项和不再依赖项。
+  - `ISSUE-20260319-06` 被降级或关闭，不再阻塞进入 Phase 1。
+  - 最终能给出清晰的 Phase 1 下一步建议。
+- 替代方案与不选原因：
+  - 方案：直接删除两个脚本。
+  - 不选原因：它们仍有历史参考价值，删除会增加不必要的工作区扰动，且不影响当前主线推进。
+- 实际修改文件：
+  - `scripts/ablate_temporal.py`
+  - `scripts/ablate_seam.py`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `ablate_temporal.py`、`ablate_seam.py` 的模块说明和 CLI help 中显式加入 legacy / optional 标记。
+  - 在 `04_quality_improvement` 与 `05_evaluation` 中写明：
+    - 旧 ablation 脚本存在
+    - 但不作为当前 Phase 0 / Phase 1 的正式入口或验收依赖
+    - 当前正式入口仍是 `scripts/run_baseline_video.py`
+  - 在 `08_project_status_and_master_plan` 的 `Phase 0` 下新增“当前完成判断”，明确：
+    - 已完成的最小冻结项
+    - 暂未完成但不阻塞 Phase 1 的事项
+  - 新增 `DEC-20260319-08`，将两个旧 ablation 脚本正式降级为 legacy exploratory helpers。
+  - 将 `ISSUE-20260319-06` 从 `open` 调整为 `deferred`。
+- 验证方式：
+  - 运行 `python3 -m py_compile scripts/ablate_temporal.py scripts/ablate_seam.py`
+  - 运行 `python3 scripts/ablate_temporal.py --help`
+  - 运行 `python3 scripts/ablate_seam.py --help`
+  - 使用 `rg` 核对 ai-docs 中的 legacy 标注、Phase 0 完成判断和 issue 状态
+- 运行结果与验证结果：
+  - 两个脚本语法检查通过。
+  - 两个脚本的 `--help` 已明确显示 legacy / optional 提示。
+  - ai-docs 已明确：
+    - Phase 0 的最小冻结已完成
+    - 旧 ablation 脚本不再阻塞当前主线
+    - 统一 experiment driver 延后到 Phase 3
+- 偏差：
+  - 本步没有删除旧脚本。
+  - 本步没有建设新的 experiment driver，也没有修改核心 stitching pipeline。
+- 下一步建议：
+  - 进入 Phase 1，先开一条 Method B 最小子任务计划。
+  - 第一子任务只做单帧设计与接入边界，不直接扩展到视频。
+  - 优先整理 `features / matching / geometry` 的统一结果结构与 backend 接口。

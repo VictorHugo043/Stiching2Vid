@@ -105,6 +105,17 @@
 - 风险：旧 run bundle 名称与新术语不一致。
   - 规避：文档先解释映射，不立即重命名历史 run。
 
+### 当前完成判断（2026-03-19）
+- 对进入 Phase 1 所必需的最小冻结已完成：
+  - 当前 baseline video pipeline 的 as-built 行为已对齐到文档。
+  - `run_baseline_video.py` 已显式导出 `geometry_mode` 与 `jitter_meaningful`。
+  - `fixed_geometry / keyframe_update / adaptive_update` 的语义边界已固定，且当前实现不会误导性导出 `adaptive_update`。
+  - `scripts/ablate_temporal.py` 与 `scripts/ablate_seam.py` 已降级为 legacy exploratory helpers，不再作为当前 Phase 0 闭环前提。
+- 暂未完成但不阻塞 Phase 1：
+  - 显式 `config.json` 导出
+  - 统一 experiment driver
+  - 更完整的 summary / plotting pipeline
+
 ## Phase 1
 ### 目标
 - 接入 `SuperPoint + LightGlue + MAGSAC++`。

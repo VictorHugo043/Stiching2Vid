@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run seam ablation cases and summarize seam quality metrics."""
+"""Legacy utility for seam ablation on one pair.
+
+This script is kept as an exploratory helper, but it is not the authoritative
+Phase 0 / Phase 1 workflow entrypoint.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,13 @@ from typing import Dict, List
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Seam ablation for one pair.")
+    parser = argparse.ArgumentParser(
+        description="Legacy seam ablation helper for one pair.",
+        epilog=(
+            "This script is optional/legacy. Prefer ai-docs workflow plus "
+            "scripts/run_baseline_video.py for current Phase 0 / Phase 1 work."
+        ),
+    )
     parser.add_argument("--pair", required=True, help="Pair id from pairs manifest")
     parser.add_argument("--manifest", default="data/manifests/pairs.yaml")
     parser.add_argument("--start", type=int, default=0)

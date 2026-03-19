@@ -53,7 +53,8 @@
   - 没有 duplication / omission / occlusion-aware term
   - 没有 seam-specific temporal consistency term
 - 当前没有完整实验驱动：
-  - `scripts/ablate_seam.py`、`scripts/ablate_temporal.py` 存在
+  - `scripts/ablate_seam.py`、`scripts/ablate_temporal.py` 存在，但当前只作为 legacy exploratory helpers
+  - 它们不是 Phase 0 / Phase 1 的正式工作流入口
   - `scripts/ablate_crop.py` 不存在
   - `scripts/ablate_video_reuse.py` 不存在
 
@@ -62,6 +63,9 @@
 - 从本次文档更新开始：
   - 这两个脚本视为 Phase 0 / Phase 3 的 planned items
   - 不再在 `ai-docs` 中标记为已实现
+- 对已存在的 `scripts/ablate_seam.py`、`scripts/ablate_temporal.py`：
+  - 保留为历史参考与便捷实验入口
+  - 但不再作为当前 baseline freeze 或 Phase 1 接口设计的依赖项
 
 ## 当前质量提升路径的真实上限
 - 时序平滑当前主要作用于几何轨迹，不直接平滑 seam。

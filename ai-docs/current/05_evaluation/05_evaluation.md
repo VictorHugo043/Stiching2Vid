@@ -145,6 +145,10 @@
 - 现有：
   - `scripts/ablate_temporal.py`
   - `scripts/ablate_seam.py`
+- 当前定位：
+  - 这两个脚本保留为 legacy exploratory helpers
+  - 不作为 Phase 0 / Phase 1 的正式实验入口或验收前提
+  - 当前正式入口仍以 `scripts/run_baseline_video.py` 的统一 bundle 为准
 - 后续建议新增：
   - 统一 experiment driver
   - 独立 metrics 模块
