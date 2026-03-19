@@ -14,6 +14,7 @@
 | CHG-20260319-01 | 2026-03-19 | docs | 更新 `03~07`，新增 `08~14`，建立 master plan、专项设计与日志机制 | 仅影响 `ai-docs/`，不影响核心 pipeline 运行 | 本次为文档体系补全，不含核心代码改动 |
 | CHG-20260319-02 | 2026-03-19 | code+docs | 在 `run_baseline_video.py` 中补充 `geometry_mode / jitter_meaningful` 导出字段，保留 legacy CLI 兼容；同步更新 `03`、`05` 与实施日志 | 影响 video run bundle schema 与 ai-docs，对算法行为无影响 | 本次为 Phase 0 语义冻结，不包含 Method B、dynamic seam 或 GUI 功能新增 |
 | CHG-20260319-03 | 2026-03-19 | docs+scripts | 将 `ablate_temporal.py`、`ablate_seam.py` 降级为 legacy exploratory helpers，并在 ai-docs 中明确 Phase 0 已完成的冻结边界 | 影响实验入口的推荐路径与 Phase 0 完成定义，不影响核心 stitching 行为 | 本次不删除旧脚本，不引入新的 experiment driver |
+| CHG-20260319-04 | 2026-03-19 | code+docs | 为 `features / matching / geometry` 增加 `FeatureResult / MatchResult / GeometryResult` 与结果对象接口；`run_baseline_frame.py` 改走新接口并补充 backend 骨架 | 影响单帧路径与 Phase 1 接口层，不影响现有视频路径；新增单帧 smoke run bundle | 本次保留 legacy tuple/OpenCV 接口，Method B backend 仅落 fail-fast 占位 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

@@ -2,7 +2,147 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from dataclasses import dataclass, field
+import time
+from typing import Dict, List, Optional, Tuple
+
+
+@dataclass
+class GeometryResult:
+    H: Optional[object]
+    inlier_mask: Optional[List[int]]
+    inlier_count: int
+    inlier_ratio: float
+    reprojection_error: Optional[float]
+    backend_name: str
+    runtime_ms: float
+    status: str
+    meta: Dict[str, object] = field(default_factory=dict)
+
+
+def _find_homography_method(geometry_backend: str):
+    import cv2  # type: ignore
+
+    backend_name = geometry_backend.strip().lower()
+    if backend_name == "opencv_ransac":
+        return backend_name, cv2.RANSAC
+    if backend_name in {"opencv_usac_magsac", "opencv_magsac"}:
+        if not hasattr(cv2, "USAC_MAGSAC"):
+            raise ValueError("OpenCV USAC_MAGSAC is unavailable in this environment.")
+        return "opencv_usac_magsac", cv2.USAC_MAGSAC
+    if backend_name in {"magsac++", "magsac"}:
+        if not hasattr(cv2, "USAC_MAGSAC"):
+            raise ValueError("OpenCV USAC_MAGSAC is unavailable in this environment.")
+        return "opencv_usac_magsac", cv2.USAC_MAGSAC
+    raise ValueError(f"Unsupported geometry backend: {geometry_backend}")
+
+
+def _compute_reprojection_error(H, pts_right, pts_left, inlier_mask) -> Optional[float]:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    if H is None or pts_right.size == 0 or pts_left.size == 0:
+        return None
+
+    projected = cv2.perspectiveTransform(pts_right, H).reshape(-1, 2)
+    target = pts_left.reshape(-1, 2)
+    errors = np.linalg.norm(projected - target, axis=1)
+    if inlier_mask:
+        keep = np.asarray(inlier_mask, dtype=bool)
+        if keep.any():
+            errors = errors[keep]
+    if errors.size == 0:
+        return None
+    return float(errors.mean())
+
+
+def estimate_homography_result(
+    feature_left,
+    feature_right,
+    match_result,
+    geometry_backend: str = "opencv_ransac",
+    ransac_thresh: float = 3.0,
+    confidence: float = 0.995,
+    max_iters: int = 2000,
+) -> GeometryResult:
+    """Estimate homography from normalized feature and match results."""
+
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    start_time = time.perf_counter()
+    backend_name, method = _find_homography_method(geometry_backend)
+
+    if len(match_result.matches_lr) < 4:
+        return GeometryResult(
+            H=None,
+            inlier_mask=None,
+            inlier_count=0,
+            inlier_ratio=0.0,
+            reprojection_error=None,
+            backend_name=backend_name,
+            runtime_ms=float((time.perf_counter() - start_time) * 1000.0),
+            status="not_enough_matches",
+            meta={"match_count": int(len(match_result.matches_lr))},
+        )
+
+    pts_left = np.float32(
+        [feature_left.keypoints_xy[q_idx] for q_idx, _ in match_result.matches_lr]
+    ).reshape(-1, 1, 2)
+    pts_right = np.float32(
+        [feature_right.keypoints_xy[t_idx] for _, t_idx in match_result.matches_lr]
+    ).reshape(-1, 1, 2)
+
+    H, mask = cv2.findHomography(
+        pts_right,
+        pts_left,
+        method,
+        ransac_thresh,
+        None,
+        int(max_iters),
+        float(confidence),
+    )
+    runtime_ms = (time.perf_counter() - start_time) * 1000.0
+    if H is None or mask is None:
+        return GeometryResult(
+            H=None,
+            inlier_mask=None,
+            inlier_count=0,
+            inlier_ratio=0.0,
+            reprojection_error=None,
+            backend_name=backend_name,
+            runtime_ms=float(runtime_ms),
+            status="homography_failed",
+            meta={
+                "match_count": int(len(match_result.matches_lr)),
+                "ransac_thresh": float(ransac_thresh),
+            },
+        )
+
+    inlier_mask = [int(v) for v in mask.ravel().tolist()]
+    inlier_count = int(sum(inlier_mask))
+    inlier_ratio = (
+        float(inlier_count) / float(len(inlier_mask))
+        if inlier_mask
+        else 0.0
+    )
+    reprojection_error = _compute_reprojection_error(H, pts_right, pts_left, inlier_mask)
+    return GeometryResult(
+        H=H,
+        inlier_mask=inlier_mask,
+        inlier_count=inlier_count,
+        inlier_ratio=inlier_ratio,
+        reprojection_error=reprojection_error,
+        backend_name=backend_name,
+        runtime_ms=float(runtime_ms),
+        status="ok",
+        meta={
+            "match_count": int(len(match_result.matches_lr)),
+            "ransac_thresh": float(ransac_thresh),
+            "confidence": float(confidence),
+            "max_iters": int(max_iters),
+        },
+    )
 
 
 def estimate_homography(kp_left, kp_right, matches, ransac_thresh: float = 3.0):

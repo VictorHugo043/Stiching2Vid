@@ -13,11 +13,12 @@
 | ISSUE-20260319-06 | deferred | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 若继续依赖旧脚本会造成 Phase 0 收尾不必要拖延 | 已将 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py` 降级为 legacy helpers；正式 experiment driver 在 Phase 3 单独建设 |
 | ISSUE-20260319-04 | open | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | Dynamic seam advanced 实现难度高 | 先做兼容式 MVP，再单独设计新 seam backend |
 | ISSUE-20260319-05 | open | `scripts/ablate_crop.py`、`scripts/ablate_video_reuse.py` 在旧文档中出现，但仓库中不存在 | 文档与代码曾有漂移 | 后续若需要，再按 Phase 0 / Phase 3 新增，不再视作已完成 |
+| ISSUE-20260319-07 | open | `run_baseline_video.py` 仍使用 legacy tuple/OpenCV 接口，尚未接到结果对象层 | Method B 还不能直接复用视频 orchestrator | 在保持兼容的前提下，后续为视频路径增加 adapter 或逐步切换到 `FeatureResult / MatchResult / GeometryResult` |
 
 ## 接下来最先做的 3 件事
-1. 进入 Phase 1 前，先开一条 Method B 的最小子任务计划，明确单帧接入、依赖、weights、fallback 和 diagnostics 字段。
-2. 在不改现有 Method A 主流程的前提下，先设计统一 `FeatureResult / MatchResult / GeometryResult` 接口。
-3. 将正式 experiment driver 延后到 Phase 3；当前实验仍以 `run_baseline_video.py` 的统一 bundle 为准。
+1. 在单帧路径上开始接 Method B 的真实 backend：先做 `superpoint` / `lightglue` 的 optional dependency、lazy import 和 fail-fast diagnostics。
+2. 继续保持视频路径不动，先把 Method B 的单帧输出、错误语义和 debug 字段稳定下来。
+3. 稳定单帧接口后，再决定视频路径采用 adapter 还是逐步切到结果对象层。
 
 ## 当前建议的下一步实施入口
 - 先读：

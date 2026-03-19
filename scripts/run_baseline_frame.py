@@ -13,7 +13,9 @@ from typing import Dict, Optional
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Baseline single-frame stitching.")
+    parser = argparse.ArgumentParser(
+        description="Single-frame stitching with a shared Method A / Method B backend skeleton."
+    )
     parser.add_argument("--pair", required=True, help="Pair id from pairs.yaml")
     parser.add_argument("--frame_index", type=int, default=0, help="Frame index to read")
     parser.add_argument(
@@ -22,6 +24,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to pairs manifest",
     )
     parser.add_argument("--feature", default="orb", help="Feature type: orb or sift")
+    parser.add_argument(
+        "--feature_backend",
+        default=None,
+        help="Optional feature backend override (supported now: opencv_orb, opencv_sift; planned: superpoint)",
+    )
+    parser.add_argument(
+        "--matcher_backend",
+        default=None,
+        help="Optional matcher backend override (supported now: opencv_bf_ratio; planned: lightglue)",
+    )
+    parser.add_argument(
+        "--geometry_backend",
+        default=None,
+        help="Optional geometry backend override (supported now: opencv_ransac, opencv_usac_magsac)",
+    )
     parser.add_argument("--nfeatures", type=int, default=2000, help="ORB nfeatures")
     parser.add_argument("--ratio", type=float, default=0.75, help="Ratio test threshold")
     parser.add_argument(
@@ -62,6 +79,25 @@ def _write_debug(path: Path, debug: Dict) -> None:
         json.dump(debug, f, ensure_ascii=False, indent=2)
 
 
+def _resolve_feature_backend(feature: str, feature_backend: Optional[str]) -> str:
+    if feature_backend:
+        return feature_backend.strip().lower()
+    feature_name = feature.strip().lower()
+    if feature_name == "orb":
+        return "opencv_orb"
+    if feature_name == "sift":
+        return "opencv_sift"
+    return feature_name
+
+
+def _resolve_matcher_backend(matcher_backend: Optional[str]) -> str:
+    return matcher_backend.strip().lower() if matcher_backend else "opencv_bf_ratio"
+
+
+def _resolve_geometry_backend(geometry_backend: Optional[str]) -> str:
+    return geometry_backend.strip().lower() if geometry_backend else "opencv_ransac"
+
+
 def main() -> int:
     args = _build_parser().parse_args()
 
@@ -69,10 +105,10 @@ def main() -> int:
     sys.path.insert(0, str(repo_root / "src"))
 
     from stitching.io import load_pairs, get_pair, open_pair  # noqa: E402
-    from stitching.features import detect_and_describe  # noqa: E402
-    from stitching.matching import match_descriptors, draw_matches  # noqa: E402
+    from stitching.features import detect_and_describe_result  # noqa: E402
+    from stitching.matching import match_feature_results, draw_matches  # noqa: E402
     from stitching.geometry import (  # noqa: E402
-        estimate_homography,
+        estimate_homography_result,
         compute_canvas_and_transform,
         warp_pair,
     )
@@ -89,12 +125,20 @@ def main() -> int:
     log_path = output_dir / "logs.txt"
     _setup_logging(log_path)
 
+    feature_backend = _resolve_feature_backend(args.feature, args.feature_backend)
+    matcher_backend = _resolve_matcher_backend(args.matcher_backend)
+    geometry_backend = _resolve_geometry_backend(args.geometry_backend)
+
     debug = {
         "pair_id": args.pair,
         "dataset": None,
         "input_type": None,
         "frame_index": args.frame_index,
+        "pipeline_interface": "result_objects_v1",
         "feature": args.feature,
+        "feature_backend": feature_backend,
+        "matcher_backend": matcher_backend,
+        "geometry_backend": geometry_backend,
         "nfeatures": args.nfeatures,
         "ratio": args.ratio,
         "min_matches": args.min_matches,
@@ -105,8 +149,13 @@ def main() -> int:
         "n_matches_good": None,
         "n_inliers": None,
         "inlier_ratio": None,
+        "reprojection_error": None,
         "H": None,
         "canvas_size": None,
+        "stage_runtimes_ms": {},
+        "feature_stage": {},
+        "matching_stage": {},
+        "geometry_stage": {},
         "runtime_ms": None,
         "failure_stage": None,
         "message": None,
@@ -142,14 +191,34 @@ def main() -> int:
     save_image(output_dir / "right.png", right)
 
     try:
-        kp_left, desc_left = detect_and_describe(
-            left, feature=args.feature, nfeatures=args.nfeatures
+        feature_left = detect_and_describe_result(
+            left,
+            feature=args.feature,
+            feature_backend=feature_backend,
+            nfeatures=args.nfeatures,
         )
-        kp_right, desc_right = detect_and_describe(
-            right, feature=args.feature, nfeatures=args.nfeatures
+        feature_right = detect_and_describe_result(
+            right,
+            feature=args.feature,
+            feature_backend=feature_backend,
+            nfeatures=args.nfeatures,
         )
-        debug["n_kp_left"] = len(kp_left)
-        debug["n_kp_right"] = len(kp_right)
+        debug["n_kp_left"] = feature_left.n_keypoints
+        debug["n_kp_right"] = feature_right.n_keypoints
+        debug["stage_runtimes_ms"]["feature_left"] = float(feature_left.runtime_ms)
+        debug["stage_runtimes_ms"]["feature_right"] = float(feature_right.runtime_ms)
+        debug["feature_stage"] = {
+            "left": {
+                "backend_name": feature_left.backend_name,
+                "n_keypoints": int(feature_left.n_keypoints),
+                "runtime_ms": float(feature_left.runtime_ms),
+            },
+            "right": {
+                "backend_name": feature_right.backend_name,
+                "n_keypoints": int(feature_right.n_keypoints),
+                "runtime_ms": float(feature_right.runtime_ms),
+            },
+        }
     except Exception as exc:
         debug["failure_stage"] = "feature"
         debug["message"] = str(exc)
@@ -158,46 +227,97 @@ def main() -> int:
         logging.error("Feature detection failed: %s", exc)
         return 1
 
-    good_matches, raw_matches = match_descriptors(
-        desc_left, desc_right, method=args.feature, ratio=args.ratio
-    )
-    debug["n_matches_raw"] = raw_matches
-    debug["n_matches_good"] = len(good_matches)
+    try:
+        match_result = match_feature_results(
+            feature_left,
+            feature_right,
+            matcher_backend=matcher_backend,
+            ratio=args.ratio,
+        )
+    except Exception as exc:
+        debug["failure_stage"] = "matching"
+        debug["message"] = str(exc)
+        debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+        _write_debug(debug_path, debug)
+        logging.error("Descriptor matching failed: %s", exc)
+        return 1
 
-    matches_img = draw_matches(left, kp_left, right, kp_right, good_matches)
+    debug["n_matches_raw"] = match_result.tentative_count
+    debug["n_matches_good"] = match_result.good_count
+    debug["stage_runtimes_ms"]["matching"] = float(match_result.runtime_ms)
+    debug["matching_stage"] = {
+        "backend_name": match_result.backend_name,
+        "tentative_count": int(match_result.tentative_count),
+        "good_count": int(match_result.good_count),
+        "runtime_ms": float(match_result.runtime_ms),
+        "meta": match_result.meta,
+    }
+
+    matches_img = draw_matches(
+        left,
+        feature_left.cv_keypoints,
+        right,
+        feature_right.cv_keypoints,
+        match_result.cv_matches,
+    )
     save_image(output_dir / "matches.png", matches_img)
 
-    if len(good_matches) < args.min_matches:
+    if match_result.good_count < args.min_matches:
         debug["failure_stage"] = "matching"
         debug["message"] = (
-            f"Not enough matches: {len(good_matches)} < {args.min_matches}"
+            f"Not enough matches: {match_result.good_count} < {args.min_matches}"
         )
         debug["runtime_ms"] = int((time.time() - start_time) * 1000)
         _write_debug(debug_path, debug)
         logging.warning("Not enough matches; aborting.")
         return 1
 
-    H, mask = estimate_homography(
-        kp_left, kp_right, good_matches, ransac_thresh=args.ransac_thresh
-    )
-    if H is None or mask is None:
+    try:
+        geometry_result = estimate_homography_result(
+            feature_left,
+            feature_right,
+            match_result,
+            geometry_backend=geometry_backend,
+            ransac_thresh=args.ransac_thresh,
+        )
+    except Exception as exc:
         debug["failure_stage"] = "homography"
-        debug["message"] = "cv2.findHomography failed to estimate H."
+        debug["message"] = str(exc)
         debug["runtime_ms"] = int((time.time() - start_time) * 1000)
         _write_debug(debug_path, debug)
-        logging.error("Homography estimation failed.")
+        logging.error("Homography backend failed: %s", exc)
         return 1
 
-    inliers = mask.ravel().tolist()
-    inlier_count = int(sum(inliers))
-    debug["n_inliers"] = inlier_count
-    debug["inlier_ratio"] = (
-        float(inlier_count) / float(len(inliers)) if inliers else 0.0
-    )
-    debug["H"] = H.tolist()
+    debug["stage_runtimes_ms"]["geometry"] = float(geometry_result.runtime_ms)
+    debug["geometry_stage"] = {
+        "backend_name": geometry_result.backend_name,
+        "status": geometry_result.status,
+        "runtime_ms": float(geometry_result.runtime_ms),
+        "meta": geometry_result.meta,
+    }
+    if geometry_result.H is None or geometry_result.inlier_mask is None:
+        debug["failure_stage"] = "homography"
+        debug["message"] = (
+            f"Geometry estimation failed with status={geometry_result.status}"
+        )
+        debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+        _write_debug(debug_path, debug)
+        logging.error("Homography estimation failed: %s", geometry_result.status)
+        return 1
+
+    inliers = geometry_result.inlier_mask
+    debug["n_inliers"] = geometry_result.inlier_count
+    debug["inlier_ratio"] = geometry_result.inlier_ratio
+    debug["reprojection_error"] = geometry_result.reprojection_error
+    debug["H"] = geometry_result.H.tolist()
 
     inliers_img = draw_matches(
-        left, kp_left, right, kp_right, good_matches, inlier_mask=inliers
+        left,
+        feature_left.cv_keypoints,
+        right,
+        feature_right.cv_keypoints,
+        match_result.cv_matches,
+        inlier_mask=inliers,
     )
     save_image(output_dir / "inliers.png", inliers_img)
 
@@ -205,11 +325,11 @@ def main() -> int:
         canvas_size, T = compute_canvas_and_transform(
             (left.shape[0], left.shape[1]),
             (right.shape[0], right.shape[1]),
-            H,
+            geometry_result.H,
         )
         debug["canvas_size"] = [int(canvas_size[0]), int(canvas_size[1])]
 
-        left_warped, right_warped = warp_pair(left, right, H, canvas_size, T)
+        left_warped, right_warped = warp_pair(left, right, geometry_result.H, canvas_size, T)
         overlay = overlay_images(left_warped, right_warped, alpha=0.5)
         save_image(output_dir / "warp_overlay.png", overlay)
     except Exception as exc:

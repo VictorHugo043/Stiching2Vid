@@ -60,6 +60,28 @@
   - MAGSAC++ 求解
   - diagnostics 字段
 
+### 当前已落地的接口骨架（Phase 1 子任务 1）
+- 兼容策略：
+  - 保留旧 tuple/OpenCV 接口给 `run_baseline_video.py`
+  - 新增结果对象接口给 `run_baseline_frame.py`
+- 当前已落地的新入口：
+  - `features.detect_and_describe_result()`
+  - `matching.match_feature_results()`
+  - `geometry.estimate_homography_result()`
+- 当前已落地的数据结构：
+  - `FeatureResult`
+  - `MatchResult`
+  - `GeometryResult`
+- 当前已验证可用的 backend：
+  - `opencv_orb`
+  - `opencv_sift`
+  - `opencv_bf_ratio`
+  - `opencv_ransac`
+  - `opencv_usac_magsac`
+- 当前仅做 fail-fast 占位的 backend：
+  - `superpoint`
+  - `lightglue`
+
 ### 2. 再视频
 - 视频层继续复用：
   - `scripts/run_baseline_video.py`

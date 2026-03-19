@@ -255,3 +255,114 @@
   - 进入 Phase 1，先开一条 Method B 最小子任务计划。
   - 第一子任务只做单帧设计与接入边界，不直接扩展到视频。
   - 优先整理 `features / matching / geometry` 的统一结果结构与 backend 接口。
+
+## IMP-20260319-04
+- 状态：done
+- 标题：Phase 1 子任务 1：单帧统一结果结构与 Method A/B 共用接口骨架
+- 本步目标：
+  - 为 `features / matching / geometry` 落地统一结果结构：`FeatureResult / MatchResult / GeometryResult`。
+  - 保留现有 Method A 单帧行为可用，同时给 Method B 预留 backend 接入口。
+  - 让 `scripts/run_baseline_frame.py` 先切到统一结果对象接口，但暂不扩展到视频路径。
+- 关联上一步结论：
+  - `DEC-20260319-03`：Method B 默认采用预训练 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC`。
+  - `DEC-20260319-08`：旧 ablation 脚本不是当前 Phase 1 的正式入口。
+  - `ISSUE-20260319-02`：当前环境缺少 `torch / kornia / lightglue`。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `scripts/run_baseline_frame.py`
+- 准备修改文件：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这四个代码文件正好是单帧特征、匹配、几何和 orchestration 的最小闭环。
+  - 本步需要在不影响 `run_baseline_video.py` 的前提下，为 Method B 建立统一数据边界。
+  - 日志文件需要记录接口冻结、遗留兼容层和后续视频接入前提。
+- 风险点：
+  - 一次性改旧函数签名会波及 `run_baseline_video.py`。
+  - 结果结构若不保留 OpenCV 可视化所需信息，会让当前 `draw_matches` 路径断掉。
+  - 过早接入真实 Method B 依赖会被当前环境阻塞。
+- 验收标准：
+  - `run_baseline_frame.py` 能通过统一结果对象接口跑通 Method A。
+  - 旧 `run_baseline_video.py` 不需要同步修改即可继续使用现有 legacy 接口。
+  - 代码中存在 Method B backend 的占位入口与 fail-fast 错误信息。
+  - 新 debug 输出中能记录 `feature_backend / matcher_backend / geometry_backend` 和分阶段 runtime。
+- 替代方案与不选原因：
+  - 方案：直接改现有 `detect_and_describe / match_descriptors / estimate_homography` 的返回类型。
+  - 不选原因：会同时打断视频路径，超出本步“只做单帧接口层”的范围。
+- 实际修改文件：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `features.py` 中新增：
+    - `FeatureResult`
+    - `detect_and_describe_result()`
+    - backend 规范化逻辑
+  - 在 `matching.py` 中新增：
+    - `MatchResult`
+    - `match_feature_results()`
+  - 在 `geometry.py` 中新增：
+    - `GeometryResult`
+    - `estimate_homography_result()`
+    - `opencv_ransac / opencv_usac_magsac` backend 映射
+    - reprojection error 计算
+  - 保留旧接口：
+    - `detect_and_describe()`
+    - `match_descriptors()`
+    - `estimate_homography()`
+  - `run_baseline_frame.py` 改走结果对象接口，并新增：
+    - `--feature_backend`
+    - `--matcher_backend`
+    - `--geometry_backend`
+    - backend 解析函数
+    - `pipeline_interface=result_objects_v1`
+    - `feature_stage / matching_stage / geometry_stage` debug 字段
+  - `superpoint` 与 `lightglue` 当前只做 fail-fast 占位，不做真实推理。
+- 验证方式：
+  - 运行 `python3 -m py_compile src/stitching/features.py src/stitching/matching.py src/stitching/geometry.py scripts/run_baseline_frame.py`
+  - 运行 `python3 scripts/run_baseline_frame.py --help`
+  - 运行真实 smoke：
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --run_id phase1_frame_iface_smoke`
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --geometry_backend opencv_usac_magsac --run_id phase1_frame_magsac_smoke`
+  - 检查 `outputs/runs/phase1_frame_iface_smoke/debug.json`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - CLI 已显示新的 backend 骨架参数。
+  - 单帧 smoke run 成功完成。
+  - `opencv_usac_magsac` geometry backend smoke run 也成功完成。
+  - `debug.json` 已包含：
+    - `feature_backend / matcher_backend / geometry_backend`
+    - `reprojection_error`
+    - 分阶段 runtime
+    - `pipeline_interface=result_objects_v1`
+  - 当前 Method A 默认路径仍可用，视频路径未被这一步破坏。
+- 偏差：
+  - 计划里未单独列出 `06_method2_strong_matching.md`，但实际补充了当前已落地接口名与可用 backend 清单。
+  - 本步没有实现真实 `SuperPoint / LightGlue` 推理，只保留了 fail-fast 占位入口。
+  - 本步未改 `run_baseline_video.py`，因此视频路径仍停留在 legacy 接口。
+- 下一步建议：
+  - 继续 Phase 1 子任务 2：在单帧路径接入真实 Method B 依赖探测与 backend loader，优先 `superpoint`、`lightglue`、`opencv_usac_magsac`。
+  - 保持视频路径不动，先把单帧 Method B 的加载、错误语义、fallback 和记诊断字段稳定下来。
+  - 等单帧 Method B 稳定后，再决定视频路径走 adapter 还是逐步迁移。
