@@ -366,3 +366,307 @@
   - 继续 Phase 1 子任务 2：在单帧路径接入真实 Method B 依赖探测与 backend loader，优先 `superpoint`、`lightglue`、`opencv_usac_magsac`。
   - 保持视频路径不动，先把单帧 Method B 的加载、错误语义、fallback 和记诊断字段稳定下来。
   - 等单帧 Method B 稳定后，再决定视频路径走 adapter 还是逐步迁移。
+
+## IMP-20260319-05
+- 状态：done
+- 标题：检查单帧入口与视频入口的质量链路偏差
+- 本步目标：
+  - 确认 `scripts/run_baseline_frame.py` 与 `scripts/run_baseline_video.py` 是否已经出现实现漂移。
+  - 判断用户观察到的“单帧 smoke test 没体现 seam/crop”等差异，究竟是 bug、接口迁移副作用，还是脚本职责本来就不同。
+  - 将结论写回 ai-docs，避免后续把单帧输出误当作视频质量链路的代表。
+- 关联上一步结论：
+  - `DEC-20260319-09`：Phase 1 先改单帧结果对象接口，视频路径暂不迁移。
+  - `ISSUE-20260319-07`：视频路径仍使用 legacy tuple/OpenCV 接口。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+- 本步回读代码：
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+- 准备修改文件：
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `02` 需要明确单帧入口目前只覆盖几何/warp/feather，不代表视频质量链路。
+  - `06` 需要明确 Phase 1 单帧骨架的验证边界，不包含 seam/crop parity。
+  - 决策 / 实施 / issue 文档需要记录这次偏差检查结论。
+- 风险点：
+  - 如果只看 smoke 输出而不对照代码，容易把“职责不同”误判为“最近改坏了”。
+  - 如果不把边界写回文档，后续仍会重复把单帧脚本当成质量对齐入口。
+- 验收标准：
+  - 明确给出单帧与视频入口的差异结论。
+  - ai-docs 明确说明单帧 smoke test 不会体现 seam/crop。
+  - 若确认存在脚本漂移，则把它记录为 open issue 或明确决策。
+- 替代方案与不选原因：
+  - 方案：立刻补齐 `run_baseline_frame.py` 的 seam/crop。
+  - 不选原因：当前任务是检查和澄清边界，不是直接进入新的实现工作。
+- 实际修改文件：
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `02_baseline_frame_stitch` 中明确：
+    - `run_baseline_frame.py` 当前只覆盖 feature / matching / geometry / warp / feather
+    - 不覆盖 seam / crop / temporal / cache
+    - 不能把单帧 smoke 输出当作视频质量链路代表
+  - 在 `06_method2_strong_matching` 中补充：
+    - 当前单帧接口验证边界不包含 seam/crop parity
+  - 新增 `DEC-20260319-10`：
+    - 将 `run_baseline_frame.py` 明确定位为单帧 backend smoke 入口，而不是视频视觉对齐参考
+  - 新增 `ISSUE-20260319-08`：
+    - 记录单帧入口与视频入口在质量链路上的功能差距
+- 验证方式：
+  - 对照 `scripts/run_baseline_frame.py` 与 `scripts/run_baseline_video.py` 的处理链
+  - 对照 smoke 输出目录与历史视频 run bundle 的文件结构
+  - 检查 ai-docs 中的职责描述、决策与 issue 是否已同步
+- 运行结果与验证结果：
+  - 结论已确认：用户观察是正确的。
+  - `run_baseline_frame.py` 当前确实没有走 seam / crop / temporal / `VideoStitcher` 链路。
+  - 证据包括：
+    - 单帧脚本直接调用 `feather_blend(...)` 并输出 `stitched_frame.png`
+    - 视频脚本包含 `Cropper`、`compute_seam_masks_opencv(...)`、`_blend_frames(...)`、`stitched.mp4`
+    - 单帧 smoke 输出目录没有 `metrics_preview.json / transforms.csv / snapshots seam artefacts`
+  - 因此上一步 smoke test 只能说明“接口层跑通了”，不能说明“已经和视频 baseline 质量链路对齐”。
+- 偏差：
+  - 本步没有改 `run_baseline_frame.py` 的功能，只修正文档与边界说明。
+  - 当前脚本 help 仍然偏中性，主要依赖 ai-docs 来解释职责差异。
+- 下一步建议：
+  - 这一步先停在检查结论，不继续实现。
+  - 后续若继续 Method B，仍可沿单帧入口推进 backend 接入，但必须明确它不是 seam/crop 视觉质量验证入口。
+  - 若将来需要“单帧但接近视频质量”的检查入口，应单独立项，而不是把它混进当前 Method B 接口任务。
+
+## IMP-20260319-06
+- 状态：done
+- 标题：评估是否将单帧 seam/crop 质量对齐入口纳入 Phase 1
+- 本步目标：
+  - 判断“给单帧入口补齐 seam/crop 等，尽量贴近视频质量链路”是否应插入 Phase 1。
+  - 判断这样做是否会与当前 Method B 主线冲突。
+  - 在 ai-docs 中固定推荐排序、约束和实现方式，避免后续范围失控。
+- 关联上一步结论：
+  - `DEC-20260319-09`：Phase 1 先走结果对象接口，视频路径暂不迁移。
+  - `DEC-20260319-10`：当前 `run_baseline_frame.py` 是 backend smoke 入口，不是视频质量对齐参考。
+  - `ISSUE-20260319-08`：单帧入口与视频入口在质量链路上存在显著功能差距。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+- 准备修改文件：
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这次主要是 Phase 1 范围决策，不是立即实现。
+  - 需要明确它是支持子任务、插入位置在哪里、什么实现方式可接受、什么方式会冲突。
+- 风险点：
+  - 若直接把视频脚本的大段 seam/crop 内联逻辑复制到单帧脚本，会加重重复代码和后续维护成本。
+  - 若把该任务放在 Method B backend 接入之前，会拖慢核心研究主线。
+  - 若不写清楚“支持子任务”定位，后续容易把它误当成必须先完成的阻塞项。
+- 验收标准：
+  - ai-docs 明确说明该任务可以纳入 Phase 1，但只能作为支持子任务。
+  - ai-docs 明确说明不应通过复制 `run_baseline_video.py` 的方式实现。
+  - ai-docs 给出推荐插入位置和不冲突的实现方向。
+- 替代方案与不选原因：
+  - 方案：把 seam/crop parity 完全推迟到 Phase 2。
+  - 不选原因：如果目标只是给 Method B 单帧结果提供更贴近视频质量链路的可视化检查入口，它可以作为 Phase 1 的支持子任务提前做，但不应抢在 Method B 主线前面。
+- 实际修改文件：
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `08_project_status_and_master_plan` 的 `Phase 1` 下新增可选支持子任务：
+    - `frame_quality_preview`
+  - 在 `06_method2_strong_matching` 中新增：
+    - 单帧 seam/crop/blend 质量对齐入口的推荐插入位置
+    - 不推荐复制 `run_baseline_video.py` 内联逻辑
+  - 在 `02_baseline_frame_stitch` 中补充：
+    - 该增强方向可以纳入 Phase 1
+    - 但不应阻塞 Method B 主线 backend 接入
+  - 新增 `DEC-20260319-11`：
+    - 明确该任务可插入 Phase 1，但只能作为支持子任务
+  - 更新 `14_open_issues_and_next_steps`：
+    - 将 `frame_quality_preview` 写入推荐后续动作
+- 验证方式：
+  - 对照 `run_baseline_video.py` 的 seam/crop 质量链路位置
+  - 对照 `video_stitcher.py` 当前可复用的 warp -> crop -> seam -> blend 能力
+  - 检查 ai-docs 是否已写清：
+    - 可加
+    - 插入位置
+    - 冲突来源
+    - 推荐实现方式
+- 运行结果与验证结果：
+  - 结论已固定到文档：
+    - 可以纳入 Phase 1
+    - 但只能作为支持子任务，不应抢在 Method B backend loader 前面
+    - 真正的冲突不在任务本身，而在实现方式
+  - 已确认的主要冲突风险：
+    - `run_baseline_video.py` 的 seam/crop 质量链路大量内联
+    - 直接复制到 `run_baseline_frame.py` 会带来重复逻辑和后续维护冲突
+  - 因此推荐方向是：
+    - 先完成 Method B 单帧 backend loader
+    - 再做 `frame_quality_preview`
+    - 并优先抽共享 helper / adapter，而不是复制视频脚本
+- 偏差：
+  - 本步只做范围决策和文档更新，没有新建 helper，也没有开始实现 `frame_quality_preview`。
+- 下一步建议：
+  - 如果你确认要加，这个任务最适合写成 Phase 1 的下一个支持子任务计划。
+  - 但优先级上仍建议放在 `superpoint / lightglue` 的真实 loader 之后。
+  - 实现时应先设计“共享 frame-level compose helper”，不要直接往 `run_baseline_frame.py` 里贴视频脚本的大段 seam/crop 代码。
+
+## IMP-20260319-07
+- 状态：done
+- 标题：Phase 1 支持子任务：frame_quality_preview 最小实现
+- 本步目标：
+  - 为单帧入口新增一个共享的 frame-level compose helper。
+  - 让 `scripts/run_baseline_frame.py` 复用 `crop -> seam -> blend` 质量链路，而不是停留在 `warp -> feather`。
+  - 保持 `run_baseline_video.py` 不变，不复制其中的大段内联逻辑。
+- 关联上一步结论：
+  - `DEC-20260319-10`：旧单帧入口不应被误认为视频质量链路代表。
+  - `DEC-20260319-11`：`frame_quality_preview` 可以纳入 Phase 1，但应通过共享 helper / adapter 实现。
+  - `ISSUE-20260319-08`：单帧入口与视频入口在质量链路上存在功能差距。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `scripts/run_baseline_frame.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/seam_opencv.py`
+  - `src/stitching/cropper.py`
+  - `src/stitching/blending.py`
+- 准备修改文件：
+  - `src/stitching/frame_quality_preview.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 新 helper 负责承载共享的 frame-level compose 逻辑。
+  - 单帧脚本需要切换到 helper，才能看到更接近视频 baseline 的 seam/crop/blend 结果。
+  - ai-docs 需要同步记录实现方式、已补齐边界和剩余缺口。
+- 风险点：
+  - 若 helper 直接复制 `run_baseline_video.py` 的 seam/crop 内联逻辑，会再次制造漂移。
+  - 若单帧入口过度追求视频 parity，容易把 temporal/cache 也错误塞进来。
+  - 若默认参数不对齐视频入口，会引入新的输出语义漂移。
+- 验收标准：
+  - `run_baseline_frame.py` 通过共享 helper 产出 crop/seam/blend 后的 `stitched_frame.png`。
+  - 单帧输出目录出现 `VideoStitcher` 生成的 seam/crop snapshots。
+  - CLI 复用视频入口的关键质量参数命名。
+  - 不改 `run_baseline_video.py` 的主逻辑，也不复制其大段内联 compose 代码。
+- 替代方案与不选原因：
+  - 方案：继续保留单帧 feather-only，并要求所有质量检查都去视频入口做。
+  - 不选原因：这会降低 Method B 早期单帧 qualitative 检查的效率，也不能解决单帧入口与视频入口长期漂移的问题。
+- 实际修改文件：
+  - `src/stitching/frame_quality_preview.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `src/stitching/frame_quality_preview.py`：
+    - `compose_frame_quality_preview()`
+    - `FrameComposeResult`
+    - `seam_cli_to_method()`
+  - `run_baseline_frame.py` 改为：
+    - 保留前半段的 feature / matching / geometry / warp 流程
+    - 通过共享 helper 复用 `VideoStitcher.initialize_from_first_frame()` 的 `crop -> seam -> blend` 路径
+    - 新增与视频入口对齐的质量参数：
+      - `blend`
+      - `mb_levels`
+      - `seam`
+      - `seam_megapix`
+      - `seam_dilate`
+      - `crop`
+      - `lir_method`
+      - `lir_erode`
+      - `crop_debug`
+    - 在 `debug.json` 中新增：
+      - `compose_backend`
+      - `compose_stage`
+      - `overlap_area`
+      - `crop_applied`
+      - `crop_method`
+      - `crop_rect`
+      - `output_bbox`
+- 验证方式：
+  - 运行 `python3 -m py_compile src/stitching/frame_quality_preview.py scripts/run_baseline_frame.py`
+  - 运行 `python3 scripts/run_baseline_frame.py --help`
+  - 运行真实 smoke：
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --run_id phase1_frame_quality_preview_smoke`
+  - 检查：
+    - `outputs/runs/phase1_frame_quality_preview_smoke/debug.json`
+    - `outputs/runs/phase1_frame_quality_preview_smoke/snapshots/`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - CLI 已显示新的 seam/crop/blend 参数。
+  - 真实 smoke run 成功完成。
+  - 输出目录已出现：
+    - `stitched_frame.png`
+    - `snapshots/frame0_seam_overlay.png`
+    - `snapshots/frame0_seam_mask_left.png`
+    - `snapshots/frame0_seam_mask_right.png`
+    - `snapshots/frame0_panorama_mask.png`
+    - `snapshots/frame0_lir.png`
+  - `debug.json` 已记录：
+    - `compose_backend=video_stitcher_initialize_v1`
+    - `crop_applied=true`
+    - `crop_method=fallback`
+    - `overlap_area`
+    - `output_bbox`
+  - 当前已确认：
+    - 单帧入口的静态 seam/crop/blend 质量链路与视频入口显著更接近
+    - 但 temporal / cache / 完整 video bundle parity 仍不在本步范围内
+- 偏差：
+  - 之前的顺序建议是“先做真实 Method B loader，再做 frame_quality_preview”；本步按用户要求提前落地了支持子任务。
+  - 本步没有改 `run_baseline_video.py`，因此视频入口仍维持现有主流程和 bundle 结构。
+- 下一步建议：
+  - 回到 Phase 1 主线，先接真实 `superpoint / lightglue` 的 optional dependency、lazy import 和 failure diagnostics。
+  - 然后在单帧路径验证 Method B 与 `frame_quality_preview` 的组合。
+  - 再决定视频路径是加 adapter 还是逐步迁移到结果对象接口。

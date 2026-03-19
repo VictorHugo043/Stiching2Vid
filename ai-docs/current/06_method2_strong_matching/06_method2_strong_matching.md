@@ -81,6 +81,10 @@
 - 当前仅做 fail-fast 占位的 backend：
   - `superpoint`
   - `lightglue`
+- 当前验证边界：
+  - `run_baseline_frame.py` 只验证单帧 feature / matching / geometry / warp 接口层
+  - 不验证 seam / crop / temporal smoothing parity
+  - 不应用它来判断视频质量链路是否与 baseline video 完全一致
 
 ### 2. 再视频
 - 视频层继续复用：
@@ -88,6 +92,38 @@
   - `src/stitching/video_stitcher.py`
   - `src/stitching/seam_opencv.py`
   - `src/stitching/cropper.py`
+
+### 介于单帧与视频之间的可选支持子任务
+- 名称建议：`frame_quality_preview`
+- 目标：
+  - 在单帧入口中补齐 seam / crop / blend，尽量接近视频 baseline 的质量链路
+  - 便于在 Method B 早期做更可信的 qualitative 对比
+- 适合插入的位置：
+  - 单帧 backend loader 和 diagnostics 稳定之后
+  - 视频 orchestrator 迁移之前
+- 不推荐的实现方式：
+  - 直接把 `run_baseline_video.py` 中大量 seam/crop 内联逻辑复制到 `run_baseline_frame.py`
+- 推荐方向：
+  - 抽出共享 frame-level compose helper
+  - 或设计单独 `frame_quality_preview` 入口
+  - 保持它是支持任务，不与 Method B 主线 backend 接入混做
+- 当前已落地的最小实现：
+  - 新增 `src/stitching/frame_quality_preview.py`
+  - `run_baseline_frame.py` 现通过该 helper 复用 `VideoStitcher.initialize_from_first_frame()`
+  - 已对齐的质量参数：
+    - `blend`
+    - `mb_levels`
+    - `seam`
+    - `seam_megapix`
+    - `seam_dilate`
+    - `crop`
+    - `lir_method`
+    - `lir_erode`
+    - `crop_debug`
+  - 当前仍未覆盖：
+    - temporal smoothing
+    - cached execution across frames
+    - 完整视频 run bundle 指标
 
 ## Method B 的关键决策
 - 不训练新模型。

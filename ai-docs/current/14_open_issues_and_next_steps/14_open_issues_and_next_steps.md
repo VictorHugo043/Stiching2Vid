@@ -14,11 +14,12 @@
 | ISSUE-20260319-04 | open | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | Dynamic seam advanced 实现难度高 | 先做兼容式 MVP，再单独设计新 seam backend |
 | ISSUE-20260319-05 | open | `scripts/ablate_crop.py`、`scripts/ablate_video_reuse.py` 在旧文档中出现，但仓库中不存在 | 文档与代码曾有漂移 | 后续若需要，再按 Phase 0 / Phase 3 新增，不再视作已完成 |
 | ISSUE-20260319-07 | open | `run_baseline_video.py` 仍使用 legacy tuple/OpenCV 接口，尚未接到结果对象层 | Method B 还不能直接复用视频 orchestrator | 在保持兼容的前提下，后续为视频路径增加 adapter 或逐步切换到 `FeatureResult / MatchResult / GeometryResult` |
+| ISSUE-20260319-08 | partial | `run_baseline_frame.py` 与 `run_baseline_video.py` 在质量链路上仍有边界差距：单帧入口现已补齐 seam / crop / blend 静态路径，但仍没有 temporal / cache / 完整 run bundle | 用户若忽略边界，仍可能把单帧 smoke 输出误认为完整视频行为 | 已通过 `frame_quality_preview` 缩小静态质量差距；后续仅在需要时再补 diagnostics parity，不把 temporal/cache 强塞进单帧入口 |
 
 ## 接下来最先做的 3 件事
-1. 在单帧路径上开始接 Method B 的真实 backend：先做 `superpoint` / `lightglue` 的 optional dependency、lazy import 和 fail-fast diagnostics。
-2. 继续保持视频路径不动，先把 Method B 的单帧输出、错误语义和 debug 字段稳定下来。
-3. 稳定单帧接口后，再决定视频路径采用 adapter 还是逐步切到结果对象层。
+1. 继续 Phase 1 主线：给 `superpoint / lightglue` 接 optional dependency、lazy import、weights / device / failure diagnostics。
+2. 在单帧路径验证真实 Method B backend，并确保它和现在的 `frame_quality_preview` 能组合使用。
+3. 再决定视频路径是走 adapter 还是逐步迁移到结果对象层，保持 `run_baseline_video.py` 与现有 bundle 兼容。
 
 ## 当前建议的下一步实施入口
 - 先读：

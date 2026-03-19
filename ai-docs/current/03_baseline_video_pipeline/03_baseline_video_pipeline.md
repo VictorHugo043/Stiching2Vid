@@ -67,6 +67,7 @@
   - video reuse 分支
 - `video_mode=0` 与 `video_mode=1` 存在 seam/crop 逻辑重复。
 - `VideoStitcher` 只负责 `warp -> crop -> seam -> blend`，不负责几何估计；这一点对 Method B 接入是利好。
+- 同一条 frame-level compose 路径现已通过 `src/stitching/frame_quality_preview.py` 复用到 `scripts/run_baseline_frame.py`，用于单帧静态质量预览。
 - 当前 seam backend 是 OpenCV seam mask 风格，不是 object-centered energy / graph-cut 风格。
 
 ## `jitter` 失真条件（必须冻结到文档）

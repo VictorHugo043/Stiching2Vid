@@ -14,7 +14,10 @@ from typing import Dict, Optional
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Single-frame stitching with a shared Method A / Method B backend skeleton."
+        description=(
+            "Single-frame stitching with a shared Method A / Method B backend skeleton "
+            "and a VideoStitcher-based frame quality preview compose path."
+        )
     )
     parser.add_argument("--pair", required=True, help="Pair id from pairs.yaml")
     parser.add_argument("--frame_index", type=int, default=0, help="Frame index to read")
@@ -57,6 +60,70 @@ def _build_parser() -> argparse.ArgumentParser:
         "--run_id",
         default=None,
         help="Optional run id (default: timestamp_pair_id)",
+    )
+    parser.add_argument(
+        "--blend",
+        default="feather",
+        choices=["none", "feather", "multiband"],
+        help="Blending mode for frame_quality_preview compose",
+    )
+    parser.add_argument(
+        "--mb_levels",
+        type=int,
+        default=5,
+        help="Number of bands when --blend=multiband",
+    )
+    parser.add_argument(
+        "--seam",
+        default="opencv_dp_color",
+        choices=["none", "opencv_dp_color", "opencv_dp_colorgrad", "opencv_voronoi"],
+        help="Seam finder mode for frame_quality_preview compose",
+    )
+    parser.add_argument(
+        "--seam_megapix",
+        type=float,
+        default=0.1,
+        help="Megapixel budget used for seam estimation scale",
+    )
+    parser.add_argument(
+        "--seam_dilate",
+        type=int,
+        default=1,
+        help="Dilate iterations for seam mask before resizing to full compose mask",
+    )
+    crop_group = parser.add_mutually_exclusive_group()
+    crop_group.add_argument(
+        "--crop",
+        dest="crop",
+        action="store_true",
+        default=True,
+        help="Enable LIR crop before seam estimation (default: enabled)",
+    )
+    crop_group.add_argument(
+        "--no_crop",
+        "--no-crop",
+        dest="crop",
+        action="store_false",
+        help="Disable crop before seam estimation",
+    )
+    parser.add_argument(
+        "--lir_method",
+        default="auto",
+        choices=["auto", "lir", "fallback"],
+        help="LIR backend method for cropper",
+    )
+    parser.add_argument(
+        "--lir_erode",
+        type=int,
+        default=2,
+        help="Erode iterations for fallback LIR method",
+    )
+    parser.add_argument(
+        "--crop_debug",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Emit extra crop snapshots in frame_quality_preview output",
     )
     return parser
 
@@ -112,7 +179,7 @@ def main() -> int:
         compute_canvas_and_transform,
         warp_pair,
     )
-    from stitching.blending import feather_blend  # noqa: E402
+    from stitching.frame_quality_preview import compose_frame_quality_preview  # noqa: E402
     from stitching.viz import save_image, overlay_images  # noqa: E402
 
     run_id = args.run_id
@@ -156,6 +223,22 @@ def main() -> int:
         "feature_stage": {},
         "matching_stage": {},
         "geometry_stage": {},
+        "compose_stage": {},
+        "compose_backend": None,
+        "blend": args.blend,
+        "mb_levels": args.mb_levels,
+        "seam": args.seam,
+        "seam_megapix": args.seam_megapix,
+        "seam_dilate": args.seam_dilate,
+        "crop": args.crop,
+        "lir_method": args.lir_method,
+        "lir_erode": args.lir_erode,
+        "crop_debug": args.crop_debug,
+        "overlap_area": None,
+        "crop_applied": None,
+        "crop_method": None,
+        "crop_rect": None,
+        "output_bbox": None,
         "runtime_ms": None,
         "failure_stage": None,
         "message": None,
@@ -341,14 +424,45 @@ def main() -> int:
         return 1
 
     try:
-        stitched = feather_blend(left_warped, right_warped)
+        compose_result = compose_frame_quality_preview(
+            left,
+            right,
+            geometry_result.H,
+            T,
+            canvas_size,
+            output_dir=output_dir,
+            frame_idx=args.frame_index,
+            blend_mode=args.blend,
+            mb_levels=args.mb_levels,
+            seam_mode=args.seam,
+            seam_megapix=args.seam_megapix,
+            seam_dilate=args.seam_dilate,
+            crop_enabled=args.crop,
+            lir_method=args.lir_method,
+            lir_erode=args.lir_erode,
+            crop_debug=args.crop_debug,
+        )
+        stitched = compose_result.stitched
         save_image(output_dir / "stitched_frame.png", stitched)
+        debug["stage_runtimes_ms"]["compose"] = float(compose_result.runtime_ms)
+        debug["compose_backend"] = compose_result.backend_name
+        debug["compose_stage"] = {
+            "backend_name": compose_result.backend_name,
+            "runtime_ms": float(compose_result.runtime_ms),
+            "warnings": compose_result.warnings,
+            "meta": compose_result.meta,
+        }
+        debug["overlap_area"] = int(compose_result.overlap_area)
+        debug["crop_applied"] = bool(compose_result.crop_applied)
+        debug["crop_method"] = compose_result.crop_method
+        debug["crop_rect"] = compose_result.crop_rect
+        debug["output_bbox"] = compose_result.output_bbox
     except Exception as exc:
-        debug["failure_stage"] = "blend"
+        debug["failure_stage"] = "compose"
         debug["message"] = str(exc)
         debug["runtime_ms"] = int((time.time() - start_time) * 1000)
         _write_debug(debug_path, debug)
-        logging.error("Blending failed: %s", exc)
+        logging.error("Frame quality compose failed: %s", exc)
         return 1
 
     debug["runtime_ms"] = int((time.time() - start_time) * 1000)

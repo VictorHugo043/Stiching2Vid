@@ -135,6 +135,11 @@
 - `FeatureResult / MatchResult / GeometryResult`
 - `FeatureBackend / MatcherBackend / GeometryBackend`
 - Method B 专属 config 与 runtime logging
+- 可选支持子任务：`frame_quality_preview`
+  - 目标：给单帧入口补齐 seam / crop / blend 质量链路，尽量贴近视频输出观感
+  - 定位：支持 Method B qualitative check，不是 Phase 1 主线阻塞项
+  - 推荐插入位置：在单帧 Method B backend loader 稳定之后、视频路径迁移之前
+  - 当前状态：最小版已完成，通过共享 helper 复用 `VideoStitcher` 的单帧 compose 路径
 
 ### 验收标准
 - 单帧先跑通，再扩展到视频。
@@ -143,6 +148,8 @@
 ### 风险与规避
 - 风险：环境缺依赖。
   - 规避：optional dependency、lazy import、fallback。
+- 风险：为了补单帧 seam/crop parity，直接复制 `run_baseline_video.py` 的内联质量链路逻辑。
+  - 规避：若要做 `frame_quality_preview`，应优先抽共享 helper / adapter，而不是复制大段视频脚本。
 
 ## Phase 2
 ### 目标
