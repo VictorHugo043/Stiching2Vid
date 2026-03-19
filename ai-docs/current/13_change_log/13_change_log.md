@@ -17,6 +17,8 @@
 | CHG-20260319-04 | 2026-03-19 | code+docs | 为 `features / matching / geometry` 增加 `FeatureResult / MatchResult / GeometryResult` 与结果对象接口；`run_baseline_frame.py` 改走新接口并补充 backend 骨架 | 影响单帧路径与 Phase 1 接口层，不影响现有视频路径；新增单帧 smoke run bundle | 本次保留 legacy tuple/OpenCV 接口，Method B backend 仅落 fail-fast 占位 |
 | CHG-20260319-05 | 2026-03-19 | docs | 记录并澄清 `run_baseline_frame.py` 与 `run_baseline_video.py` 的职责差异：单帧入口不包含 seam/crop/temporal 质量链路，不能直接对比视频最终视觉效果 | 影响后续对 smoke 输出的解释与 ai-docs 的使用边界，不影响任何算法行为 | 本次为偏差检查与文档澄清，不包含新的功能实现 |
 | CHG-20260319-06 | 2026-03-19 | code+docs | 新增 `frame_quality_preview` 共享 helper，并让 `run_baseline_frame.py` 复用 `VideoStitcher` 的 `crop -> seam -> blend` 链路；同步更新 ai-docs 与后续建议 | 影响单帧入口输出、debug 字段和 snapshots，使其更接近视频静态质量链路；不改视频主流程 | 本次仍不覆盖 temporal/cache/multi-frame bundle parity，仅补齐单帧静态质量预览 |
+| CHG-20260319-07 | 2026-03-19 | code+docs | 为单帧 Method B 接入真实 optional dependency probe、lazy import、weights/device 配置、structured diagnostics 与 fallback；新增 `method_b_runtime.py`，并更新 ai-docs | 影响 `features.py`、`matching.py`、`run_baseline_frame.py` 的 Method B 工程边界与 debug 输出；不影响视频主流程 | 当前环境仍缺 `torch / lightglue`，因此本次验证集中在 fail-fast 和 fallback 路径 |
+| CHG-20260320-01 | 2026-03-20 | code+docs | 修复 LightGlue compact list 输出兼容问题，使真实 `superpoint + lightglue + opencv_usac_magsac` 单帧 smoke 在 `.venv-methodb` 下跑通；同步更新 ai-docs | 影响 `matching.py` 的 LightGlue 结果解析层与 Phase 1 当前完成定义；不影响视频主流程 | 本次只修输出解析，不改变视频路径，也不改官方 LightGlue 源码 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

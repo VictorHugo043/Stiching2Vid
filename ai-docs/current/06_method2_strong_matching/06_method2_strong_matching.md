@@ -78,13 +78,28 @@
   - `opencv_bf_ratio`
   - `opencv_ransac`
   - `opencv_usac_magsac`
-- 当前仅做 fail-fast 占位的 backend：
+- 当前已落地但受环境依赖约束的 backend：
   - `superpoint`
+    - optional dependency probe
+    - lazy import
+    - device resolution
+    - explicit weights path resolution
+    - fail-fast diagnostics
   - `lightglue`
+    - optional dependency probe
+    - lazy import
+    - device resolution
+    - explicit weights path resolution
+    - fail-fast diagnostics
 - 当前验证边界：
   - `run_baseline_frame.py` 只验证单帧 feature / matching / geometry / warp 接口层
-  - 不验证 seam / crop / temporal smoothing parity
+  - 当前已经补齐单帧的 seam / crop / blend 静态质量预览
+  - 不验证 temporal smoothing parity
   - 不应用它来判断视频质量链路是否与 baseline video 完全一致
+  - 已验证：
+    - 缺依赖 fail-fast
+    - fallback 路径
+    - `.venv-methodb` 环境下的真实 `SuperPoint / LightGlue` 单帧成功路径
 
 ### 2. 再视频
 - 视频层继续复用：
@@ -146,6 +161,53 @@
 - 必须 `GPU optional`
 - 必须记录 weights / device / runtime / fallback
 - 必须在依赖缺失时给出显式错误，而不是静默退化
+
+### 当前单帧 loader 落地状态（Phase 1 子任务 2）
+- 新增共享 runtime helper：
+  - `src/stitching/method_b_runtime.py`
+- `features.py`
+  - `superpoint` 分支已接入：
+    - dependency probe
+    - device resolution
+    - optional weights loading
+    - lazy import
+    - structured diagnostics
+- `matching.py`
+  - `lightglue` 分支已接入：
+    - dependency probe
+    - device resolution
+    - optional weights loading
+    - lazy import
+    - structured diagnostics
+- `run_baseline_frame.py`
+  - 已新增最小 Method B 配置项：
+    - `device`
+    - `force_cpu`
+    - `weights_dir`
+    - `max_keypoints`
+    - `resize_long_edge`
+    - `depth_confidence`
+    - `width_confidence`
+    - `filter_threshold`
+    - `feature_fallback_backend`
+    - `matcher_fallback_backend`
+  - 已新增 diagnostics：
+    - requested/effective backend
+    - fallback events
+    - dependency diagnostics
+    - device / weights config echo
+  - 已验证单帧真实 smoke：
+    - `superpoint + lightglue + opencv_usac_magsac`
+    - 当前成功样例：
+      - `outputs/runs/phase1_methodb_real_smoke_fix1`
+    - 当前样例统计：
+      - `n_kp_left = 1756`
+      - `n_matches_good = 1016`
+      - `n_inliers = 415`
+      - `inlier_ratio = 0.408`
+      - `reprojection_error = 1.660`
+  - 新增兼容点：
+    - 兼容官方 LightGlue compact 输出中 `matches / scores` 为 batch-wise list 的情况
 
 ## 建议配置项
 - `feature_backend`

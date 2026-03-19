@@ -670,3 +670,226 @@
   - 回到 Phase 1 主线，先接真实 `superpoint / lightglue` 的 optional dependency、lazy import 和 failure diagnostics。
   - 然后在单帧路径验证 Method B 与 `frame_quality_preview` 的组合。
   - 再决定视频路径是加 adapter 还是逐步迁移到结果对象接口。
+
+## IMP-20260319-08
+- 状态：done
+- 标题：Phase 1 子任务 2：单帧 Method B 依赖探测与 backend loader
+- 本步目标：
+  - 在单帧路径接入真实 `superpoint / lightglue` 的 optional dependency 与 lazy import。
+  - 为 Method B 增加 `device / weights_dir / force_cpu / max_keypoints / resize / confidence` 等最小配置入口。
+  - 在缺依赖、缺权重、设备不可用时输出明确的 failure diagnostics，并支持可选 fallback。
+- 关联上一步结论：
+  - `DEC-20260319-03`：Method B 默认采用预训练 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC`。
+  - `DEC-20260319-09`：单帧路径先走结果对象接口，视频路径暂不迁移。
+  - `DEC-20260319-12`：单帧质量预览已通过共享 helper 复用视频 compose 路径。
+  - `ISSUE-20260319-02`：当前环境缺少 `torch / kornia / lightglue`。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `scripts/run_baseline_frame.py`
+- 准备修改文件：
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `features.py` 与 `matching.py` 是单帧 Method B loader 的真实落点。
+  - `run_baseline_frame.py` 负责暴露配置、记录 diagnostics、串起 fallback。
+  - 共享 runtime helper 可避免在特征和匹配模块重复实现依赖探测、设备解析和权重路径逻辑。
+- 风险点：
+  - 当前环境缺依赖，真实推理可能无法跑通。
+  - LightGlue API 若与预期不同，可能导致 loader 只完成探测与 fail-fast，不能立即成功推理。
+  - 把非可序列化对象塞进 debug 字段会破坏 `debug.json` 导出。
+- 验收标准：
+  - `superpoint / lightglue` 不再只是静态 `NotImplementedError` 占位。
+  - 缺依赖时，错误信息中包含明确的缺失模块、device 解析和 weights 诊断。
+  - `run_baseline_frame.py` 能记录请求后端、实际后端、fallback 使用情况和 Method B 配置。
+  - 如果依赖缺失，脚本可以在配置了 fallback 时自动退回 Method A，并把原因写入 `debug.json`。
+- 替代方案与不选原因：
+  - 方案：继续保留静态占位，等安装依赖后再做。
+  - 不选原因：这会让 Phase 1 主线停留在接口层，无法把 Method B 的工程边界和失败语义先固定下来。
+- 实际修改文件：
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `scripts/run_baseline_frame.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `src/stitching/method_b_runtime.py`：
+    - `MethodBBackendError`
+    - dependency probe
+    - device resolution
+    - explicit weights path resolution
+    - optional state-dict loading
+  - `features.py`
+    - `superpoint` 后端从静态占位改为真实 optional backend loader
+    - 新增 lazy import、device/weights 诊断与 `backend_payload`
+  - `matching.py`
+    - `lightglue` 后端从静态占位改为真实 optional backend loader
+    - 新增 lazy import、device/weights 诊断与 structured match parsing
+  - `run_baseline_frame.py`
+    - 新增 Method B CLI 配置：
+      - `device`
+      - `force_cpu`
+      - `weights_dir`
+      - `max_keypoints`
+      - `resize_long_edge`
+      - `depth_confidence`
+      - `width_confidence`
+      - `filter_threshold`
+      - `feature_fallback_backend`
+      - `matcher_fallback_backend`
+    - 在 `debug.json` 中新增：
+      - `feature_backend_effective`
+      - `matcher_backend_effective`
+      - `fallback_events`
+      - Method B config echo
+      - requested/effective backend diagnostics
+- 验证方式：
+  - 运行 `python3 -m py_compile src/stitching/method_b_runtime.py src/stitching/features.py src/stitching/matching.py scripts/run_baseline_frame.py`
+  - 运行 `python3 scripts/run_baseline_frame.py --help`
+  - 运行 Method A 回归 smoke：
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --run_id phase1_methoda_regression_smoke`
+  - 运行 Method B 缺依赖 fail-fast smoke：
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --feature_backend superpoint --matcher_backend lightglue --run_id phase1_methodb_missingdeps_smoke`
+  - 运行 Method B fallback smoke：
+    - `python3 scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --feature_backend superpoint --matcher_backend lightglue --feature_fallback_backend opencv_orb --matcher_fallback_backend opencv_bf_ratio --run_id phase1_methodb_fallback_smoke`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - CLI 已显示新的 Method B 配置项。
+  - Method A 回归 smoke 成功完成。
+  - Method B 缺依赖 smoke 按预期失败，错误明确指出缺少：
+    - `torch`
+    - `lightglue`
+  - Method B fallback smoke 成功完成，并在 `debug.json` 中记录：
+    - requested/effective backend
+    - feature fallback event
+    - matcher fallback event
+    - dependency diagnostics
+  - 当前环境下尚未验证真实 `SuperPoint / LightGlue` 推理成功路径；这不是 loader 结构问题，而是环境依赖仍缺失。
+- 偏差：
+  - 原计划中隐含“如果环境允许则验证真实 Method B 成功路径”，但当前环境确认缺少 `torch / lightglue`，因此本步只能验证：
+    - real dependency probe
+    - fail-fast diagnostics
+    - optional fallback
+  - 本步仍未触及视频路径。
+- 下一步建议：
+  - 若要继续 Phase 1 主线，下一步应先准备 Method B 运行环境和权重。
+  - 环境就绪后，先在单帧路径验证真实 `superpoint + lightglue + opencv_usac_magsac`。
+  - 真实单帧成功后，再讨论视频路径 adapter 或迁移。
+
+## IMP-20260320-01
+- 状态：done
+- 标题：Phase 1 子任务 2 修复：兼容 LightGlue compact list 输出格式
+- 本步目标：
+  - 修复单帧 Method B 真实运行时的 `LightGlue backend failed: 'list' object has no attribute 'detach'`。
+  - 兼容官方 LightGlue 的 compact match output 格式，支持 `matches/scores` 为 batch-wise list。
+  - 保持现有 tensor 格式解析和视频路径不变。
+- 关联上一步结论：
+  - `DEC-20260319-13`：先固定 Method B loader 和失败语义。
+  - `IMP-20260319-08`：真实 loader、dependency probe 和 fallback 已落地。
+  - 当前新错误说明：依赖和权重已能加载，问题转为 LightGlue 返回格式兼容。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `src/stitching/matching.py`
+  - `external/LightGlue/lightglue/lightglue.py`
+  - `external/LightGlue/lightglue/utils.py`
+- 准备修改文件：
+  - `src/stitching/matching.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 问题集中在 `matching.py` 的 LightGlue 输出解析层。
+  - ai-docs 需要记录“真实 Method B 成功路径推进到了哪一步”以及新的兼容决策。
+- 风险点：
+  - 只修 `matches` 不修 `scores` 会留下同类 bug。
+  - 过度假设第三方输出结构，可能破坏旧 tensor 兼容性。
+  - 当前环境可能还有后续错误，因此这一步只应承诺修输出解析，不承诺完整端到端成功。
+- 验收标准：
+  - `_extract_lightglue_pairs()` 兼容官方 list/tensor 两种输出格式。
+  - 不影响已有 fallback / OpenCV matcher 路径。
+  - 在 `.venv-methodb` 环境下，原先的 `'list' object has no attribute 'detach'` 不再出现。
+- 替代方案与不选原因：
+  - 方案：把 LightGlue 调用切换到官方 `utils.match_pair()`。
+  - 不选原因：这会同时改动当前特征/匹配边界和设备流转，超出本步“最小修复输出解析”的范围。
+- 实际修改文件：
+  - `src/stitching/matching.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `matching.py`
+    - `_tensor_to_numpy()` 现在兼容：
+      - tensor
+      - numpy array
+      - empty list
+      - single-item list/tuple
+    - `_extract_lightglue_pairs()` 现在兼容：
+      - `matches / scores` 为 batch-wise list
+      - `matches / scores` 为 tensor
+      - `matches0 / matching_scores0` 为 tensor 或 list
+  - ai-docs 中同步写明：
+    - 官方 LightGlue `matches / scores` 常规路径是 compact list 格式
+    - `.venv-methodb` 下真实单帧 Method B 成功 smoke 已完成
+- 验证方式：
+  - 运行 `python3 -m py_compile src/stitching/matching.py`
+  - 运行 `.venv-methodb/bin/python -m py_compile src/stitching/matching.py scripts/run_baseline_frame.py`
+  - 运行真实 smoke：
+    - `.venv-methodb/bin/python scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase1_methodb_real_smoke_fix1`
+- 运行结果与验证结果：
+  - 原先的错误：
+    - `LightGlue backend failed: 'list' object has no attribute 'detach'`
+    - 已不再出现
+  - 真实单帧 Method B 成功完成，输出目录：
+    - `outputs/runs/phase1_methodb_real_smoke_fix1`
+  - 关键结果：
+    - `feature_backend_effective = superpoint`
+    - `matcher_backend_effective = lightglue`
+    - `geometry_backend = opencv_usac_magsac`
+    - `n_kp_left = 1756`
+    - `n_matches_good = 1016`
+    - `n_inliers = 415`
+    - `inlier_ratio = 0.408`
+    - `reprojection_error = 1.660`
+  - 质量预览 artefacts 也已同时生成：
+    - `stitched_frame.png`
+    - `snapshots/frame0_seam_overlay.png`
+    - `snapshots/frame0_lir.png`
+- 偏差：
+  - 本步原本只计划修解析错误，但在 `.venv-methodb` 环境中顺带确认了真实 Method B 单帧成功路径。
+  - 本步仍未触及视频路径，也未新增多 pair 回归。
+- 下一步建议：
+  - 先把 `.venv-methodb` 的环境准备流程写成正式文档。
+  - 然后用 2-3 个 pair / frame 做真实单帧 Method B 回归。
+  - 回归稳定后，再开始视频路径 adapter 设计。

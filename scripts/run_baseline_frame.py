@@ -30,17 +30,78 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--feature_backend",
         default=None,
-        help="Optional feature backend override (supported now: opencv_orb, opencv_sift; planned: superpoint)",
+        help=(
+            "Optional feature backend override "
+            "(supported: opencv_orb, opencv_sift, superpoint if optional deps are installed)"
+        ),
     )
     parser.add_argument(
         "--matcher_backend",
         default=None,
-        help="Optional matcher backend override (supported now: opencv_bf_ratio; planned: lightglue)",
+        help=(
+            "Optional matcher backend override "
+            "(supported: opencv_bf_ratio, lightglue if optional deps are installed)"
+        ),
     )
     parser.add_argument(
         "--geometry_backend",
         default=None,
         help="Optional geometry backend override (supported now: opencv_ransac, opencv_usac_magsac)",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Optional Method B device override (auto/cpu/cuda/cuda:0)",
+    )
+    parser.add_argument(
+        "--force_cpu",
+        action="store_true",
+        help="Force Method B backends to use CPU even if GPU is available",
+    )
+    parser.add_argument(
+        "--weights_dir",
+        default=None,
+        help="Optional directory or file path for Method B weights",
+    )
+    parser.add_argument(
+        "--max_keypoints",
+        type=int,
+        default=2048,
+        help="Maximum keypoints for SuperPoint backend",
+    )
+    parser.add_argument(
+        "--resize_long_edge",
+        type=int,
+        default=None,
+        help="Optional long-edge resize before SuperPoint extraction",
+    )
+    parser.add_argument(
+        "--depth_confidence",
+        type=float,
+        default=None,
+        help="Optional LightGlue depth_confidence override",
+    )
+    parser.add_argument(
+        "--width_confidence",
+        type=float,
+        default=None,
+        help="Optional LightGlue width_confidence override",
+    )
+    parser.add_argument(
+        "--filter_threshold",
+        type=float,
+        default=None,
+        help="Optional LightGlue filter_threshold override",
+    )
+    parser.add_argument(
+        "--feature_fallback_backend",
+        default=None,
+        help="Optional fallback feature backend when requested backend fails",
+    )
+    parser.add_argument(
+        "--matcher_fallback_backend",
+        default=None,
+        help="Optional fallback matcher backend when requested backend fails",
     )
     parser.add_argument("--nfeatures", type=int, default=2000, help="ORB nfeatures")
     parser.add_argument("--ratio", type=float, default=0.75, help="Ratio test threshold")
@@ -165,6 +226,12 @@ def _resolve_geometry_backend(geometry_backend: Optional[str]) -> str:
     return geometry_backend.strip().lower() if geometry_backend else "opencv_ransac"
 
 
+def _resolve_optional_backend(name: Optional[str]) -> Optional[str]:
+    if not name:
+        return None
+    return name.strip().lower()
+
+
 def main() -> int:
     args = _build_parser().parse_args()
 
@@ -195,6 +262,8 @@ def main() -> int:
     feature_backend = _resolve_feature_backend(args.feature, args.feature_backend)
     matcher_backend = _resolve_matcher_backend(args.matcher_backend)
     geometry_backend = _resolve_geometry_backend(args.geometry_backend)
+    feature_fallback_backend = _resolve_optional_backend(args.feature_fallback_backend)
+    matcher_fallback_backend = _resolve_optional_backend(args.matcher_fallback_backend)
 
     debug = {
         "pair_id": args.pair,
@@ -206,10 +275,22 @@ def main() -> int:
         "feature_backend": feature_backend,
         "matcher_backend": matcher_backend,
         "geometry_backend": geometry_backend,
+        "feature_backend_effective": feature_backend,
+        "matcher_backend_effective": matcher_backend,
         "nfeatures": args.nfeatures,
         "ratio": args.ratio,
         "min_matches": args.min_matches,
         "ransac_thresh": args.ransac_thresh,
+        "device": args.device,
+        "force_cpu": args.force_cpu,
+        "weights_dir": args.weights_dir,
+        "max_keypoints": args.max_keypoints,
+        "resize_long_edge": args.resize_long_edge,
+        "depth_confidence": args.depth_confidence,
+        "width_confidence": args.width_confidence,
+        "filter_threshold": args.filter_threshold,
+        "feature_fallback_backend": feature_fallback_backend,
+        "matcher_fallback_backend": matcher_fallback_backend,
         "n_kp_left": None,
         "n_kp_right": None,
         "n_matches_raw": None,
@@ -242,6 +323,7 @@ def main() -> int:
         "runtime_ms": None,
         "failure_stage": None,
         "message": None,
+        "fallback_events": [],
     }
 
     start_time = time.time()
@@ -273,62 +355,196 @@ def main() -> int:
     save_image(output_dir / "left.png", left)
     save_image(output_dir / "right.png", right)
 
-    try:
-        feature_left = detect_and_describe_result(
+    def _extract_pair_with_backend(backend_name: str):
+        left_result = detect_and_describe_result(
             left,
             feature=args.feature,
-            feature_backend=feature_backend,
+            feature_backend=backend_name,
             nfeatures=args.nfeatures,
+            device=args.device,
+            force_cpu=args.force_cpu,
+            weights_dir=args.weights_dir,
+            max_keypoints=args.max_keypoints,
+            resize_long_edge=args.resize_long_edge,
         )
-        feature_right = detect_and_describe_result(
+        right_result = detect_and_describe_result(
             right,
             feature=args.feature,
-            feature_backend=feature_backend,
+            feature_backend=backend_name,
             nfeatures=args.nfeatures,
+            device=args.device,
+            force_cpu=args.force_cpu,
+            weights_dir=args.weights_dir,
+            max_keypoints=args.max_keypoints,
+            resize_long_edge=args.resize_long_edge,
         )
-        debug["n_kp_left"] = feature_left.n_keypoints
-        debug["n_kp_right"] = feature_right.n_keypoints
-        debug["stage_runtimes_ms"]["feature_left"] = float(feature_left.runtime_ms)
-        debug["stage_runtimes_ms"]["feature_right"] = float(feature_right.runtime_ms)
-        debug["feature_stage"] = {
-            "left": {
-                "backend_name": feature_left.backend_name,
-                "n_keypoints": int(feature_left.n_keypoints),
-                "runtime_ms": float(feature_left.runtime_ms),
-            },
-            "right": {
-                "backend_name": feature_right.backend_name,
-                "n_keypoints": int(feature_right.n_keypoints),
-                "runtime_ms": float(feature_right.runtime_ms),
-            },
-        }
-    except Exception as exc:
-        debug["failure_stage"] = "feature"
-        debug["message"] = str(exc)
-        debug["runtime_ms"] = int((time.time() - start_time) * 1000)
-        _write_debug(debug_path, debug)
-        logging.error("Feature detection failed: %s", exc)
-        return 1
+        return left_result, right_result
 
+    feature_requested_error = None
+    feature_requested_diagnostics = None
+    try:
+        feature_left, feature_right = _extract_pair_with_backend(feature_backend)
+    except Exception as exc:
+        feature_requested_error = str(exc)
+        feature_requested_diagnostics = getattr(exc, "diagnostics", None)
+        if feature_fallback_backend and feature_fallback_backend != feature_backend:
+            logging.warning(
+                "Feature backend %s failed, fallback to %s: %s",
+                feature_backend,
+                feature_fallback_backend,
+                exc,
+            )
+            debug["fallback_events"].append(
+                {
+                    "stage": "feature",
+                    "requested_backend": feature_backend,
+                    "fallback_backend": feature_fallback_backend,
+                    "reason": str(exc),
+                    "diagnostics": feature_requested_diagnostics,
+                }
+            )
+            try:
+                feature_left, feature_right = _extract_pair_with_backend(feature_fallback_backend)
+                debug["feature_backend_effective"] = feature_fallback_backend
+            except Exception as fallback_exc:
+                debug["feature_stage"] = {
+                    "requested_backend": feature_backend,
+                    "effective_backend": feature_fallback_backend,
+                    "requested_error": feature_requested_error,
+                    "requested_diagnostics": feature_requested_diagnostics,
+                    "fallback_error": str(fallback_exc),
+                    "fallback_diagnostics": getattr(fallback_exc, "diagnostics", None),
+                }
+                debug["failure_stage"] = "feature"
+                debug["message"] = str(fallback_exc)
+                debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+                _write_debug(debug_path, debug)
+                logging.error("Feature detection fallback failed: %s", fallback_exc)
+                return 1
+        else:
+            debug["feature_stage"] = {
+                "requested_backend": feature_backend,
+                "effective_backend": feature_backend,
+                "requested_error": feature_requested_error,
+                "requested_diagnostics": feature_requested_diagnostics,
+            }
+            debug["failure_stage"] = "feature"
+            debug["message"] = str(exc)
+            debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+            _write_debug(debug_path, debug)
+            logging.error("Feature detection failed: %s", exc)
+            return 1
+
+    debug["n_kp_left"] = feature_left.n_keypoints
+    debug["n_kp_right"] = feature_right.n_keypoints
+    debug["feature_backend_effective"] = feature_left.backend_name
+    debug["stage_runtimes_ms"]["feature_left"] = float(feature_left.runtime_ms)
+    debug["stage_runtimes_ms"]["feature_right"] = float(feature_right.runtime_ms)
+    debug["feature_stage"] = {
+        "requested_backend": feature_backend,
+        "effective_backend": debug["feature_backend_effective"],
+        "requested_error": feature_requested_error,
+        "requested_diagnostics": feature_requested_diagnostics,
+        "left": {
+            "backend_name": feature_left.backend_name,
+            "n_keypoints": int(feature_left.n_keypoints),
+            "runtime_ms": float(feature_left.runtime_ms),
+            "meta": feature_left.meta,
+        },
+        "right": {
+            "backend_name": feature_right.backend_name,
+            "n_keypoints": int(feature_right.n_keypoints),
+            "runtime_ms": float(feature_right.runtime_ms),
+            "meta": feature_right.meta,
+        },
+    }
+
+    matching_requested_error = None
+    matching_requested_diagnostics = None
     try:
         match_result = match_feature_results(
             feature_left,
             feature_right,
             matcher_backend=matcher_backend,
             ratio=args.ratio,
+            device=args.device,
+            force_cpu=args.force_cpu,
+            weights_dir=args.weights_dir,
+            depth_confidence=args.depth_confidence,
+            width_confidence=args.width_confidence,
+            filter_threshold=args.filter_threshold,
         )
     except Exception as exc:
-        debug["failure_stage"] = "matching"
-        debug["message"] = str(exc)
-        debug["runtime_ms"] = int((time.time() - start_time) * 1000)
-        _write_debug(debug_path, debug)
-        logging.error("Descriptor matching failed: %s", exc)
-        return 1
+        matching_requested_error = str(exc)
+        matching_requested_diagnostics = getattr(exc, "diagnostics", None)
+        if matcher_fallback_backend and matcher_fallback_backend != matcher_backend:
+            logging.warning(
+                "Matcher backend %s failed, fallback to %s: %s",
+                matcher_backend,
+                matcher_fallback_backend,
+                exc,
+            )
+            debug["fallback_events"].append(
+                {
+                    "stage": "matching",
+                    "requested_backend": matcher_backend,
+                    "fallback_backend": matcher_fallback_backend,
+                    "reason": str(exc),
+                    "diagnostics": matching_requested_diagnostics,
+                }
+            )
+            try:
+                match_result = match_feature_results(
+                    feature_left,
+                    feature_right,
+                    matcher_backend=matcher_fallback_backend,
+                    ratio=args.ratio,
+                    device=args.device,
+                    force_cpu=args.force_cpu,
+                    weights_dir=args.weights_dir,
+                    depth_confidence=args.depth_confidence,
+                    width_confidence=args.width_confidence,
+                    filter_threshold=args.filter_threshold,
+                )
+                debug["matcher_backend_effective"] = matcher_fallback_backend
+            except Exception as fallback_exc:
+                debug["matching_stage"] = {
+                    "requested_backend": matcher_backend,
+                    "effective_backend": matcher_fallback_backend,
+                    "requested_error": matching_requested_error,
+                    "requested_diagnostics": matching_requested_diagnostics,
+                    "fallback_error": str(fallback_exc),
+                    "fallback_diagnostics": getattr(fallback_exc, "diagnostics", None),
+                }
+                debug["failure_stage"] = "matching"
+                debug["message"] = str(fallback_exc)
+                debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+                _write_debug(debug_path, debug)
+                logging.error("Descriptor matching fallback failed: %s", fallback_exc)
+                return 1
+        else:
+            debug["matching_stage"] = {
+                "requested_backend": matcher_backend,
+                "effective_backend": matcher_backend,
+                "requested_error": matching_requested_error,
+                "requested_diagnostics": matching_requested_diagnostics,
+            }
+            debug["failure_stage"] = "matching"
+            debug["message"] = str(exc)
+            debug["runtime_ms"] = int((time.time() - start_time) * 1000)
+            _write_debug(debug_path, debug)
+            logging.error("Descriptor matching failed: %s", exc)
+            return 1
 
     debug["n_matches_raw"] = match_result.tentative_count
     debug["n_matches_good"] = match_result.good_count
+    debug["matcher_backend_effective"] = match_result.backend_name
     debug["stage_runtimes_ms"]["matching"] = float(match_result.runtime_ms)
     debug["matching_stage"] = {
+        "requested_backend": matcher_backend,
+        "effective_backend": debug["matcher_backend_effective"],
+        "requested_error": matching_requested_error,
+        "requested_diagnostics": matching_requested_diagnostics,
         "backend_name": match_result.backend_name,
         "tentative_count": int(match_result.tentative_count),
         "good_count": int(match_result.good_count),

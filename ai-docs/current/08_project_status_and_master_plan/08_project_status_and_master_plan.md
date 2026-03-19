@@ -145,6 +145,16 @@
 - 单帧先跑通，再扩展到视频。
 - Method A / Method B 能共用 `VideoStitcher`、crop、seam、blend、diagnostics。
 
+### 当前 Phase 1 进度（2026-03-19）
+- 已完成：
+  - `FeatureResult / MatchResult / GeometryResult`
+  - 单帧 `frame_quality_preview`
+  - 单帧 Method B dependency probe / lazy import / failure diagnostics / fallback 骨架
+  - `.venv-methodb` 环境下真实 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 单帧成功 smoke
+- 未完成：
+  - 视频路径 adapter 或迁移
+  - 多 pair / 多帧稳定性验证
+
 ### 风险与规避
 - 风险：环境缺依赖。
   - 规避：optional dependency、lazy import、fallback。
