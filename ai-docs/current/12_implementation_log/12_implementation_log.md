@@ -1,0 +1,166 @@
+# 12_implementation_log
+
+## 使用规则
+- append-only。
+- 每个实施步骤必须先写 `planned`，完成后再回填为 `done / blocked / partial`。
+- 一条记录必须能独立回答：
+  - 这一步想做什么
+  - 读了什么
+  - 改了什么
+  - 验证了什么
+  - 与计划有何偏差
+  - 下一步是什么
+
+## IMP-20260319-01
+- 状态：done
+- 标题：AI-docs 补全、专项设计文档建立与执行工作流固化
+- 本步目标：
+  - 沿用现有 `ai-docs/current/00~07` 编号体系
+  - 修正文档与代码漂移
+  - 新增 master plan、Dynamic seam 设计、执行规则与日志机制
+- 关联上一步结论：
+  - 以当前代码和论文阅读结果为基础建立统一文档体系
+- 本步回读文档：
+  - `ai-docs/current/00_repo_bootstrap/00_repo_bootstrap.md`
+  - `ai-docs/current/01_data_manifest/01_data_manifest.md`
+  - `ai-docs/current/02_baseline_frame_stitch/02_baseline_frame_stitch.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/04_temporal_smoothing/04_temporal_smoothing.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/seam_opencv.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_state.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/io.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/ablate_seam.py`
+  - `scripts/ablate_temporal.py`
+  - `scripts/inspect_pair.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+- 参考论文 / 资料：
+  - SuperPoint
+  - LightGlue
+  - MAGSAC++
+  - Object-centered image stitching
+  - Panoramic video stitching of dual cameras based on spatio-temporal seam optimization
+  - A Metric for Video Blending Quality Assessment
+  - `Gong Xiangwei_2022213490_MidTerm.pdf`
+- 实际更新文件：
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/04_temporal_smoothing/04_temporal_smoothing.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 验证方式：
+  - 逐一核对 `ai-docs`、`src/stitching`、`scripts`、`outputs` 的当前真实结构
+  - 确认 `scripts/ablate_crop.py` 与 `scripts/ablate_video_reuse.py` 当前不存在
+  - 确认 `video_mode=1` 下的 `reuse_mode` 真实行为与 `jitter` 退化条件
+- 运行结果与验证结果：
+  - 文档体系已补齐
+  - 后续执行规则已写入 `10_execution_workflow`
+  - 决策 / 实施 / 变更 / issue 入口已建立
+- 偏差：
+  - 无代码实现，仅进行文档补全与体系建立
+- 下一步建议：
+  - 执行 `Phase 0` 的最小整理
+  - 优先清理运行模式语义和评测协议
+
+## 变更文件清单
+| 文件 | 变更说明 | 负责人 | 状态 |
+| --- | --- | --- | --- |
+| ai-docs/current/12_implementation_log/12_implementation_log.md | 新增 append-only 实施日志并补写本次文档建设记录 | Codex | 完成 |
+
+## IMP-20260319-02
+- 状态：done
+- 标题：Phase 0 最小整理：固定运行模式语义与导出字段
+- 本步目标：
+  - 在不改变算法能力的前提下，为 `scripts/run_baseline_video.py` 导出显式的 geometry-mode 语义。
+  - 固定当前实现与 `fixed_geometry / keyframe_update / adaptive_update` 术语之间的映射边界。
+  - 在导出 artefacts 中标记 `jitter` 是否适合作为当前模式下的主 temporal 指标。
+- 关联上一步结论：
+  - `DEC-20260319-04`：Dynamic seam 先走兼容 OpenCV seam finder 的 MVP。
+  - `DEC-20260319-05`：运行模式文档层显式拆分为 `fixed_geometry / keyframe_update / adaptive_update`。
+  - `ISSUE-20260319-03`：`video_mode=1` 下 `jitter` 容易退化为 0。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+- 本步回读代码：
+  - `scripts/run_baseline_video.py`
+- 准备修改文件：
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `run_baseline_video.py` 是当前运行模式行为与导出 bundle 的真实来源。
+  - 决策 / 实施 / 变更 / issue 文档需要记录本步的语义冻结、字段增加与剩余缺口。
+- 风险点：
+  - 错把 `adaptive_update` 写成当前已实现模式。
+  - 新导出字段影响旧分析脚本的字段假设。
+  - 在整理模式语义时意外改动现有 reuse 逻辑。
+- 验收标准：
+  - 现有 CLI 参数兼容，算法行为不变。
+  - `transforms.csv`、`metrics_preview.json`、`debug.json` 新增显式 geometry-mode 语义字段。
+  - `video_mode=1` 导出 `fixed_geometry`。
+  - `video_mode=0` 导出 `keyframe_update`。
+  - 导出字段明确标记 `fixed_geometry` 下的 `jitter` 非主 temporal 指标。
+- 替代方案与不选原因：
+  - 方案：本步直接重命名 CLI 参数为 `fixed_geometry / keyframe_update / adaptive_update`。
+  - 不选原因：会提前破坏兼容性，而当前目标只是先冻结语义和 bundle 字段。
+- 实际修改文件：
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `run_baseline_video.py` 中新增 `_resolve_geometry_mode()`、`_jitter_meaningful_for_geometry_mode()`、`_describe_mode_semantics()`。
+  - 保留现有 `--video_mode` / `--reuse_mode` 参数，但将 help 文案改为与当前实现对齐的 legacy 说明。
+  - 在 `transforms.csv`、`metrics_preview.json`、`debug.json` 中新增：
+    - `geometry_mode`
+    - `jitter_meaningful`
+  - 在 `debug.json` 中新增 `mode_semantics`，明确：
+    - 当前 `adaptive_update_available = false`
+    - 当前导出的 geometry mode 只来自现有实现。
+  - 在 `03` 和 `05` 文档中同步写明新导出字段与当前实际可导出的模式范围。
+- 验证方式：
+  - 运行 `python3 -m py_compile scripts/run_baseline_video.py`
+  - 核对 `git diff`，确认只涉及语义层字段、help 文案和 ai-docs 回填
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - 当前 CLI 兼容性保持不变。
+  - `video_mode=1` 将显式导出 `fixed_geometry`。
+  - `video_mode=0` 将显式导出 `keyframe_update`。
+  - `jitter_meaningful` 已作为 bundle 字段落地，可避免把 `fixed_geometry` 下的低 jitter 误读成稳定性提升。
+- 偏差：
+  - 本步没有引入新的 CLI 模式名，也没有实现 `adaptive_update`。
+  - 本步只冻结语义和导出字段，没有修改下游实验脚本的消费逻辑。
+- 下一步建议：
+  - 继续完成 Phase 0 的 bundle/schema 冻结，检查下游脚本是否需要读取 `geometry_mode / jitter_meaningful`。
+  - 然后再进入 Method B 的最小子任务计划，先单帧设计再视频接入。

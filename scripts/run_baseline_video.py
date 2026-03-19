@@ -122,13 +122,19 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         choices=[0, 1],
-        help="Enable frame0-reuse video stitching mode (default: enabled)",
+        help=(
+            "Legacy video mode toggle: 1=current fixed_geometry-style cached path, "
+            "0=current keyframe_update baseline path"
+        ),
     )
     parser.add_argument(
         "--reuse_mode",
         default="frame0_all",
         choices=["frame0_all", "frame0_geom", "frame0_seam", "emaH"],
-        help="State reuse strategy when --video_mode=1",
+        help=(
+            "Legacy state reuse strategy when --video_mode=1; "
+            "current geometry semantics remain fixed_geometry"
+        ),
     )
     parser.add_argument(
         "--reinit_every",
@@ -333,6 +339,25 @@ def _seam_cli_to_method(seam_mode: str) -> str:
         "opencv_voronoi": "voronoi",
     }
     return mapping.get(seam_mode, "dp_color")
+
+
+def _resolve_geometry_mode(video_mode: int) -> str:
+    return "fixed_geometry" if int(video_mode) == 1 else "keyframe_update"
+
+
+def _jitter_meaningful_for_geometry_mode(geometry_mode: str) -> int:
+    return 0 if geometry_mode == "fixed_geometry" else 1
+
+
+def _describe_mode_semantics(video_mode: int, reuse_mode: str) -> Dict[str, object]:
+    geometry_mode = _resolve_geometry_mode(video_mode)
+    return {
+        "geometry_mode": geometry_mode,
+        "jitter_meaningful": bool(_jitter_meaningful_for_geometry_mode(geometry_mode)),
+        "adaptive_update_available": False,
+        "legacy_video_mode": int(video_mode),
+        "legacy_reuse_mode": reuse_mode,
+    }
 
 
 def _compose_single_roi_on_canvas(canvas_size, roi_img, roi_mask, corner):
@@ -653,6 +678,8 @@ def _build_transform_columns() -> List[str]:
         [
             "video_mode",
             "reuse_mode",
+            "geometry_mode",
+            "jitter_meaningful",
             "H_delta_norm",
             "overlap_area_current",
             "crop_applied",
@@ -672,6 +699,9 @@ def _build_transform_columns() -> List[str]:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    mode_semantics = _describe_mode_semantics(args.video_mode, args.reuse_mode)
+    geometry_mode = str(mode_semantics["geometry_mode"])
+    jitter_meaningful = int(mode_semantics["jitter_meaningful"])
 
     repo_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo_root / "src"))
@@ -758,6 +788,8 @@ def main() -> int:
             "crop_debug": int(args.crop_debug),
             "video_mode": int(args.video_mode),
             "reuse_mode": args.reuse_mode,
+            "geometry_mode": geometry_mode,
+            "jitter_meaningful": jitter_meaningful,
             "reinit_every": int(args.reinit_every),
             "reinit_on_low_overlap_ratio": float(args.reinit_on_low_overlap_ratio),
             "smooth_h": args.smooth_h,
@@ -795,6 +827,9 @@ def main() -> int:
         "crop_keyframe_stats": [],
         "video_mode": int(args.video_mode),
         "reuse_mode": args.reuse_mode,
+        "geometry_mode": geometry_mode,
+        "jitter_meaningful": jitter_meaningful,
+        "mode_semantics": mode_semantics,
         "reinit_every": int(args.reinit_every),
         "reinit_on_low_overlap_ratio": float(args.reinit_on_low_overlap_ratio),
         "init_frame_index": None,
@@ -1224,6 +1259,8 @@ def main() -> int:
 
                     note_parts.append("video_mode=1")
                     note_parts.append(f"reuse_mode={args.reuse_mode}")
+                    note_parts.append(f"geometry_mode={geometry_mode}")
+                    note_parts.append(f"jitter_meaningful={jitter_meaningful}")
                     note_parts.append(f"H_delta_norm={h_delta:.6f}")
                     note_parts.append(f"overlap_area={overlap_current}")
 
@@ -1243,6 +1280,8 @@ def main() -> int:
                         "jitter_sm_max": jitter_sm_stats.max,
                         "video_mode": 1,
                         "reuse_mode": args.reuse_mode,
+                        "geometry_mode": geometry_mode,
+                        "jitter_meaningful": jitter_meaningful,
                         "H_delta_norm": float(h_delta),
                         "overlap_area_current": int(overlap_current),
                         "crop_applied": int(1 if stitch_out.get("crop_applied") else 0),
@@ -2100,6 +2139,8 @@ def main() -> int:
                     "jitter_sm_max": jitter_sm_stats.max,
                     "video_mode": 0,
                     "reuse_mode": "baseline",
+                    "geometry_mode": geometry_mode,
+                    "jitter_meaningful": jitter_meaningful,
                     "H_delta_norm": float(h_delta),
                     "overlap_area_current": int(overlap_area_current),
                     "crop_applied": int(crop_applied),
@@ -2175,6 +2216,7 @@ def main() -> int:
         "p95_raw": jitter_raw_p95,
         "mean_sm": jitter_sm_mean,
         "p95_sm": jitter_sm_p95,
+        "meaningful_under_current_geometry_mode": bool(jitter_meaningful),
     }
 
     seam_stats = debug.get("seam_keyframe_stats", [])
@@ -2250,6 +2292,9 @@ def main() -> int:
             debug.get("crop_summary", {}).get("black_border_ratio_low_mean", 0.0)
         ),
         "video_mode": int(args.video_mode),
+        "reuse_mode": args.reuse_mode if int(args.video_mode) == 1 else "baseline",
+        "geometry_mode": geometry_mode,
+        "jitter_meaningful": jitter_meaningful,
         "reinit_count": int(debug.get("reinit_count", 0)),
         "init_ms_mean": float(debug.get("time_breakdown_summary", {}).get("init_ms_mean", 0.0)),
         "reuse_per_frame_ms_mean": float(

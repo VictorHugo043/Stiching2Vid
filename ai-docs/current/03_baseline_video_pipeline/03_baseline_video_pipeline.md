@@ -1,91 +1,109 @@
 # 03_baseline_video_pipeline
 
 ## 任务目标
-- 将单帧拼接方法扩展为视频级流程，形成可运行、可播放、可诊断的基线输出。
+- 固化当前视频级 baseline pipeline 的 as-built 行为，作为 Phase 0 冻结基线与后续 Method B / Dynamic seam 改造的事实依据。
 
-## 验收标准(DoD)
-- 至少 1 组 video 与 1 组 frames 数据可以产出可播放的 `stitched.mp4`。
-- 失败不会导致全流程崩溃（除非首帧不可读）。
-- 产出稳定的诊断文件：`transforms.csv`、`metrics_preview.json`、`debug.json`、`logs.txt`。
+## 当前实现状态（代码对齐版）
+- 主入口：`scripts/run_baseline_video.py`。
+- 当前存在两条主路径：
+  - `video_mode=0`：关键帧重估几何，非关键帧复用最近有效 `H`；支持 `smooth_h=none|ema|window`。
+  - `video_mode=1`：通过 `src/stitching/video_stitcher.py` 做 frame0 / re-init 缓存执行，缓存几何、cropper、seam masks 和 metadata。
+- 统一处理链路：
+  - `geometry`: `src/stitching/geometry.py`
+  - `temporal`: `src/stitching/temporal.py`
+  - `seam`: `src/stitching/seam_opencv.py`
+  - `crop`: `src/stitching/cropper.py`
+  - `video reuse`: `src/stitching/video_state.py` + `src/stitching/video_stitcher.py`
 
-## Pipeline 设计（baseline）
-- 数据读取：复用 `open_pair()` + `FrameSource.read_next()` 顺序解码，避免频繁 seek。
-- 关键帧策略：第 0 帧强制估计 H；每隔 `keyframe_every` 帧重估一次；其余帧复用最近有效 H。
-- 画布策略：以第一帧（或首个可用 H）估计的画布为固定画布，避免输出尺寸抖动。
-- 融合策略：`blend=none|feather`，默认 feather（distance transform 权重）。
-- 4.2.x 顺序：`warp -> crop(LIR) -> seam -> blend`（crop 默认开启，可用 `--no_crop` 关闭）。
+## 当前 pipeline 真实行为
+### 1. `video_mode=0`（baseline / keyframe update）
+- 第 0 帧和每个 `keyframe_every` 帧重新做 `detect -> match -> findHomography`。
+- 非关键帧复用最近一次有效 `H_raw`。
+- `smooth_h` 在这一路径上是有意义的，因为输入的 `H_raw` 会随关键帧更新而变化。
+- seam/crop 逻辑主要内联在 `scripts/run_baseline_video.py` 中，非关键帧复用 seam cache。
 
-## FPS 决策规则（已实现）
-- 优先：`input_type=video` 且 `source.fps()` 有效。
-- 其次：`pairs.yaml` 的 `meta.fps`。
-- 再次：命令行 `--fps`。
-- 兜底：30，并在 `debug.json` 与日志中记录 warning。
+### 2. `video_mode=1`（frame0 reuse）
+- 初始化或 re-init 时才做特征、匹配和单应估计，然后调用 `VideoStitcher.initialize_from_first_frame()`。
+- 后续帧通过 `VideoStitcher.stitch_frame()` 复用缓存状态，几何主值来自 `video_stitcher.state.H_or_cameras`。
+- re-init 触发条件当前只有三类：
+  - 首帧未初始化
+  - `reinit_every > 0`
+  - `reinit_on_low_overlap_ratio > 0`
 
-## 失败兜底策略（关键帧）
-- 首帧估计失败：允许 fallback 到单位矩阵（status=`FAIL_INIT`），流程继续并记录。
-- 非首帧关键帧失败：复用上一帧有效 H（status=`FALLBACK`）。
-- 任意单帧失败不应中断整个视频处理。
+## 关键校正：`reuse_mode` 的真实语义
+- `frame0_all`
+  - 当前语义是固定几何 + 固定 crop + 固定 seam mask，直到触发 re-init。
+- `frame0_geom`
+  - 当前名字容易误导。
+  - 实际行为是固定几何，但允许对当前帧重新计算 seam；并不是“每帧更新 geometry”。
+- `frame0_seam`
+  - 当前实现里没有独立于 `frame0_all` 的稳定专属路径。
+  - 在默认流程下它与 `frame0_all` 几乎等价，通常仍复用缓存 seam mask。
+- `emaH`
+  - 当前对缓存 `H_or_cameras` 做平滑；如果几何本身不变化，平滑后的轨迹仍接近常量。
 
-## 输出目录与文件含义
-- 目录：`outputs/runs/<run_id>/`，默认 `<run_id>=YYYYMMDD-HHMM_<pair_id>_<feature>`。
-- 主输出：`stitched.mp4`（固定尺寸，保证可播放）。
-- 轨迹记录：`transforms.csv`（逐帧统计与 H 展平，供后续评估脚本读取）。
-- 快速统计：`metrics_preview.json`（成功率、平均内点、平均耗时等）。
-- 运行信息：`debug.json`（参数、fps 策略、长度信息、异常摘要）。
-- 日志输出：`logs.txt`（INFO/WARNING/ERROR）。
-- 诊断快照：`snapshots/`（每隔 K 帧存 left/right/stitched/overlay；关键帧额外存 matches/inliers）。
+## 当前导出 artefacts
+- `outputs/runs/<run_id>/`
+  - `stitched.mp4`
+  - `transforms.csv`
+  - `metrics_preview.json`
+  - `debug.json`
+  - `jitter_timeseries.csv`
+  - `logs.txt`
+  - `snapshots/`
+- `transforms.csv` 现有重点字段：
+  - 匹配统计：`n_kp_left/right`、`n_matches_raw/good`、`n_inliers`、`inlier_ratio`
+  - 几何轨迹：`H_*`、`Hraw_*`、`Hsm_*`
+  - 时序项：`jitter_raw`、`jitter_sm`、`H_delta_norm`
+  - 运行模式：`video_mode`、`reuse_mode`
+  - seam/crop 相关：`overlap_area_current`、`crop_applied`、`crop_method`
 
-## transforms.csv 字段约定
-- 必含列：`frame_idx`、`is_keyframe`、`status`、`n_kp_left/right`、`n_matches_raw/good`、`n_inliers`、`inlier_ratio`、`H_00..H_22`、`runtime_ms`、`note`。
-- `status` 语义：`OK`、`FAIL_INIT`、`FAIL_EST`、`FALLBACK`。
+## 已确认的关键限制与耦合点
+- `scripts/run_baseline_video.py` 目前是大脚本，混合了：
+  - CLI
+  - 特征/匹配/几何 orchestration
+  - seam/crop 细节
+  - diagnostics 导出
+  - video reuse 分支
+- `video_mode=0` 与 `video_mode=1` 存在 seam/crop 逻辑重复。
+- `VideoStitcher` 只负责 `warp -> crop -> seam -> blend`，不负责几何估计；这一点对 Method B 接入是利好。
+- 当前 seam backend 是 OpenCV seam mask 风格，不是 object-centered energy / graph-cut 风格。
 
-## 已知问题（baseline 预期现象）
-- 视差与动态物体会导致重影（全局单应性 + feather 的自然结果）。
-- 首帧估计失败时固定画布可能偏小，后续会出现裁剪。
-- 未做去畸变与柱面投影，广角场景可能拉伸明显。
+## `jitter` 失真条件（必须冻结到文档）
+- `jitter` 当前由 `src/stitching/temporal.py::compute_jitter()` 对连续两帧变换后四角点位移计算。
+- 在 `video_mode=1` 且几何长期固定的场景下：
+  - `raw_corners` 和 `sm_corners` 近似不变；
+  - `jitter_raw`、`jitter_sm` 会系统性退化到 0 或接近 0。
+- 因此：
+  - `fixed geometry` 运行不应把 `jitter` 当作核心时序质量指标；
+  - 后续必须显式区分 `fixed_geometry / keyframe_update / adaptive_update`。
 
-## 运行示例
-- Video 示例：
-  - `python scripts/run_baseline_video.py --pair campus_sequences_campus4_c0_c1 --max_frames 300 --keyframe_every 5`
-- Frames 示例：
-  - `python scripts/run_baseline_video.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --max_frames 200 --keyframe_every 5 --fps 30`
+## Phase 0 文档冻结项
+- 冻结当前 as-built 行为，不再把 `frame0_geom` 解释成“几何更新模式”。
+- 冻结当前导出 bundle 的核心字段，避免后续 Method B / Dynamic seam 改造时破坏已有实验可比性。
+- 当前 `scripts/run_baseline_video.py` 已显式导出：
+  - `geometry_mode`
+  - `jitter_meaningful`
+- 当前实现实际只会导出：
+  - `fixed_geometry`
+  - `keyframe_update`
+- `adaptive_update` 目前仍是文档保留模式，不代表已经在代码中实现。
+- 在文档层先引入三类运行模式：
+  - `fixed_geometry`
+  - `keyframe_update`
+  - `adaptive_update`
 
-## 下一步优先级建议
-- P1：temporal smoothing（先稳住 H 抖动与闪烁）。
-- P2：seam finding + multiband blending（显著降低重影观感）。
-- P3：去畸变 / 柱面投影（提高几何一致性）。
-- P4：局部网格形变（mesh/APAP）应对视差。
+## 已知问题
+- 视差和动态目标仍会导致 ghosting、cropping、duplication 等 artefacts。
+- `video_mode=1` 下的时序指标存在解释风险。
+- 当前没有 GUI，也没有统一 experiments driver。
 
-## P1 接入状态（已完成）
-- 已在 `scripts/run_baseline_video.py` 接入 `--smooth_h none|ema|window`，默认 `none` 保持 baseline 行为。
-- 已新增 `src/stitching/temporal.py`：对单应轨迹进行时序平滑，并输出 `raw/smoothed` 双轨诊断。
-- 已新增 `jitter_timeseries.csv` 与 `overlay_raw/overlay_sm` 快照，用于量化和目视验证抖动改善。
-
-## P2 Seam 接入原则（4.2）
-- 插入点：在 `warp` 之后先执行 `crop(LIR)`，再执行 `seam`，最后 `blend`。
-- 核心安全约束：
-  - seam 仅在 overlap 有效区生成与生效；
-  - seam mask 必须先 resize 到 ROI full mask，再 `bitwise_and`；
-  - compositing 前需将 seam ROI mask 按 corner 放回 full canvas；
-  - crop 后若 `corners/sizes` 出现负值或越界，立即 raise（禁止静默纠错）；
-  - non-overlap 区域禁止半透明混合。
-- 关键帧缓存策略：
-  - 仅关键帧计算 seam（低分辨率）并缓存；
-  - 仅关键帧估计 LIR/crop rectangles，并随 seam cache 复用到非关键帧；
-  - 非关键帧复用 seam cache，保持与 `keyframe_every` 一致；
-  - `smooth_h` 与 seam cache 并行工作，不改变 4.1 temporal 逻辑。
+## 下一步
+- 总路线见 `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`。
+- Dynamic seam 与 temporal evaluation 方案见 `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`。
+- 评测协议见 `ai-docs/current/05_evaluation/05_evaluation.md`。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |
 | --- | --- | --- | --- |
-| scripts/run_baseline_video.py | 新增视频级基线脚本（关键帧 + 兜底 + 输出规范） | Codex | 完成 |
-| src/stitching/blending.py | 新增 `blend_none()` 诊断融合模式 | Codex | 完成 |
-| ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md | 同步更新设计与输出约定 | Codex | 完成 |
-| src/stitching/temporal.py | 新增时序平滑与 jitter 计算模块 | Codex | 完成 |
-| scripts/run_baseline_video.py | 新增 smooth_h 参数、Hraw/Hsm 记录、jitter 诊断输出 | Codex | 完成 |
-| scripts/ablate_temporal.py | 新增 temporal ablation 自动对比脚本 | Codex | 完成 |
-| ai-docs/current/04_quality_improvement/04_quality_improvement.md | 新增阶段 4.1 文档 | Codex | 完成 |
-| src/stitching/seam_opencv.py | 新增 seam ROI/resize/AND 工具链 | Codex | 完成 |
-| src/stitching/blending.py | seam mask 兼容的 blending 与 multiband | Codex | 完成 |
-| scripts/run_baseline_video.py | seam 参数与 keyframe seam cache 接入 | Codex | 完成 |
-| scripts/ablate_seam.py | 新增 seam ablation（A/B/C/D） | Codex | 完成 |
+| ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md | 按当前代码重写 video pipeline 文档并修正 `reuse_mode` / `jitter` 语义 | Codex | 完成 |
