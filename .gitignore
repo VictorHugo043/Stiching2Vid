@@ -9,6 +9,7 @@ data/raw/
 data/preprocess/
 scripts/preprocess/
 outputs/
+external/
 *.mp4
 *.avi
 *.mov
