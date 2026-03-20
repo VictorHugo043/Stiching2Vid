@@ -14,6 +14,8 @@
   - `seam`: `src/stitching/seam_opencv.py`
   - `crop`: `src/stitching/cropper.py`
   - `video reuse`: `src/stitching/video_state.py` + `src/stitching/video_stitcher.py`
+  - frame-pair geometry adapter：
+    - `src/stitching/frame_pair_pipeline.py`
 
 ## 当前 pipeline 真实行为
 ### 1. `video_mode=0`（baseline / keyframe update）
@@ -67,8 +69,39 @@
   - video reuse 分支
 - `video_mode=0` 与 `video_mode=1` 存在 seam/crop 逻辑重复。
 - `VideoStitcher` 只负责 `warp -> crop -> seam -> blend`，不负责几何估计；这一点对 Method B 接入是利好。
+- 当前 `run_baseline_video.py` 已通过 `frame_pair_pipeline` 接到结果对象层：
+  - 关键帧几何估计不再直接依赖 legacy tuple/OpenCV 接口
+  - `VideoStitcher` 仍只消费 `H / T / canvas_size`
+  - 因此视频 compose/cache 语义保持不变，Method A / Method B 只替换前端的 frame-pair estimation
 - 同一条 frame-level compose 路径现已通过 `src/stitching/frame_quality_preview.py` 复用到 `scripts/run_baseline_frame.py`，用于单帧静态质量预览。
 - 当前 seam backend 是 OpenCV seam mask 风格，不是 object-centered energy / graph-cut 风格。
+
+## Phase 1 新增状态（2026-03-20）
+- `scripts/run_baseline_video.py` 现已支持：
+  - `feature_backend`
+  - `matcher_backend`
+  - `geometry_backend`
+  - `device`
+  - `force_cpu`
+  - `weights_dir`
+  - `max_keypoints`
+  - `resize_long_edge`
+  - `depth_confidence`
+  - `width_confidence`
+  - `filter_threshold`
+  - `feature_fallback_backend`
+  - `matcher_fallback_backend`
+- 已验证短视频 Method B smoke：
+  - `phase1_video_adapter_methodb_mode0_smoke_v2`
+    - `geometry_mode=keyframe_update`
+    - `feature_backend_effective=superpoint`
+    - `matcher_backend_effective=lightglue`
+    - `geometry_backend_effective=opencv_usac_magsac`
+  - `phase1_video_adapter_methodb_mode1_smoke_v2`
+    - `geometry_mode=fixed_geometry`
+    - `feature_backend_effective=superpoint`
+    - `matcher_backend_effective=lightglue`
+    - `geometry_backend_effective=opencv_usac_magsac`
 
 ## `jitter` 失真条件（必须冻结到文档）
 - `jitter` 当前由 `src/stitching/temporal.py::compute_jitter()` 对连续两帧变换后四角点位移计算。

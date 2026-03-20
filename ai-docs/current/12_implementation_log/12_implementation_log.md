@@ -1068,3 +1068,258 @@
 - 下一步建议：
   - 当前可以把 Phase 1 的重心转到视频路径 adapter / 结果对象层迁移。
   - 若想先补稳健性，再选这 4 个 pair 中的 1 至 2 个做多帧抽样回归，而不是继续堆更多单帧 smoke。
+
+## IMP-20260320-04
+- 状态：done
+- 标题：Phase 1 收口：两组多帧 Method B 抽样回归与视频路径 adapter 最小接入
+- 本步目标：
+  - 关闭已过期 issue：
+    - `ISSUE-20260319-05`
+  - 根据用户确认，更新 Method B 环境状态，不再把当前 `.venv-methodb` 视为主 blocker。
+  - 从已通过的 4 个 pair 中选 2 个做多帧抽样真实 Method B 回归。
+  - 在不改变视频算法语义的前提下，让 `run_baseline_video.py` 接到结果对象层与 Method B backend 配置面。
+- 关联上一步结论：
+  - `IMP-20260320-03`：4/4 pair 已通过真实 Method B 单帧回归。
+  - `ISSUE-20260319-07`：视频路径仍停留在 legacy tuple/OpenCV 接口。
+  - 用户确认：
+    - 旧 ablation 漂移 issue 可关闭
+    - `.venv-methodb` 已按 `requirements-methodb.txt` 安装完成
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/video_stitcher.py`
+- 准备修改文件：
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 需要把单帧已验证的结果对象 / fallback / diagnostics 逻辑桥接到视频入口。
+  - 需要把本步的多帧 Method B 回归和 issue 收口记录回 ai-docs。
+- 风险点：
+  - 视频脚本很大，若直接大面积内联替换，容易破坏现有 baseline 行为。
+  - Method B 引入的新 debug 字段不能破坏已有 bundle 读取。
+  - 多帧抽样若选点不当，不能代表静态/动态两类场景。
+- 验收标准：
+  - 2 个代表性 pair 的多帧 Method B 抽样回归完成并有汇总结果。
+  - `run_baseline_video.py` 新增 Method B backend / config 入口，并通过结果对象 adapter 获取 H、matches、inliers 和 diagnostics。
+  - 现有 Method A 视频路径 CLI 仍可运行。
+  - ai-docs 已更新 issue、变更和下一步建议。
+- 替代方案与不选原因：
+  - 方案：继续只做单帧回归，不进入视频 adapter。
+  - 不选原因：当前 Phase 1 的主要剩余任务就是把 Method B 接到视频路径。
+- 实际修改文件：
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 关闭 issue：
+    - `ISSUE-20260319-05`
+    - `ISSUE-20260319-07`
+  - 更新环境状态：
+    - `ISSUE-20260319-02` 关闭
+  - 新增共享 helper：
+    - `src/stitching/frame_pair_pipeline.py`
+    - 统一承载单对 frame 的：
+      - feature backend 选择
+      - matcher backend 选择
+      - geometry backend 选择
+      - fallback 逻辑
+      - stage diagnostics
+  - `run_baseline_video.py`
+    - 新增 Method B / adapter CLI 参数：
+      - `feature_backend`
+      - `matcher_backend`
+      - `geometry_backend`
+      - `device`
+      - `force_cpu`
+      - `weights_dir`
+      - `max_keypoints`
+      - `resize_long_edge`
+      - `depth_confidence`
+      - `width_confidence`
+      - `filter_threshold`
+      - `feature_fallback_backend`
+      - `matcher_fallback_backend`
+    - 关键帧几何估计现通过结果对象 adapter 获取：
+      - `FeatureResult`
+      - `MatchResult`
+      - `GeometryResult`
+    - 保持：
+      - `VideoStitcher` seam/crop/blend/cache 语义不变
+      - 旧 Method A 默认能力不变
+    - `metrics_preview.json` 新增：
+      - `feature_backend_effective`
+      - `matcher_backend_effective`
+      - `geometry_backend_effective`
+  - 多帧抽样回归：
+    - `outputs/frame_smoke/phase1_methodb_multiframe_sample`
+    - 选取 pair：
+      - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+      - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+    - 抽样帧：
+      - `0 / 20 / 40 / 60`
+- 验证方式：
+  - 运行 `python3 -m py_compile src/stitching/frame_pair_pipeline.py scripts/run_baseline_video.py`
+  - 运行 `python3 scripts/run_baseline_video.py --help`
+  - 运行多帧抽样 Method B 回归：
+    - `outputs/frame_smoke/phase1_methodb_multiframe_sample`
+  - 运行短视频 Method B smoke：
+    - `phase1_video_adapter_methodb_mode0_smoke_v2`
+    - `phase1_video_adapter_methodb_mode1_smoke_v2`
+- 运行结果与验证结果：
+  - 多帧抽样 Method B：
+    - 8/8 run 通过
+    - KITTI `mean_good=1218.0`，`mean_inliers=598.25`，`mean_inlier_ratio=0.491`，`mean_reprojection_error=1.422`
+    - DynamicStereo `mean_good=830.5`，`mean_inliers=365.25`，`mean_inlier_ratio=0.440`，`mean_reprojection_error=1.780`
+  - 视频 adapter smoke：
+    - `phase1_video_adapter_methodb_mode0_smoke_v2`
+      - `geometry_mode=keyframe_update`
+      - `processed_frames=2`
+      - `success_frames=2`
+      - `fallback_frames=0`
+      - `feature_backend_effective=superpoint`
+      - `matcher_backend_effective=lightglue`
+      - `geometry_backend_effective=opencv_usac_magsac`
+    - `phase1_video_adapter_methodb_mode1_smoke_v2`
+      - `geometry_mode=fixed_geometry`
+      - `processed_frames=2`
+      - `success_frames=2`
+      - `fallback_frames=0`
+      - `feature_backend_effective=superpoint`
+      - `matcher_backend_effective=lightglue`
+      - `geometry_backend_effective=opencv_usac_magsac`
+  - 当前 `.venv-methodb` 已足以支撑：
+    - Method B 单帧
+    - Method B 多帧抽样
+    - Method B 短视频 smoke
+- 偏差：
+  - 没有重构 `run_baseline_frame.py` 去共享同一个 helper；本步只先把视频入口接通。
+  - 没有做长视频回归，也没有进入 Phase 2 seam/temporal 改造。
+- 下一步建议：
+  - 先做 1 至 2 条更长时长的 Method B 视频回归，确认 adapter 的速度与稳定性。
+  - 然后固定 Method A vs Method B 的视频级实验入口和比较协议。
+
+## IMP-20260320-05
+- 状态：done
+- 标题：Phase 1 长视频回归：执行 3 条 Method B 视频 run 并整理复现命令
+- 本步目标：
+  - 对以下 3 条视频/序列执行更长时长的 Method B 视频回归：
+    - `mine_source_indoor2_left_right`
+    - `mine_source_pujiang1_left_right`（作为 `mine_source pujiang` 的默认解释）
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+  - 输出可直接在终端复现的命令。
+  - 只做最小文档回填，不新增算法改动。
+- 关联上一步结论：
+  - `IMP-20260320-04`：Method B 视频 adapter 已接通，短视频 smoke 已通过。
+  - 当前下一步正是做更长时长的视频回归。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码 / 配置：
+  - `scripts/run_baseline_video.py`
+  - `data/manifests/pairs.yaml`
+- 准备修改文件：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 本步主要产物是运行结果、回归覆盖面和复现命令。
+  - 需要把长视频回归是否已完成写回 Phase 1 进度。
+- 风险点：
+  - Method B CPU 视频回归耗时较长。
+  - `mine_source pujiang` 在 manifest 中有 3 条，需要先做合理默认解释。
+  - 较长 run 仍可能因 crop fallback、低 overlap 或性能波动出现局部退化。
+- 验收标准：
+  - 3 条 Method B 视频 run 成功完成并产出 bundle。
+  - 给出用户可直接复现的终端命令。
+  - ai-docs 已写回本步结果与假设。
+- 替代方案与不选原因：
+  - 方案：等待用户先明确 `pujiang1/2/3` 再跑。
+  - 不选原因：当前已有合理默认解释，且命令可重复使用，先推进更高效。
+- 实际修改文件：
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际执行命令：
+  - `source .venv-methodb/bin/activate`
+  - `python scripts/run_baseline_video.py --pair mine_source_indoor2_left_right --max_frames 60 --keyframe_every 10 --video_mode 0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase1_methodb_video_regression_indoor2`
+  - `python scripts/run_baseline_video.py --pair mine_source_pujiang1_left_right --max_frames 60 --keyframe_every 10 --video_mode 0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase1_methodb_video_regression_pujiang1`
+  - `python scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0005_image_02_image_03 --max_frames 60 --keyframe_every 10 --video_mode 0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase1_methodb_video_regression_kitti0005`
+- 运行与验证结果：
+  - 3 条 Method B 视频回归均成功完成并产出完整 run bundle：
+    - `outputs/runs/phase1_methodb_video_regression_indoor2`
+    - `outputs/runs/phase1_methodb_video_regression_pujiang1`
+    - `outputs/runs/phase1_methodb_video_regression_kitti0005`
+  - `mine_source_indoor2_left_right`
+    - `processed_frames=60`
+    - `success_frames=60`
+    - `fallback_frames=0`
+    - `mean_inliers=126.17`
+    - `mean_inlier_ratio=0.262`
+    - `avg_runtime_ms=357.92`
+    - `approx_fps=2.79`
+  - `mine_source_pujiang1_left_right`
+    - `processed_frames=60`
+    - `success_frames=60`
+    - `fallback_frames=0`
+    - `mean_inliers=401.83`
+    - `mean_inlier_ratio=0.787`
+    - `avg_runtime_ms=614.19`
+    - `approx_fps=1.63`
+  - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - `processed_frames=60`
+    - `success_frames=60`
+    - `fallback_frames=0`
+    - `mean_inliers=352.00`
+    - `mean_inlier_ratio=0.392`
+    - `avg_runtime_ms=200.14`
+    - `approx_fps=5.00`
+  - 3 条 run 的 `feature_backend_effective / matcher_backend_effective / geometry_backend_effective` 均为：
+    - `superpoint / lightglue / opencv_usac_magsac`
+  - 验证方式：
+    - 检查 `metrics_preview.json`
+    - 检查 `debug.json`
+    - 检查 `stitched.mp4`、`transforms.csv`、`jitter_timeseries.csv` 是否已生成
+- 遇到的问题与处理：
+  - `mine_source pujiang` 在 manifest 中实际有 `pujiang1 / pujiang2 / pujiang3` 三条。
+  - 本次按最小推进原则，默认解释为 `mine_source_pujiang1_left_right`，并把该假设写入文档与复现命令。
+  - 局部运行过程中仍可能看到 crop / seam fallback warning，但不影响 run 成功完成，也未触发 Method B fallback。
+- 与原计划相比的偏差：
+  - 没有再追加更多 pair 或全长视频；本步按用户要求先完成 3 条 60 帧回归。
+  - 没有进入 Method A vs Method B 正式对比；这保留到下一步。
+- 下一步建议：
+  - 先把这 3 条 Method B 视频回归作为 Phase 1 当前稳定性基线。
+  - 然后固定 Method A vs Method B 的视频级对比入口与统计字段。
+  - 若直接转入 Phase 2，也应先以这 3 条 run 作为 dynamic seam / temporal evaluation 的回归参考。

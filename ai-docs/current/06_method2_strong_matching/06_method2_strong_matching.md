@@ -107,6 +107,42 @@
   - `src/stitching/video_stitcher.py`
   - `src/stitching/seam_opencv.py`
   - `src/stitching/cropper.py`
+- 当前最小视频 adapter 已落地：
+  - 新增 `src/stitching/frame_pair_pipeline.py`
+  - `run_baseline_video.py` 现在通过该 adapter 调用：
+    - `FeatureResult`
+    - `MatchResult`
+    - `GeometryResult`
+  - `VideoStitcher` 本身不改几何职责，仍只消费 `H / T / canvas_size`
+  - 当前已完成的真实 Method B 视频回归：
+    - `mine_source_indoor2_left_right`
+    - `mine_source_pujiang1_left_right`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+  - 当前视频回归统一配置：
+    - `max_frames=60`
+    - `keyframe_every=10`
+    - `video_mode=0`
+    - `feature_backend=superpoint`
+    - `matcher_backend=lightglue`
+    - `geometry_backend=opencv_usac_magsac`
+    - `device=cpu`
+    - `force_cpu=true`
+  - 当前结果摘要：
+    - `mine_source_indoor2_left_right`
+      - `mean_inliers=126.17`
+      - `mean_inlier_ratio=0.262`
+      - `approx_fps=2.79`
+    - `mine_source_pujiang1_left_right`
+      - `mean_inliers=401.83`
+      - `mean_inlier_ratio=0.787`
+      - `approx_fps=1.63`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+      - `mean_inliers=352.00`
+      - `mean_inlier_ratio=0.392`
+      - `approx_fps=5.00`
+  - 当前结论：
+    - Phase 1 已不再只停留在单帧与短视频 smoke，Method B 已在 3 条 60 帧视频回归上跑通。
+    - 后续重点应从“是否能跑”转向“如何做正式 Method A vs Method B 视频级比较”和“何时切入 Phase 2”。
 
 ### 介于单帧与视频之间的可选支持子任务
 - 名称建议：`frame_quality_preview`
@@ -232,6 +268,24 @@
       - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`：`good=1229`，`inliers=582`，`inlier_ratio=0.474`
       - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`：`good=944`，`inliers=426`，`inlier_ratio=0.451`
       - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`：`good=827`，`inliers=371`，`inlier_ratio=0.449`
+  - 当前多帧抽样回归结果：
+    - `outputs/frame_smoke/phase1_methodb_multiframe_sample`
+    - 选取 pair：
+      - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+      - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+    - 抽样帧：
+      - `0 / 20 / 40 / 60`
+    - 汇总：
+      - KITTI：`mean_good=1218.0`，`mean_inliers=598.25`，`mean_inlier_ratio=0.491`，`mean_reprojection_error=1.422`
+      - DynamicStereo：`mean_good=830.5`，`mean_inliers=365.25`，`mean_inlier_ratio=0.440`，`mean_reprojection_error=1.780`
+  - 当前短视频 smoke：
+    - `outputs/runs/phase1_video_adapter_methodb_mode0_smoke_v2`
+    - `outputs/runs/phase1_video_adapter_methodb_mode1_smoke_v2`
+    - 两条路径均已验证：
+      - `feature_backend_effective=superpoint`
+      - `matcher_backend_effective=lightglue`
+      - `geometry_backend_effective=opencv_usac_magsac`
+      - `fallback_frames=0`
 
 ## 建议配置项
 - `feature_backend`

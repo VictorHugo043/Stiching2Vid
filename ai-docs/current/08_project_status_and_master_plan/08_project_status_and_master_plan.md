@@ -162,9 +162,24 @@
       - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
       - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
       - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+  - 两组多帧 Method B 抽样回归：
+    - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+    - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+    - 抽样帧：`0 / 20 / 40 / 60`
+  - 最小视频路径 adapter：
+    - 新增 `src/stitching/frame_pair_pipeline.py`
+    - `run_baseline_video.py` 已接到结果对象层
+    - 短视频 Method B smoke 已覆盖：
+      - `keyframe_update`
+      - `fixed_geometry`
+  - 3 条 60 帧 Method B 视频回归已完成：
+    - `mine_source_indoor2_left_right`
+    - `mine_source_pujiang1_left_right`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
 - 未完成：
-  - 视频路径 adapter 或迁移
-  - 多帧 Method B 稳定性验证
+  - 更长时长或全长的 Method B 视频稳定性验证
+  - Method A vs Method B 的正式视频级对比入口与统计表
+  - Phase 2 的 dynamic seam / meaningful temporal evaluation
 
 ### 风险与规避
 - 风险：环境缺依赖。

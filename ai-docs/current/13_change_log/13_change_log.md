@@ -21,6 +21,8 @@
 | CHG-20260320-01 | 2026-03-20 | code+docs | 修复 LightGlue compact list 输出兼容问题，使真实 `superpoint + lightglue + opencv_usac_magsac` 单帧 smoke 在 `.venv-methodb` 下跑通；同步更新 ai-docs | 影响 `matching.py` 的 LightGlue 结果解析层与 Phase 1 当前完成定义；不影响视频主流程 | 本次只修输出解析，不改变视频路径，也不改官方 LightGlue 源码 |
 | CHG-20260320-02 | 2026-03-20 | docs+scripts | 新增 root `requirements.txt`、`requirements-methodb.txt`、`docs/environment.md` 和 `scripts/run_frame_smoke_suite.py`，并用默认 4 个 pair 跑通 Method A 单帧 smoke suite；同步更新 README 与 ai-docs | 影响环境安装入口、单帧回归入口和使用文档；不影响视频主流程或算法能力 | 本次 Method B 多 pair suite 只完成入口建设，未在当前漂移环境下强行跑真实 Method B 多 pair 回归 |
 | CHG-20260320-03 | 2026-03-20 | docs+outputs | 在 `.venv-methodb` 中对默认 4 个 pair 跑通真实 Method B 单帧 smoke suite，并将结果回填到 Phase 1 文档与 open issues | 影响 Phase 1 当前完成判断与后续优先级，不涉及核心代码改动 | smoke suite 继续只作为快速 regression utility 使用，不单独上升为主实验框架 |
+| CHG-20260320-04 | 2026-03-20 | code+docs+outputs | 新增 `frame_pair_pipeline.py`，让 `run_baseline_video.py` 接到结果对象层与 Method B backend 配置；补跑 2 个 pair 的多帧 Method B 抽样回归，并完成 `video_mode=0/1` 两条短视频 smoke | 影响视频入口的几何估计适配层、video bundle backend 字段和 Phase 1 当前完成定义；不改变 `VideoStitcher` 的 seam/crop/blend/cache 语义 | 本次选取 KITTI + DynamicStereo 作为静态/动态代表；`largestinteriorrectangle` 缺失仍通过 fallback crop 正常运行 |
+| CHG-20260320-05 | 2026-03-20 | docs+outputs | 对 `mine_source_indoor2_left_right`、`mine_source_pujiang1_left_right`、`kitti_raw_data_2011_09_26_drive_0005_image_02_image_03` 完成 3 条 60 帧 Method B 视频回归，并把复现命令与结果写回 ai-docs | 影响 Phase 1 当前稳定性判断、后续视频级比较入口和用户自助复现方式；不涉及新的核心代码改动 | `mine_source pujiang` 本次按 `pujiang1` 解释；若用户需要 `pujiang2/3`，只替换 pair id 即可 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

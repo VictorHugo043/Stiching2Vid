@@ -39,6 +39,82 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Re-estimate homography every N frames",
     )
     parser.add_argument("--feature", default="orb", help="Feature type: orb or sift")
+    parser.add_argument(
+        "--feature_backend",
+        default=None,
+        help=(
+            "Optional feature backend override "
+            "(supported: opencv_orb, opencv_sift, superpoint)"
+        ),
+    )
+    parser.add_argument(
+        "--matcher_backend",
+        default=None,
+        help=(
+            "Optional matcher backend override "
+            "(supported: opencv_bf_ratio, lightglue)"
+        ),
+    )
+    parser.add_argument(
+        "--geometry_backend",
+        default=None,
+        help="Optional geometry backend override (supported: opencv_ransac, opencv_usac_magsac)",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Optional Method B device override (auto/cpu/cuda/cuda:0)",
+    )
+    parser.add_argument(
+        "--force_cpu",
+        action="store_true",
+        help="Force Method B backends to use CPU even if GPU is available",
+    )
+    parser.add_argument(
+        "--weights_dir",
+        default=None,
+        help="Optional directory or file path for Method B weights",
+    )
+    parser.add_argument(
+        "--max_keypoints",
+        type=int,
+        default=2048,
+        help="Maximum keypoints for SuperPoint backend",
+    )
+    parser.add_argument(
+        "--resize_long_edge",
+        type=int,
+        default=None,
+        help="Optional long-edge resize before SuperPoint extraction",
+    )
+    parser.add_argument(
+        "--depth_confidence",
+        type=float,
+        default=None,
+        help="Optional LightGlue depth_confidence override",
+    )
+    parser.add_argument(
+        "--width_confidence",
+        type=float,
+        default=None,
+        help="Optional LightGlue width_confidence override",
+    )
+    parser.add_argument(
+        "--filter_threshold",
+        type=float,
+        default=None,
+        help="Optional LightGlue filter_threshold override",
+    )
+    parser.add_argument(
+        "--feature_fallback_backend",
+        default=None,
+        help="Optional fallback feature backend when requested backend fails",
+    )
+    parser.add_argument(
+        "--matcher_fallback_backend",
+        default=None,
+        help="Optional fallback matcher backend when requested backend fails",
+    )
     parser.add_argument("--nfeatures", type=int, default=2000, help="ORB nfeatures")
     parser.add_argument("--ratio", type=float, default=0.75, help="Ratio test threshold")
     parser.add_argument(
@@ -715,11 +791,15 @@ def main() -> int:
         ) from exc
 
     from stitching.io import get_pair, load_pairs, open_pair  # noqa: E402
-    from stitching.features import detect_and_describe  # noqa: E402
-    from stitching.matching import draw_matches, match_descriptors  # noqa: E402
+    from stitching.frame_pair_pipeline import (  # noqa: E402
+        estimate_frame_pair_geometry,
+        resolve_feature_backend,
+        resolve_geometry_backend,
+        resolve_matcher_backend,
+        resolve_optional_backend,
+    )
     from stitching.geometry import (  # noqa: E402
         compute_canvas_and_transform,
-        estimate_homography,
         warp_pair,
     )
     from stitching.temporal import (  # noqa: E402
@@ -748,6 +828,11 @@ def main() -> int:
     keyframe_every = max(1, int(args.keyframe_every))
     stride = max(1, int(args.stride))
     snapshot_every = max(1, int(args.snapshot_every))
+    feature_backend = resolve_feature_backend(args.feature, args.feature_backend)
+    matcher_backend = resolve_matcher_backend(args.matcher_backend)
+    geometry_backend = resolve_geometry_backend(args.geometry_backend)
+    feature_fallback_backend = resolve_optional_backend(args.feature_fallback_backend)
+    matcher_fallback_backend = resolve_optional_backend(args.matcher_fallback_backend)
 
     run_id = args.run_id
     if run_id is None:
@@ -773,6 +858,19 @@ def main() -> int:
             "stride": stride,
             "keyframe_every": keyframe_every,
             "feature": args.feature,
+            "feature_backend": feature_backend,
+            "matcher_backend": matcher_backend,
+            "geometry_backend": geometry_backend,
+            "device": args.device,
+            "force_cpu": bool(args.force_cpu),
+            "weights_dir": args.weights_dir,
+            "max_keypoints": int(args.max_keypoints),
+            "resize_long_edge": args.resize_long_edge,
+            "depth_confidence": args.depth_confidence,
+            "width_confidence": args.width_confidence,
+            "filter_threshold": args.filter_threshold,
+            "feature_fallback_backend": feature_fallback_backend,
+            "matcher_fallback_backend": matcher_fallback_backend,
             "nfeatures": args.nfeatures,
             "ratio": args.ratio,
             "min_matches": args.min_matches,
@@ -843,6 +941,16 @@ def main() -> int:
         "notes": [],
         "errors": [],
         "runtime_ms": None,
+        "feature_backend": feature_backend,
+        "matcher_backend": matcher_backend,
+        "geometry_backend": geometry_backend,
+        "feature_backend_effective": feature_backend,
+        "matcher_backend_effective": matcher_backend,
+        "geometry_backend_effective": geometry_backend,
+        "backend_fallback_events": [],
+        "last_feature_stage": {},
+        "last_matching_stage": {},
+        "last_geometry_stage": {},
     }
 
     transforms_path = output_dir / "transforms.csv"
@@ -928,6 +1036,52 @@ def main() -> int:
         "n_inliers": None,
         "inlier_ratio": None,
     }
+
+    def _update_last_stats_from_pair_result(pair_result) -> None:
+        feature_left = getattr(pair_result, "feature_left", None)
+        feature_right = getattr(pair_result, "feature_right", None)
+        match_result = getattr(pair_result, "match_result", None)
+        geometry_result = getattr(pair_result, "geometry_result", None)
+        last_stats["n_kp_left"] = (
+            int(feature_left.n_keypoints) if feature_left is not None else None
+        )
+        last_stats["n_kp_right"] = (
+            int(feature_right.n_keypoints) if feature_right is not None else None
+        )
+        last_stats["n_matches_raw"] = (
+            int(match_result.tentative_count) if match_result is not None else None
+        )
+        last_stats["n_matches_good"] = (
+            int(match_result.good_count) if match_result is not None else None
+        )
+        last_stats["n_inliers"] = (
+            int(geometry_result.inlier_count)
+            if geometry_result is not None and geometry_result.inlier_mask is not None
+            else None
+        )
+        last_stats["inlier_ratio"] = (
+            float(geometry_result.inlier_ratio)
+            if geometry_result is not None and geometry_result.inlier_mask is not None
+            else None
+        )
+
+    def _record_pair_result_debug(pair_result, frame_idx: int) -> None:
+        if getattr(pair_result, "feature_backend_effective", None):
+            debug["feature_backend_effective"] = pair_result.feature_backend_effective
+        if getattr(pair_result, "matcher_backend_effective", None):
+            debug["matcher_backend_effective"] = pair_result.matcher_backend_effective
+        if getattr(pair_result, "geometry_backend_effective", None):
+            debug["geometry_backend_effective"] = pair_result.geometry_backend_effective
+        if getattr(pair_result, "feature_stage", None):
+            debug["last_feature_stage"] = pair_result.feature_stage
+        if getattr(pair_result, "matching_stage", None):
+            debug["last_matching_stage"] = pair_result.matching_stage
+        if getattr(pair_result, "geometry_stage", None):
+            debug["last_geometry_stage"] = pair_result.geometry_stage
+        for event in getattr(pair_result, "fallback_events", []) or []:
+            enriched = dict(event)
+            enriched["frame_idx"] = int(frame_idx)
+            debug["backend_fallback_events"].append(enriched)
 
     smoother = HomographySmoother(
         method=args.smooth_h,
@@ -1033,64 +1187,44 @@ def main() -> int:
                         matches_img = None
                         H_seed = None
                         try:
-                            kp_left, desc_left = detect_and_describe(
+                            pair_result = estimate_frame_pair_geometry(
                                 left,
-                                feature=args.feature,
-                                nfeatures=args.nfeatures,
-                            )
-                            kp_right, desc_right = detect_and_describe(
                                 right,
                                 feature=args.feature,
+                                feature_backend=feature_backend,
+                                matcher_backend=matcher_backend,
+                                geometry_backend=geometry_backend,
                                 nfeatures=args.nfeatures,
-                            )
-                            good_matches, raw_matches = match_descriptors(
-                                desc_left,
-                                desc_right,
-                                method=args.feature,
                                 ratio=args.ratio,
-                            )
-                            last_stats["n_kp_left"] = len(kp_left)
-                            last_stats["n_kp_right"] = len(kp_right)
-                            last_stats["n_matches_raw"] = raw_matches
-                            last_stats["n_matches_good"] = len(good_matches)
-                            matches_img = draw_matches(left, kp_left, right, kp_right, good_matches)
-                            if len(good_matches) < args.min_matches:
-                                raise RuntimeError(
-                                    f"not_enough_matches: {len(good_matches)} < {args.min_matches}"
-                                )
-                            H_est, mask = estimate_homography(
-                                kp_left,
-                                kp_right,
-                                good_matches,
+                                min_matches=args.min_matches,
                                 ransac_thresh=args.ransac_thresh,
+                                device=args.device,
+                                force_cpu=args.force_cpu,
+                                weights_dir=args.weights_dir,
+                                max_keypoints=args.max_keypoints,
+                                resize_long_edge=args.resize_long_edge,
+                                depth_confidence=args.depth_confidence,
+                                width_confidence=args.width_confidence,
+                                filter_threshold=args.filter_threshold,
+                                feature_fallback_backend=feature_fallback_backend,
+                                matcher_fallback_backend=matcher_fallback_backend,
                             )
-                            if H_est is None or mask is None:
-                                raise RuntimeError("findHomography_failed")
-                            inliers_mask = mask.ravel().tolist()
-                            inlier_count = int(sum(inliers_mask))
-                            inlier_ratio = (
-                                float(inlier_count) / float(len(inliers_mask))
-                                if inliers_mask
-                                else 0.0
-                            )
-                            last_stats["n_inliers"] = inlier_count
-                            last_stats["inlier_ratio"] = inlier_ratio
+                            _update_last_stats_from_pair_result(pair_result)
+                            _record_pair_result_debug(pair_result, source_idx)
+                            matches_img = pair_result.matches_img
+                            if not pair_result.ok:
+                                raise RuntimeError(pair_result.message or pair_result.status)
+                            inlier_count = int(pair_result.geometry_result.inlier_count)
+                            inlier_ratio = float(pair_result.geometry_result.inlier_ratio)
                             _save_keyframe_debug(
                                 output_dir,
                                 source_idx,
-                                matches_img,
-                                draw_matches(
-                                    left,
-                                    kp_left,
-                                    right,
-                                    kp_right,
-                                    good_matches,
-                                    inlier_mask=inliers_mask,
-                                ),
+                                pair_result.matches_img,
+                                pair_result.inliers_img,
                             )
                             inliers_ok.append(inlier_count)
                             inlier_ratios_ok.append(inlier_ratio)
-                            H_seed = H_est
+                            H_seed = pair_result.geometry_result.H
                         except Exception as init_exc:
                             if matches_img is not None:
                                 _save_keyframe_debug(output_dir, source_idx, matches_img, None)
@@ -1335,68 +1469,46 @@ def main() -> int:
                 if is_keyframe:
                     matches_img = None
                     try:
-                        kp_left, desc_left = detect_and_describe(
+                        pair_result = estimate_frame_pair_geometry(
                             left,
-                            feature=args.feature,
-                            nfeatures=args.nfeatures,
-                        )
-                        kp_right, desc_right = detect_and_describe(
                             right,
                             feature=args.feature,
+                            feature_backend=feature_backend,
+                            matcher_backend=matcher_backend,
+                            geometry_backend=geometry_backend,
                             nfeatures=args.nfeatures,
-                        )
-
-                        good_matches, raw_matches = match_descriptors(
-                            desc_left,
-                            desc_right,
-                            method=args.feature,
                             ratio=args.ratio,
-                        )
-
-                        last_stats["n_kp_left"] = len(kp_left)
-                        last_stats["n_kp_right"] = len(kp_right)
-                        last_stats["n_matches_raw"] = raw_matches
-                        last_stats["n_matches_good"] = len(good_matches)
-
-                        matches_img = draw_matches(left, kp_left, right, kp_right, good_matches)
-
-                        if len(good_matches) < args.min_matches:
-                            raise RuntimeError(
-                                f"not_enough_matches: {len(good_matches)} < {args.min_matches}"
-                            )
-
-                        H_est, mask = estimate_homography(
-                            kp_left,
-                            kp_right,
-                            good_matches,
+                            min_matches=args.min_matches,
                             ransac_thresh=args.ransac_thresh,
+                            device=args.device,
+                            force_cpu=args.force_cpu,
+                            weights_dir=args.weights_dir,
+                            max_keypoints=args.max_keypoints,
+                            resize_long_edge=args.resize_long_edge,
+                            depth_confidence=args.depth_confidence,
+                            width_confidence=args.width_confidence,
+                            filter_threshold=args.filter_threshold,
+                            feature_fallback_backend=feature_fallback_backend,
+                            matcher_fallback_backend=matcher_fallback_backend,
                         )
-                        if H_est is None or mask is None:
-                            raise RuntimeError("findHomography_failed")
+                        _update_last_stats_from_pair_result(pair_result)
+                        _record_pair_result_debug(pair_result, source_idx)
+                        matches_img = pair_result.matches_img
 
-                        inliers_mask = mask.ravel().tolist()
-                        inlier_count = int(sum(inliers_mask))
-                        inlier_ratio = (
-                            float(inlier_count) / float(len(inliers_mask))
-                            if inliers_mask
-                            else 0.0
+                        if not pair_result.ok:
+                            raise RuntimeError(pair_result.message or pair_result.status)
+
+                        inlier_count = int(pair_result.geometry_result.inlier_count)
+                        inlier_ratio = float(pair_result.geometry_result.inlier_ratio)
+
+                        _save_keyframe_debug(
+                            output_dir,
+                            source_idx,
+                            pair_result.matches_img,
+                            pair_result.inliers_img,
                         )
 
-                        last_stats["n_inliers"] = inlier_count
-                        last_stats["inlier_ratio"] = inlier_ratio
-
-                        inliers_img = draw_matches(
-                            left,
-                            kp_left,
-                            right,
-                            kp_right,
-                            good_matches,
-                            inlier_mask=inliers_mask,
-                        )
-
-                        _save_keyframe_debug(output_dir, source_idx, matches_img, inliers_img)
-
-                        valid_H_raw = H_est
+                        valid_H_raw = pair_result.geometry_result.H
                         H_raw = valid_H_raw
                         inliers_ok.append(inlier_count)
                         inlier_ratios_ok.append(inlier_ratio)
@@ -2300,6 +2412,9 @@ def main() -> int:
         "reuse_per_frame_ms_mean": float(
             debug.get("time_breakdown_summary", {}).get("per_frame_ms_mean", 0.0)
         ),
+        "feature_backend_effective": debug.get("feature_backend_effective"),
+        "matcher_backend_effective": debug.get("matcher_backend_effective"),
+        "geometry_backend_effective": debug.get("geometry_backend_effective"),
     }
 
     _write_json(metrics_path, metrics_preview)

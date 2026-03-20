@@ -1047,7 +1047,7 @@ pairs:
       frame_pattern: "*.png"
       frame_count_left: 108
       frame_count_right: 108
-      fps: null
+      fps: 10.0
       resolution: '(1242, 375)'
   - id: kitti_raw_data_2011_09_26_drive_0001_image_00_image_01
     dataset: KITTI Raw Data
@@ -1062,7 +1062,7 @@ pairs:
       frame_pattern: "*.png"
       frame_count_left: 108
       frame_count_right: 108
-      fps: null
+      fps: 10.0
       resolution: '(1242, 375)'
 
   - id: kitti_raw_data_2011_09_26_drive_0002_image_02_image_03
@@ -1078,7 +1078,7 @@ pairs:
       frame_pattern: "*.png"
       frame_count_left: 77
       frame_count_right: 77
-      fps: null
+      fps: 10.0
       resolution: '(1242, 375)'
   - id: kitti_raw_data_2011_09_26_drive_0002_image_00_image_01
     dataset: KITTI Raw Data
@@ -1093,7 +1093,7 @@ pairs:
       frame_pattern: "*.png"
       frame_count_left: 77
       frame_count_right: 77
-      fps: null
+      fps: 10
       resolution: '(1242, 375)'
 
   - id: kitti_raw_data_2011_09_26_drive_0005_image_02_image_03
@@ -1109,7 +1109,7 @@ pairs:
       frame_pattern: "*.png"
       frame_count_left: 154
       frame_count_right: 154
-      fps: null
+      fps: 10.0
       resolution: '(1242, 375)'
   - id: kitti_raw_data_2011_09_26_drive_0005_image_00_image_01
     dataset: KITTI Raw Data
