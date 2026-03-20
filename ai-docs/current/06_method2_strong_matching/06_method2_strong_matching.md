@@ -142,7 +142,25 @@
       - `approx_fps=5.00`
   - 当前结论：
     - Phase 1 已不再只停留在单帧与短视频 smoke，Method B 已在 3 条 60 帧视频回归上跑通。
-    - 后续重点应从“是否能跑”转向“如何做正式 Method A vs Method B 视频级比较”和“何时切入 Phase 2”。
+    - Phase 1 后续重点应从“是否能跑”转向“正式视频级比较结果如何解释”和“何时切入 Phase 2”。
+  - 当前正式视频级 compare 入口已落地：
+    - `scripts/run_video_compare_suite.py`
+    - 正式 preset：
+      - `method_a_orb`
+      - `method_a_sift`
+      - `method_b`
+      - `video_mode=1`
+      - `reuse_mode=frame0_all`
+      - `max_frames=6000`
+  - 当前正式 compare suite：
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
+  - 当前正式 compare 结论：
+    - 3 个 pair、9 条 full-length run 全部通过
+    - `fallback_frames=0`
+    - `errors_count=0`
+    - 没有发现 Phase 1 层面的结构性接入问题
+    - ORB / SIFT / Method B 在不同数据上没有单一统治者，因此三条正式预设都应保留到 Phase 3
 
 ### 介于单帧与视频之间的可选支持子任务
 - 名称建议：`frame_quality_preview`

@@ -142,6 +142,22 @@ source .venv-methodb/bin/activate
 python scripts/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
 ```
 
+6) Formal Phase 1 video comparison suite (`method_a_orb / method_a_sift / method_b`):
+
+```bash
+source .venv-methodb/bin/activate
+python scripts/run_video_compare_suite.py \
+  --python_bin .venv-methodb/bin/python \
+  --video_mode 1 \
+  --max_frames 6000 \
+  --force_cpu
+```
+
+Outputs:
+- `outputs/video_compare/<suite_id>/summary.csv`
+- `outputs/video_compare/<suite_id>/summary.json`
+- `outputs/video_compare/<suite_id>/pair_compare.csv`
+
 ## Side-by-Side Preprocess (mine_source)
 
 Use this script to split side-by-side stereo videos (expected `2560x720`) into
@@ -257,7 +273,7 @@ Common snapshot files:
 
 ## Experiments / Ablations
 
-Implemented:
+Legacy exploratory helpers:
 
 1) Temporal smoothing ablation
 
@@ -267,9 +283,11 @@ python3 scripts/ablate_temporal.py \
   --max_frames 120
 ```
 
-Output:
+Current status:
 - `outputs/ablations/<pair_id>/summary_temporal.csv`
 - `outputs/ablations/<pair_id>/compare/`
+- kept for exploratory use only
+- not the formal Phase 1 compare entry
 
 2) Seam/blend ablation
 
@@ -279,18 +297,31 @@ python3 scripts/ablate_seam.py \
   --max_frames 60
 ```
 
-Output:
+Current status:
 - `outputs/ablations/<pair_id>/seam/summary_seam.csv`
 - `outputs/ablations/<pair_id>/seam/compare/`
+- kept for exploratory use only
+- not the formal Phase 1 compare entry
 
-Planned:
-- `TODO`: dedicated crop ablation script.
-- `TODO`: dedicated video-reuse ablation script (`ablate_video_reuse.py`).
+Formal Phase 1 comparison entry:
+- `scripts/run_video_compare_suite.py`
+- fixed compare preset:
+  - `method_a_orb`
+  - `method_a_sift`
+  - `method_b`
+  - `video_mode=1`
+  - `reuse_mode=frame0_all`
+  - `max_frames=6000`
+
+Planned for later phases:
+- dedicated crop/dynamic seam experiment driver
+- richer evaluation / plotting automation
 
 ## Frame Smoke Suite
 
 The repository now includes:
 - `scripts/run_frame_smoke_suite.py`
+- `scripts/run_video_compare_suite.py`
 
 Default smoke-suite pairs:
 - `mine_source_indoor2_left_right`
@@ -328,6 +359,6 @@ Alias:
 ## Roadmap
 
 - Integrate calibration-aware preprocessing (undistortion/rectification).
-- Add dedicated crop and video-reuse ablation scripts with unified summaries.
-- Expand stronger matching / robust geometry options for challenging overlap.
-- Improve evaluation metrics and reporting automation.
+- Phase 2: dynamic seam + meaningful temporal evaluation.
+- Phase 3: richer evaluation metrics and reporting automation.
+- Phase 4: GUI thin wrapper.

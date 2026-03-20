@@ -112,9 +112,19 @@
 ### Phase 0 / Phase 1
 - `Method A vs Method B`
 - 固定：
-  - `keyframe_update`
-  - `fixed seam`
-  - `no smoothing`
+  - 正式视频级 compare 入口：`scripts/run_video_compare_suite.py`
+  - 方法集合：
+    - `method_a_orb`
+    - `method_a_sift`
+    - `method_b`
+  - 固定运行参数：
+    - `video_mode=1`
+    - `reuse_mode=frame0_all`
+    - `max_frames=6000`
+    - 不依赖 keyframe 更新
+  - 解读边界：
+    - 这是 Phase 1 的 fixed-geometry compare preset，用于验证 Method B 已完整接到视频质量链路
+    - `jitter` 在这一 preset 下不作为主比较指标
 
 ### Phase 2
 - 在最佳方法下比较：
@@ -153,6 +163,18 @@
   - 统一 experiment driver
   - 独立 metrics 模块
   - summary CSV / plots 生成脚本
+
+## 当前 Phase 1 正式 compare 产物（2026-03-20）
+- compare driver：
+  - `scripts/run_video_compare_suite.py`
+- 当前正式 suite：
+  - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
+  - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.json`
+  - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
+- 当前代表性结论：
+  - 3 个 pair、3 个方法预设共 9 条 full-length run 全部成功完成
+  - `fallback_frames=0`、`errors_count=0`
+  - ORB / SIFT / Method B 在不同数据上各有优势，因此 Phase 1 不应提前删掉 ORB 或 SIFT 这两个 Method A 预设
 
 ## 验收标准(DoD)
 - 为每个实验输出统一 bundle。

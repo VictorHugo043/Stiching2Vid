@@ -42,6 +42,8 @@
 
 ## 建议的图表来源
 - `outputs/runs/<run_id>/snapshots/`
+- `outputs/video_compare/<suite_id>/summary.csv`
+- `outputs/video_compare/<suite_id>/pair_compare.csv`
 - `outputs/ablations/<pair_id>/seam/`
 - `outputs/ablations/<pair_id>/...`
 - 后续统一 summary CSV / plot 脚本

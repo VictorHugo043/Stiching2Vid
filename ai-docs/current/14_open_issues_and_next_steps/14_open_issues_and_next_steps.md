@@ -17,15 +17,14 @@
 | ISSUE-20260319-08 | partial | `run_baseline_frame.py` 与 `run_baseline_video.py` 在质量链路上仍有边界差距：单帧入口现已补齐 seam / crop / blend 静态路径，但仍没有 temporal / cache / 完整 run bundle | 用户若忽略边界，仍可能把单帧 smoke 输出误认为完整视频行为 | 已通过 `frame_quality_preview` 缩小静态质量差距；后续仅在需要时再补 diagnostics parity，不把 temporal/cache 强塞进单帧入口 |
 
 ## 接下来最先做的 3 件事
-1. 先把已完成的 3 条 Method B 视频回归纳入正式视频级对比入口，固定 Method A vs Method B 的比较命令、字段和统计表结构。
-2. 然后在代表性 pair 上补一组更长时长或全长的 Method B 运行，确认当前 adapter 的稳定性与速度上界。
-3. 在视频级比较入口固定后，进入 Phase 2 的 dynamic seam / meaningful temporal evaluation 主线。
+1. 按 Phase 2 主线开始 dynamic seam MVP，先做 `fixed seam / keyframe seam / trigger seam` policy 外壳，而不是直接重写 seam backend。
+2. 恢复 meaningful temporal evaluation：明确 `fixed_geometry / keyframe_update / adaptive_update` 的指标边界，并在非固定几何模式下重新引入有意义的 temporal 指标。
+3. 在 Phase 2 MVP 稳定后，再进入更系统的 Phase 3 experiments/plots automation。
 
 ## 当前建议的下一步实施入口
 - 先读：
   - `08_project_status_and_master_plan`
   - `05_evaluation`
-  - `06_method2_strong_matching`
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。

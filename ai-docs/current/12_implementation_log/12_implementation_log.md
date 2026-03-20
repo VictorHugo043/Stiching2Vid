@@ -1323,3 +1323,136 @@
   - 先把这 3 条 Method B 视频回归作为 Phase 1 当前稳定性基线。
   - 然后固定 Method A vs Method B 的视频级对比入口与统计字段。
   - 若直接转入 Phase 2，也应先以这 3 条 run 作为 dynamic seam / temporal evaluation 的回归参考。
+
+## IMP-20260320-06
+- 状态：done
+- 标题：Phase 1 收尾：固定 Method A vs Method B 正式视频级对比入口与统计表，并检查 Phase 1 漏项
+- 本步目标：
+  - 新增统一的正式视频级对比入口，用于批量执行 Method A vs Method B 对比。
+  - 固定 Phase 1 正式对比预设：
+    - `video_mode=1`
+    - 不依赖 keyframe 更新
+    - `max_frames=6000`，确保当前 pair 可完整跑完
+  - 产出统一 `summary.csv / summary.json` 作为视频级统计表。
+  - 检索整个 Phase 1 的成果，查漏补缺；若无结构性问题，则对齐文档并收尾结束 Phase 1。
+- 关联上一步结论：
+  - `IMP-20260320-05`：3 条 Method B 视频回归已完成，但还缺正式的 Method A vs Method B 对比入口与统计表。
+  - `14_open_issues_and_next_steps` 当前把“固定视频级比较命令、字段和统计表结构”列为首要下一步。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码 / 配置：
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_frame_smoke_suite.py`
+  - `data/manifests/pairs.yaml`
+- 准备修改文件：
+  - `scripts/run_video_compare_suite.py`
+  - `README.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - Phase 1 现在缺的是正式 compare driver 和收尾文档，不是新的算法模块。
+  - 需要把“正式视频级对比”的命令约定、字段约定和 Phase 1 完成判断固定下来。
+- 风险点：
+  - Method B 全量视频回归在 CPU 上耗时较长。
+  - `video_mode=1` 下 `jitter` 本身不具比较意义，统计表需显式保留该语义。
+  - 正式比较若字段选择不当，会把 Phase 1 与 Phase 2 的 seam/temporal 议题混在一起。
+- 验收标准：
+  - 有统一的正式 compare driver，能批量调用 `run_baseline_video.py`。
+  - 至少对当前代表性 3 个 pair 跑通 Method A 与 Method B 的正式视频级比较。
+  - 输出统一 `summary.csv / summary.json`。
+  - ai-docs 明确记录 Phase 1 是否完成，以及尚未进入 Phase 2 的边界。
+- 替代方案与不选原因：
+  - 方案：继续手工拼接 6 条命令、手工抄表。
+  - 不选原因：不利于后续复现，也无法形成正式 compare 入口。
+- 实际修改文件：
+  - `scripts/run_video_compare_suite.py`
+  - `README.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 新增脚本 / 入口：
+  - `scripts/run_video_compare_suite.py`
+    - 正式视频级 compare driver
+    - 默认方法预设：
+      - `method_a_orb`
+      - `method_a_sift`
+      - `method_b`
+    - 默认 pair：
+      - `mine_source_indoor2_left_right`
+      - `mine_source_pujiang1_left_right`
+      - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - 输出：
+      - `summary.csv`
+      - `summary.json`
+      - `pair_compare.csv`
+- 实际执行命令：
+  - `python3 -m py_compile scripts/run_video_compare_suite.py`
+  - `python3 scripts/run_video_compare_suite.py --help`
+  - `python3 scripts/run_video_compare_suite.py --python_bin .venv-methodb/bin/python --video_mode 1 --max_frames 6000 --snapshot_every 1000 --force_cpu --suite_id phase1_video_compare_fixedgeom_full_v1`
+- 运行与验证结果：
+  - 正式 compare suite 输出：
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.json`
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
+  - 3 个 pair × 3 个方法预设共 9 条 full-length run 全部通过：
+    - `mine_source_indoor2_left_right`
+    - `mine_source_pujiang1_left_right`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - `method_a_orb`
+    - `method_a_sift`
+    - `method_b`
+  - 关键一致性检查：
+    - 所有 run `returncode=0`
+    - 所有 run `processed_frames == success_frames`
+    - 所有 run `fallback_frames=0`
+    - 所有 run `errors_count=0`
+    - 所有 run 都生成：
+      - `stitched.mp4`
+      - `transforms.csv`
+      - `metrics_preview.json`
+      - `debug.json`
+      - `jitter_timeseries.csv`
+  - 代表性统计：
+    - `mine_source_indoor2_left_right`
+      - `method_a_orb`：`mean_inlier_ratio=0.652`，`approx_fps=34.76`
+      - `method_a_sift`：`mean_inlier_ratio=0.461`，`approx_fps=20.16`
+      - `method_b`：`mean_inlier_ratio=0.196`，`approx_fps=19.34`
+    - `mine_source_pujiang1_left_right`
+      - `method_a_orb`：`mean_inlier_ratio=0.871`，`approx_fps=6.48`
+      - `method_a_sift`：`mean_inlier_ratio=0.913`，`approx_fps=6.74`
+      - `method_b`：`mean_inlier_ratio=0.750`，`approx_fps=5.94`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+      - `method_a_orb`：`mean_inlier_ratio=0.670`，`approx_fps=35.37`
+      - `method_a_sift`：`mean_inlier_ratio=0.494`，`approx_fps=55.30`
+      - `method_b`：`mean_inlier_ratio=0.451`，`approx_fps=28.97`
+  - Phase 1 漏项检查结论：
+    - 没有发现新的结构性接入问题。
+    - 当前剩余 open issues 都属于 Phase 2 / Phase 3，不再阻塞 Phase 1 收尾。
+- 遇到的问题与处理：
+  - 用户补充要求 Method A 必须同时覆盖 ORB 与 SIFT。
+  - 已将 compare driver 从原本的二分法扩展为三预设方案，并输出 pairwise compare 表。
+  - README 中关于 `ablate_*` 的定位仍偏旧，已同步改成 legacy exploratory helpers，并补正式 compare 入口。
+- 与原计划相比的偏差：
+  - 原计划里的“Method A”被细化为 `method_a_orb / method_a_sift` 两条正式预设。
+  - 本步新增了 `pair_compare.csv`，不再只停留在单个 `summary.csv / summary.json`。
+- 下一步建议：
+  - 可以正式结束 Phase 1。
+  - 下一步应按 Phase 2 主线进入 dynamic seam MVP 与 meaningful temporal evaluation。

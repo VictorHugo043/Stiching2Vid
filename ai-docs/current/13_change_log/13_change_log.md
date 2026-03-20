@@ -23,6 +23,7 @@
 | CHG-20260320-03 | 2026-03-20 | docs+outputs | 在 `.venv-methodb` 中对默认 4 个 pair 跑通真实 Method B 单帧 smoke suite，并将结果回填到 Phase 1 文档与 open issues | 影响 Phase 1 当前完成判断与后续优先级，不涉及核心代码改动 | smoke suite 继续只作为快速 regression utility 使用，不单独上升为主实验框架 |
 | CHG-20260320-04 | 2026-03-20 | code+docs+outputs | 新增 `frame_pair_pipeline.py`，让 `run_baseline_video.py` 接到结果对象层与 Method B backend 配置；补跑 2 个 pair 的多帧 Method B 抽样回归，并完成 `video_mode=0/1` 两条短视频 smoke | 影响视频入口的几何估计适配层、video bundle backend 字段和 Phase 1 当前完成定义；不改变 `VideoStitcher` 的 seam/crop/blend/cache 语义 | 本次选取 KITTI + DynamicStereo 作为静态/动态代表；`largestinteriorrectangle` 缺失仍通过 fallback crop 正常运行 |
 | CHG-20260320-05 | 2026-03-20 | docs+outputs | 对 `mine_source_indoor2_left_right`、`mine_source_pujiang1_left_right`、`kitti_raw_data_2011_09_26_drive_0005_image_02_image_03` 完成 3 条 60 帧 Method B 视频回归，并把复现命令与结果写回 ai-docs | 影响 Phase 1 当前稳定性判断、后续视频级比较入口和用户自助复现方式；不涉及新的核心代码改动 | `mine_source pujiang` 本次按 `pujiang1` 解释；若用户需要 `pujiang2/3`，只替换 pair id 即可 |
+| CHG-20260320-06 | 2026-03-20 | code+docs+outputs | 新增 `scripts/run_video_compare_suite.py`，固定 Phase 1 正式视频级 compare 入口，并完成 `method_a_orb / method_a_sift / method_b` 在 3 个代表性 pair 上的 9 条 full-length run；同步更新 README 与 ai-docs，收尾 Phase 1 | 影响正式视频级比较入口、汇总表结构、README 使用方式与 Phase 1 完成判断；不改变核心 stitching 算法能力 | 正式 compare preset 固定为 `video_mode=1`、`reuse_mode=frame0_all`、`max_frames=6000`；`jitter` 在该 preset 下仅作非主指标保留 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

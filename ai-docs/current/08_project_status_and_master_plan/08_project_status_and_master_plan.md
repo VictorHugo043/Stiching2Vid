@@ -145,7 +145,7 @@
 - 单帧先跑通，再扩展到视频。
 - Method A / Method B 能共用 `VideoStitcher`、crop、seam、blend、diagnostics。
 
-### 当前 Phase 1 进度（2026-03-19）
+### 当前 Phase 1 进度（2026-03-20）
 - 已完成：
   - `FeatureResult / MatchResult / GeometryResult`
   - 单帧 `frame_quality_preview`
@@ -176,9 +176,28 @@
     - `mine_source_indoor2_left_right`
     - `mine_source_pujiang1_left_right`
     - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
-- 未完成：
-  - 更长时长或全长的 Method B 视频稳定性验证
-  - Method A vs Method B 的正式视频级对比入口与统计表
+  - 正式视频级 compare 入口：
+    - `scripts/run_video_compare_suite.py`
+  - 正式 Phase 1 compare suite：
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
+    - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
+  - 正式 compare 预设：
+    - `method_a_orb`
+    - `method_a_sift`
+    - `method_b`
+    - `video_mode=1`
+    - `reuse_mode=frame0_all`
+    - `max_frames=6000`
+  - 正式 compare 结果：
+    - 3 个 pair、9 条 full-length run 全部通过
+    - `fallback_frames=0`
+    - `errors_count=0`
+    - Phase 1 没有发现新的结构性接入问题
+- Phase 1 完成判断：
+  - Phase 1 的目标可以视为已完成。
+  - Method B 已从单帧 loader、单帧质量预览、视频 adapter、短视频 smoke、长视频回归一直闭环到正式视频级比较入口与统计表。
+  - 当前剩余 open issues 均属于 Phase 2/Phase 3，而不是 Phase 1 阻塞项。
+- 后续主线：
   - Phase 2 的 dynamic seam / meaningful temporal evaluation
 
 ### 风险与规避
