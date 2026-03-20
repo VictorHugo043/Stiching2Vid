@@ -7,8 +7,8 @@
 ## 当前 open issues
 | ID | 状态 | 问题 | 影响 | 处理建议 |
 | --- | --- | --- | --- | --- |
-| ISSUE-20260319-01 | open | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 在 Phase 0 或 Phase 1 早期补环境说明，必要时新增最小依赖文档 |
-| ISSUE-20260319-02 | partial | 系统 Python 仍缺 `torch / kornia / lightglue`，但 `.venv-methodb` 中已验证真实 Method B 单帧成功路径 | Method B 目前在项目默认环境中仍不可直接跑，但在专用虚拟环境中已可完成真实 `SuperPoint/LightGlue` 推理 | 后续需把环境说明固定下来，并决定是统一使用 `.venv-methodb` 还是补正式依赖文件 |
+| ISSUE-20260319-01 | closed | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 已补 root `requirements.txt`、`requirements-methodb.txt` 与 `docs/environment.md` |
+| ISSUE-20260319-02 | partial | system Python、`.venv`、`.venv-methodb` 当前依赖状态仍有漂移；但 `.venv-methodb` 已在默认 4 个 pair 上通过真实 Method B 单帧回归 | 若直接沿用旧环境，Method B 或 preprocess 仍可能因局部依赖漂移失败；不过当前 `.venv-methodb` 已足以支撑继续推进 Phase 1 | 后续优先沿用当前可用 `.venv-methodb` 或按 `docs/environment.md` 重建；除非环境再次漂移，否则不再把环境作为当前主 blocker |
 | ISSUE-20260319-03 | open | `video_mode=1` 下 `jitter` 容易退化为 0 | temporal evaluation 容易被误解 | 已通过 `geometry_mode / jitter_meaningful` 导出降低误读风险；后续仍需在 `adaptive_update` 与 dynamic seam 中恢复更有意义的 temporal evaluation |
 | ISSUE-20260319-06 | deferred | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 若继续依赖旧脚本会造成 Phase 0 收尾不必要拖延 | 已将 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py` 降级为 legacy helpers；正式 experiment driver 在 Phase 3 单独建设 |
 | ISSUE-20260319-04 | open | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | Dynamic seam advanced 实现难度高 | 先做兼容式 MVP，再单独设计新 seam backend |
@@ -17,9 +17,9 @@
 | ISSUE-20260319-08 | partial | `run_baseline_frame.py` 与 `run_baseline_video.py` 在质量链路上仍有边界差距：单帧入口现已补齐 seam / crop / blend 静态路径，但仍没有 temporal / cache / 完整 run bundle | 用户若忽略边界，仍可能把单帧 smoke 输出误认为完整视频行为 | 已通过 `frame_quality_preview` 缩小静态质量差距；后续仅在需要时再补 diagnostics parity，不把 temporal/cache 强塞进单帧入口 |
 
 ## 接下来最先做的 3 件事
-1. 固定 Method B 环境说明：把 `.venv-methodb` 的安装方式、使用方式和依赖版本写成正式文档。
-2. 在单帧路径做 2-3 个 pair / frame 的真实 Method B 回归，确认不仅是一条 smoke 成功。
-3. 然后开始设计视频路径 adapter，把 `run_baseline_video.py` 接到结果对象层，同时保持现有 bundle 兼容。
+1. 开始设计并实现视频路径 adapter，把 `run_baseline_video.py` 接到结果对象层，同时保持现有 bundle 兼容。
+2. 如需进一步稳健性确认，从已通过的 4 个 pair 中选 1 至 2 个做多帧抽样 Method B 回归，而不是继续堆更多 frame0 smoke。
+3. 在视频路径接通后，再进入 Method A vs Method B 的正式对比和 Phase 2 seam/temporal 主线。
 
 ## 当前建议的下一步实施入口
 - 先读：

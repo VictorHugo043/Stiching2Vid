@@ -54,24 +54,43 @@ The focus is stable panorama generation from overlapping left/right streams, wit
 
 ## Installation
 
-Python version:
-- `TODO`: exact pinned version is not declared in repository config.
-- Recommended: Python `3.9+`.
+Formal environment documentation:
+- [docs/environment.md](docs/environment.md)
 
-Environment setup:
+Recommended Python:
+- baseline / preprocess: `3.10` to `3.14`
+- Method B: `3.10` to `3.14`
+
+Baseline environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install numpy opencv-contrib-python pyyaml largestinteriorrectangle
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+```
+
+Method B environment:
+
+```bash
+python3 -m venv .venv-methodb
+source .venv-methodb/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements-methodb.txt
+git clone https://github.com/cvg/LightGlue.git external/LightGlue
+python -m pip install -e external/LightGlue
 ```
 
 OpenCV note:
-- This project uses stitching/detail APIs (for seam and multiband), so `opencv-contrib-python` is recommended.
+- This project uses stitching/detail APIs (for seam and multiband), so `opencv-contrib-python` is required.
 
-Dependency pinning:
-- `TODO`: no root `requirements.txt`/`pyproject.toml` is currently provided.
+Dependency files:
+- `requirements.txt`: Method A + preprocess baseline
+- `requirements-methodb.txt`: Method B extras on top of baseline
+
+Important:
+- `largestinteriorrectangle` is optional in practice because the project has a conservative crop fallback path.
+- existing local `.venv` / `.venv-methodb` may drift; if behavior looks inconsistent, reinstall from the requirements files above.
 
 ## Quick Start
 
@@ -108,6 +127,19 @@ python3 scripts/run_baseline_video.py \
 python3 scripts/run_baseline_frame.py \
   --pair campus_sequences_campus4_c0_c1 \
   --frame_index 0
+```
+
+5) Multi-pair single-frame smoke suite:
+
+```bash
+python3 scripts/run_frame_smoke_suite.py --method method_a
+```
+
+Method B smoke suite:
+
+```bash
+source .venv-methodb/bin/activate
+python scripts/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
 ```
 
 ## Side-by-Side Preprocess (mine_source)
@@ -254,6 +286,20 @@ Output:
 Planned:
 - `TODO`: dedicated crop ablation script.
 - `TODO`: dedicated video-reuse ablation script (`ablate_video_reuse.py`).
+
+## Frame Smoke Suite
+
+The repository now includes:
+- `scripts/run_frame_smoke_suite.py`
+
+Default smoke-suite pairs:
+- `mine_source_indoor2_left_right`
+- `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+- `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+- `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+
+Alias:
+- `mysourceindoor2` -> `mine_source_indoor2_left_right`
 
 ## Development Notes
 

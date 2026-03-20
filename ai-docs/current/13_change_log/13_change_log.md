@@ -19,6 +19,8 @@
 | CHG-20260319-06 | 2026-03-19 | code+docs | 新增 `frame_quality_preview` 共享 helper，并让 `run_baseline_frame.py` 复用 `VideoStitcher` 的 `crop -> seam -> blend` 链路；同步更新 ai-docs 与后续建议 | 影响单帧入口输出、debug 字段和 snapshots，使其更接近视频静态质量链路；不改视频主流程 | 本次仍不覆盖 temporal/cache/multi-frame bundle parity，仅补齐单帧静态质量预览 |
 | CHG-20260319-07 | 2026-03-19 | code+docs | 为单帧 Method B 接入真实 optional dependency probe、lazy import、weights/device 配置、structured diagnostics 与 fallback；新增 `method_b_runtime.py`，并更新 ai-docs | 影响 `features.py`、`matching.py`、`run_baseline_frame.py` 的 Method B 工程边界与 debug 输出；不影响视频主流程 | 当前环境仍缺 `torch / lightglue`，因此本次验证集中在 fail-fast 和 fallback 路径 |
 | CHG-20260320-01 | 2026-03-20 | code+docs | 修复 LightGlue compact list 输出兼容问题，使真实 `superpoint + lightglue + opencv_usac_magsac` 单帧 smoke 在 `.venv-methodb` 下跑通；同步更新 ai-docs | 影响 `matching.py` 的 LightGlue 结果解析层与 Phase 1 当前完成定义；不影响视频主流程 | 本次只修输出解析，不改变视频路径，也不改官方 LightGlue 源码 |
+| CHG-20260320-02 | 2026-03-20 | docs+scripts | 新增 root `requirements.txt`、`requirements-methodb.txt`、`docs/environment.md` 和 `scripts/run_frame_smoke_suite.py`，并用默认 4 个 pair 跑通 Method A 单帧 smoke suite；同步更新 README 与 ai-docs | 影响环境安装入口、单帧回归入口和使用文档；不影响视频主流程或算法能力 | 本次 Method B 多 pair suite 只完成入口建设，未在当前漂移环境下强行跑真实 Method B 多 pair 回归 |
+| CHG-20260320-03 | 2026-03-20 | docs+outputs | 在 `.venv-methodb` 中对默认 4 个 pair 跑通真实 Method B 单帧 smoke suite，并将结果回填到 Phase 1 文档与 open issues | 影响 Phase 1 当前完成判断与后续优先级，不涉及核心代码改动 | smoke suite 继续只作为快速 regression utility 使用，不单独上升为主实验框架 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

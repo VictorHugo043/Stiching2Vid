@@ -1,0 +1,12 @@
+-r requirements.txt
+
+# Method B runtime extras.
+torch>=2.10.0
+torchvision>=0.25.0
+kornia>=0.8.2
+matplotlib>=3.10
+certifi>=2025.10.5
+
+# Install LightGlue separately after this file:
+#   git clone https://github.com/cvg/LightGlue.git external/LightGlue
+#   python -m pip install -e external/LightGlue

@@ -208,6 +208,30 @@
       - `reprojection_error = 1.660`
   - 新增兼容点：
     - 兼容官方 LightGlue compact 输出中 `matches / scores` 为 batch-wise list 的情况
+  - 新增正式环境入口：
+    - root `requirements.txt`
+    - root `requirements-methodb.txt`
+    - `docs/environment.md`
+  - 新增多 pair 单帧回归入口：
+    - `scripts/run_frame_smoke_suite.py`
+    - 默认 smoke pair：
+      - `mine_source_indoor2_left_right`
+      - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+      - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+      - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+    - 用户别名：
+      - `mysourceindoor2 -> mine_source_indoor2_left_right`
+    - 当前定位：
+      - 只是快速 regression utility
+      - 不单独作为 Phase 1 研究结论本身
+  - 当前多 pair Method B 回归结果：
+    - `outputs/frame_smoke/phase1_methodb_multi_pair_smoke`
+    - 4/4 pair 通过真实 `superpoint + lightglue + opencv_usac_magsac`
+    - 当前关键统计：
+      - `mine_source_indoor2_left_right`：`good=766`，`inliers=150`，`inlier_ratio=0.196`
+      - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`：`good=1229`，`inliers=582`，`inlier_ratio=0.474`
+      - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`：`good=944`，`inliers=426`，`inlier_ratio=0.451`
+      - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`：`good=827`，`inliers=371`，`inlier_ratio=0.449`
 
 ## 建议配置项
 - `feature_backend`
@@ -258,6 +282,13 @@
   - 规避：兼容保留旧 bundle 字段，在 `debug.json` 里新增 Method B 专属字段
 
 ## 验收标准(DoD)
+- 已有正式环境文档，能清楚区分 baseline env 与 Method B env 的安装和使用方式。
+- root requirements 已固定：
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+- 单帧 smoke / regression 已有正式入口：
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_frame_smoke_suite.py`
 - 单帧能在 Method A / Method B 间切换。
 - 视频路径能复用同一套 seam/crop/blend/diagnostics。
 - 依赖缺失、权重缺失、GPU 不可用时有明确错误或 fallback 记录。

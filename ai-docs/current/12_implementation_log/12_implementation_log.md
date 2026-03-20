@@ -893,3 +893,178 @@
   - 先把 `.venv-methodb` 的环境准备流程写成正式文档。
   - 然后用 2-3 个 pair / frame 做真实单帧 Method B 回归。
   - 回归稳定后，再开始视频路径 adapter 设计。
+
+## IMP-20260320-02
+- 状态：done
+- 标题：正式化环境文档与 requirements，并新增多 pair 单帧 smoke suite
+- 本步目标：
+  - 把当前项目已有环境的安装方式、使用方式和边界写成正式环境文档。
+  - 在仓库根目录补齐正式 `requirements` 文件，覆盖 baseline / preprocess / Method B 额外依赖。
+  - 新增多 pair 单帧 smoke suite，覆盖用户指定的：
+    - `mine_source_indoor2_left_right`
+    - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+- 关联上一步结论：
+  - `IMP-20260320-01`：真实单帧 Method B 成功路径已在某次环境下验证，但当前仓库仍缺正式环境说明与 root requirements。
+  - `ISSUE-20260319-01`：根仓库缺少正式依赖文件。
+  - `ISSUE-20260319-02`：当前环境仍存在 baseline / Method B 依赖漂移。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码 / 配置：
+  - `README.md`
+  - `data/manifests/pairs.yaml`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/inspect_pair.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `external/LightGlue/requirements.txt`
+  - `external/LightGlue/pyproject.toml`
+- 准备修改文件：
+  - `README.md`
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `scripts/run_frame_smoke_suite.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前缺少对 baseline / Method B 环境的正式复现说明。
+  - root requirements 需要成为后续统一环境入口。
+  - 单帧 smoke suite 需要把新的 Method A / Method B 单帧入口变成可重复运行的回归工具。
+- 风险点：
+  - 直接把当前本地虚拟环境状态等同于正式 requirements，可能把漂移写死。
+  - `largestinteriorrectangle` 在当前 Python 3.14 上存在兼容风险，不能误写成强依赖。
+  - 若 smoke suite 强绑定 Method B，当环境缺依赖时会降低可用性。
+- 验收标准：
+  - 仓库根目录出现正式 `requirements` 文件。
+  - `README` 和新增环境文档能清晰区分 baseline 环境、Method B 环境和当前已知限制。
+  - 新增的 frame smoke suite 能覆盖用户点名的 4 个 pair，并至少在当前 Method A 环境下跑通。
+  - ai-docs 已完整记录本步决策、变更和下一步建议。
+- 替代方案与不选原因：
+  - 方案：只更新 `README`，不新增 requirements 和 suite 脚本。
+  - 不选原因：无法解决复现入口缺失，也无法把多 pair 单帧回归固化成可执行入口。
+- 实际修改文件：
+  - `README.md`
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `scripts/run_frame_smoke_suite.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 root `requirements.txt`
+  - 新增 root `requirements-methodb.txt`
+  - 新增 `docs/environment.md`
+  - 新增 `scripts/run_frame_smoke_suite.py`
+  - `README.md` 新增正式环境入口和 smoke suite 使用方式
+  - ai-docs 同步写明：
+    - root requirements 才是正式环境真值
+    - smoke suite 只是单帧 regression utility，不是独立研究贡献
+- 验证方式：
+  - 运行 `python3 -m py_compile scripts/run_frame_smoke_suite.py`
+  - 运行 `python3 scripts/run_frame_smoke_suite.py --help`
+  - 运行 Method A wrapper smoke：
+    - `python3 scripts/run_frame_smoke_suite.py --method method_a --suite_id phase1_methoda_multi_pair_smoke --continue_on_error`
+- 运行结果与验证结果：
+  - 新脚本语法和 CLI 帮助均正常。
+  - `phase1_methoda_multi_pair_smoke` 已成功覆盖默认 4 个 pair。
+  - 本步的主要交付是环境入口和 smoke wrapper 本身，不把 Method A 结果作为 Phase 1 的最终验收结论。
+- 偏差：
+  - 原计划默认用 Method A 先验证 wrapper，这一步确实完成了，但随后用户明确要求把 Phase 1 核心验收切回真实 Method B 多 pair 回归。
+  - 因此 Method A suite 仅保留为 wrapper self-check，不再作为后续主线里程碑。
+- 下一步建议：
+  - 直接在 `.venv-methodb` 中执行默认 4 个 pair 的真实 Method B 单帧回归。
+  - 若全部通过，再推进视频路径 adapter；若出现局部失败，再根据 pair 类型排查。
+
+## IMP-20260320-03
+- 状态：done
+- 标题：Phase 1 快速回归：对指定 pair 执行真实 Method B 多 pair 单帧 smoke
+- 本步目标：
+  - 在 `.venv-methodb` 中对用户指定的代表性 pair 执行真实 `superpoint + lightglue + opencv_usac_magsac` 单帧回归。
+  - 快速确认 Method B 不只在一条 smoke 上可跑，而是在多个不同数据域上可用。
+  - 只做最小文档回填，不扩展测试体系讨论。
+- 关联上一步结论：
+  - `IMP-20260320-01`：真实 Method B 单帧成功路径已经在单一 pair 上跑通。
+  - `IMP-20260320-02`：环境文档与 smoke suite 入口已补齐，但 Method B 多 pair 回归尚未执行。
+  - `ISSUE-20260319-02`：Method B 环境仍需以实际运行结果确认。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `scripts/run_frame_smoke_suite.py`
+  - `scripts/run_baseline_frame.py`
+- 准备修改文件：
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这一步的主要产物是运行验证结果和 Phase 1 进度更新。
+  - 需要把“多 pair Method B 是否已经跑通”记录回主文档，而不是只留在输出目录里。
+- 风险点：
+  - 某些 pair 在 Method B 下可能因纹理、分辨率或动态目标导致失败。
+  - `.venv-methodb` 仍可能存在局部包漂移。
+  - smoke suite 只是回归入口，不能被写成独立研究贡献。
+- 验收标准：
+  - 用户指定的 pair 至少运行一次真实 Method B 单帧。
+  - 产出 `outputs/frame_smoke/<suite_id>/summary.json|csv`。
+  - ai-docs 已简洁记录通过/失败情况和下一步建议。
+- 替代方案与不选原因：
+  - 方案：逐条手工跑 `run_baseline_frame.py`。
+  - 不选原因：当前已有轻量 smoke wrapper，可更快完成相同验证且自动汇总结果。
+- 实际修改文件：
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 使用 `.venv-methodb` 对以下 pair 跑通真实 Method B 单帧 smoke：
+    - `mine_source_indoor2_left_right`
+    - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+  - 统一输出目录：
+    - `outputs/frame_smoke/phase1_methodb_multi_pair_smoke`
+- 验证方式：
+  - 运行 `.venv-methodb/bin/python - <<'PY' ... import yaml, torch, kornia, lightglue ... PY`
+  - 运行：
+    - `./.venv-methodb/bin/python scripts/run_frame_smoke_suite.py --method method_b --suite_id phase1_methodb_multi_pair_smoke --device cpu --force_cpu --continue_on_error`
+- 运行结果与验证结果：
+  - `.venv-methodb` 中已确认：
+    - `yaml 6.0.3`
+    - `torch 2.10.0`
+    - `kornia 0.8.2`
+    - `lightglue` 可导入
+  - 4/4 pair 全部通过真实 Method B 单帧回归。
+  - 关键统计：
+    - `mine_source_indoor2_left_right`：`good=766`，`inliers=150`，`inlier_ratio=0.196`，`reprojection_error=1.944`
+    - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`：`good=1229`，`inliers=582`，`inlier_ratio=0.474`，`reprojection_error=1.506`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`：`good=944`，`inliers=426`，`inlier_ratio=0.451`，`reprojection_error=1.489`
+    - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`：`good=827`，`inliers=371`，`inlier_ratio=0.449`，`reprojection_error=1.768`
+- 偏差：
+  - 无代码改动。
+  - 本步仅做真实回归和最小文档回填，没有扩大到多帧、视频或更重的实验驱动。
+- 下一步建议：
+  - 当前可以把 Phase 1 的重心转到视频路径 adapter / 结果对象层迁移。
+  - 若想先补稳健性，再选这 4 个 pair 中的 1 至 2 个做多帧抽样回归，而不是继续堆更多单帧 smoke。

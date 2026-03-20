@@ -151,13 +151,26 @@
   - 单帧 `frame_quality_preview`
   - 单帧 Method B dependency probe / lazy import / failure diagnostics / fallback 骨架
   - `.venv-methodb` 环境下真实 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 单帧成功 smoke
+  - 正式环境入口：
+    - `requirements.txt`
+    - `requirements-methodb.txt`
+    - `docs/environment.md`
+  - 默认多 pair 单帧 smoke suite：
+    - `scripts/run_frame_smoke_suite.py`
+    - 当前已验证 Method B 默认 suite 跑通：
+      - `mine_source_indoor2_left_right`
+      - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
+      - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+      - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
 - 未完成：
   - 视频路径 adapter 或迁移
-  - 多 pair / 多帧稳定性验证
+  - 多帧 Method B 稳定性验证
 
 ### 风险与规避
 - 风险：环境缺依赖。
   - 规避：optional dependency、lazy import、fallback。
+- 风险：本地已有 `.venv` / `.venv-methodb` 与正式 requirements 漂移。
+  - 规避：把 root requirements 和 `docs/environment.md` 作为唯一正式环境入口；必要时重建虚拟环境。
 - 风险：为了补单帧 seam/crop parity，直接复制 `run_baseline_video.py` 的内联质量链路逻辑。
   - 规避：若要做 `frame_quality_preview`，应优先抽共享 helper / adapter，而不是复制大段视频脚本。
 
