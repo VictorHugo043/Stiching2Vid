@@ -1034,6 +1034,91 @@ pairs:
       fps: 29.958866476328
       resolution: [1280, 720]
 
+  - id: mine_source_mcd1_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/mcd1/left.mp4
+    right: data/raw/Videos/mine_source/mcd1/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: mcd1
+      cameras: [left, right]
+      length_left: 449
+      length_right: 449
+      fps: 29.96883241428914
+      resolution: [1280, 720]
+  - id: mine_source_mcd2_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/mcd2/left.mp4
+    right: data/raw/Videos/mine_source/mcd2/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: mcd2
+      cameras: [left, right]
+      length_left: 254
+      length_right: 254
+      fps: 29.899388557504
+      resolution: [1280, 720]
+  - id: mine_source_square_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/square/left.mp4
+    right: data/raw/Videos/mine_source/square/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: square
+      cameras: [left, right]
+      length_left: 402
+      length_right: 402
+      fps: 29.935996838758733
+      resolution: [1280, 720]
+  - id: mine_source_traffic1_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/traffic1/left.mp4
+    right: data/raw/Videos/mine_source/traffic1/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: traffic1
+      cameras: [left, right]
+      length_left: 440
+      length_right: 440
+      fps: 29.941195492053605
+      resolution: [1280, 720]
+  - id: mine_source_traffic2_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/traffic2/left.mp4
+    right: data/raw/Videos/mine_source/traffic2/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: traffic2
+      cameras: [left, right]
+      length_left: 670
+      length_right: 670
+      fps: 29.987615114957524
+      resolution: [1280, 720]
+  - id: mine_source_walking_left_right
+    dataset: mine_source
+    input_type: video
+    left: data/raw/Videos/mine_source/walking/left.mp4
+    right: data/raw/Videos/mine_source/walking/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: walking
+      cameras: [left, right]
+      length_left: 423
+      length_right: 423
+      fps: 29.973862791645686
+      resolution: [1280, 720]
+
   - id: kitti_raw_data_2011_09_26_drive_0001_image_02_image_03
     dataset: KITTI Raw Data
     input_type: frames
