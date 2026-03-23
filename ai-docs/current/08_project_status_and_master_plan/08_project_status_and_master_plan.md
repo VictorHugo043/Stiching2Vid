@@ -312,6 +312,21 @@
     - `ema/window` 明显降低 `mean_seam_mask_change_ratio`
     - 但对 `mean_stitched_delta` 没有带来收益
     - 因此默认值仍保持 `seam_smooth=none`
+  - 当前已完成正式 Phase 2 compare matrix：
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1`
+    - 4 个代表性 pair × 4 个正式 preset
+  - 当前已完成代表性可视化汇总：
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_manifest.csv`
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+  - 当前正式 Phase 2 主结论：
+    - `trigger_fused_d18_fg008` 是默认推荐 preset
+    - `keyframe_seam10` 是简单但较弱的中间方案
+    - `adaptive_trigger_fused_d18_fg008` 只保留为实验 preset
+      - 当前速度代价过高
+      - 在稳定场景上会退化
+  - 当前 Phase 2 完成判断：
+    - 以 MVP 范围计，Phase 2 可以视为已完成
+    - 剩余 open issues 均不再阻塞进入 Phase 3
 
 ## Phase 3
 ### 目标

@@ -9,21 +9,21 @@
 | --- | --- | --- | --- | --- |
 | ISSUE-20260319-01 | closed | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 已补 root `requirements.txt`、`requirements-methodb.txt` 与 `docs/environment.md` |
 | ISSUE-20260319-02 | closed | 当前 Method B 正式环境已经按 `requirements-methodb.txt` 安装并验证通过；`.venv-methodb` 已在多 pair 单帧、多帧抽样和短视频 smoke 上跑通 | Method B 环境不再是当前主 blocker | 后续默认沿用当前 `.venv-methodb`；如环境再漂移，再按 `docs/environment.md` 重建 |
-| ISSUE-20260319-03 | partial | `fixed_geometry` 下 `jitter` 容易退化为 0，仍可能被误读为“seam 没更新” | temporal evaluation 容易被误解 | 已新增 `mean_overlap_diff_after / temporal_primary_metric / jitter_scope / seam_snapshot_on_recompute`，且 `adaptive_update` 已能提供非零几何流；后续仍需在 seam smoothing 与更强 temporal metrics 中继续完善 |
+| ISSUE-20260319-03 | closed | `fixed_geometry` 下 `jitter` 容易退化为 0，仍可能被误读为“seam 没更新” | 该解释风险已不再阻塞当前主线 | 已通过 `mean_overlap_diff_after / temporal_primary_metric / jitter_scope / seam_snapshot_on_recompute`、正式 Phase 2 compare matrix 与 `visual_summary.md` 固定解释边界 |
 | ISSUE-20260319-06 | deferred | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 若继续依赖旧脚本会造成 Phase 0 收尾不必要拖延 | 已将 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py` 降级为 legacy helpers；正式 experiment driver 在 Phase 3 单独建设 |
-| ISSUE-20260319-04 | open | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | Dynamic seam advanced 实现难度高 | 先做兼容式 MVP，再单独设计新 seam backend |
+| ISSUE-20260319-04 | deferred | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | 属于 advanced 路线，不再阻塞当前 Phase 2 收尾 | 保持当前 OpenCV seam backend 路线；若后续需要 advanced seam，再单独立项 |
 | ISSUE-20260319-05 | closed | `scripts/ablate_crop.py`、`scripts/ablate_video_reuse.py` 的历史文档漂移已不再构成当前主线问题；相关旧描述已移出当前工作流 | 不再影响 Phase 1 / Phase 2 推进 | 保留为历史背景，不再作为活跃 issue 跟踪 |
 | ISSUE-20260319-07 | closed | `run_baseline_video.py` 已通过 `frame_pair_pipeline` 接到结果对象层，视频入口已可使用 Method B backend 配置 | Method B 现在可以复用视频 orchestrator 的现有 seam/crop/blend/cache 路线 | 后续若要继续演进，只需在当前 adapter 基础上补更长时长回归和实验，不再把“未接到结果对象层”视为 issue |
 | ISSUE-20260319-08 | partial | `run_baseline_frame.py` 与 `run_baseline_video.py` 在质量链路上仍有边界差距：单帧入口现已补齐 seam / crop / blend 静态路径，但仍没有 temporal / cache / 完整 run bundle | 用户若忽略边界，仍可能把单帧 smoke 输出误认为完整视频行为 | 已通过 `frame_quality_preview` 缩小静态质量差距；后续仅在需要时再补 diagnostics parity，不把 temporal/cache 强塞进单帧入口 |
 | ISSUE-20260320-01 | partial | `trigger seam` 的参数已完成一轮 mine_source calibration，但默认阈值仍对场景分布敏感 | 当前已有 `phase2_trigger_adaptive_minesource_calib_v2` 可供选默认值，但换数据域后仍可能需要重标定 | 当前默认先用 `trigger_fused_d18_fg008`；后续在 DynamicStereo 或更强动态样例上继续补校准 |
 | ISSUE-20260320-02 | partial | `adaptive_update` 的 controller 已从全局 armed 细化为 per-trigger rearm，但带 cooldown/hysteresis 的 stable preset 在 sustained foreground 场景下仍偏保守 | `adaptive_update` 已不再系统性退化为“一次性 geometry refresh”，但若直接把 stable preset 当默认值，仍可能低估 adaptive geometry 的作用 | 当前默认仍使用 `trigger_fused_d18_fg008`；若后续继续研究 adaptive geometry，再考虑 foreground-specific cooldown 或更细的 trigger fusion |
 | ISSUE-20260323-01 | partial | `foreground_mode=disagreement` 长时间高位的问题已通过 per-trigger rearm 明显缓解，但当前 `adaptive_stable` 仍会在部分 `mine_source_*` 视频上几乎不再重算 | 会继续限制 adaptive geometry 的默认可用性，并使 stable preset 难以作为正式推荐值 | 当前将其降级为实验 preset；后续若继续优化 adaptive controller，再专门围绕 stable preset 调参 |
-| ISSUE-20260323-02 | open | seam temporal smoothing 在当前实现下会把 `mean_overlap_diff_after` 压到 `0.0`，导致该指标不再适合拿来比较 smoothing 质量 | 若不显式写清解释边界，容易误判 `ema/window` “完胜” `none` | 当前 smoothing 评估优先看 `mean_seam_mask_change_ratio / mean_stitched_delta / approx_fps`；后续若需要，把 smoothing 专用 temporal metric 独立出来 |
+| ISSUE-20260323-02 | deferred | seam temporal smoothing 在当前实现下会把 `mean_overlap_diff_after` 压到 `0.0`，导致该指标不再适合拿来比较 smoothing 质量 | 当前已知解释边界清楚，但若未来要把 smoothing 升级为正式主轴，仍需要新 temporal metric | 当前 smoothing 评估优先看 `mean_seam_mask_change_ratio / mean_stitched_delta / approx_fps`；若 Phase 3 需要更深入 temporal 结论，再单独补 smoothing-specific metric |
 
 ## 接下来最先做的 3 件事
-1. 继续 Phase 2，但主线从“修 controller”切到“整理正式 dynamic seam 对比矩阵”和代表性可视化。
-2. 若继续研究 temporal quality，优先补更贴近 flicker 的 smoothing 专用指标，再决定是否保留 `ema/window` 到最终实验矩阵。
-3. 再把 object-aware 更强版本迁移到有现成 masks 的数据或独立新 seam backend 路线。
+1. 进入 Phase 3，先整理正式实验表与 final report 直接可用的图表。
+2. 把 Phase 1 的方法对比和 Phase 2 的 dynamic seam 正式矩阵汇总到统一报告素材里。
+3. 若时间允许，再补 DynamicStereo / object-mask 数据上的附加实验，或把 advanced seam 作为明确的 future work。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -72,6 +72,7 @@
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。
+- 当前建议直接从 Phase 3 开始。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

@@ -318,6 +318,58 @@
   - `--seam_snapshot_on_recompute`
 - 目的：
   - 当 seam 发生 keyframe/trigger 重算时，为对应帧留下证据图，不再只依赖 `snapshot_every`。
+
+## Phase 2 正式收尾矩阵（2026-03-23）
+### 正式入口
+- `scripts/run_phase2_dynamic_compare_suite.py`
+- `scripts/build_phase2_visual_summary.py`
+
+### 正式 suite
+- `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
+- `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
+- `outputs/video_compare/phase2_dynamic_compare_full_v1/pair_compare.csv`
+- `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_manifest.csv`
+- `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+
+### 正式代表性 pairs
+- `mine_source_square_left_right`
+- `mine_source_mcd1_left_right`
+- `mine_source_traffic2_left_right`
+- `mine_source_walking_left_right`
+
+### 正式 presets
+- `baseline_fixed`
+- `keyframe_seam10`
+- `trigger_fused_d18_fg008`
+- `adaptive_trigger_fused_d18_fg008`
+
+### 当前主结论
+- `trigger_fused_d18_fg008`
+  - 是当前最合适的默认 dynamic seam preset
+  - 在这组正式 pairs 上把聚合 `mean_overlap_diff_after` 从约 `5.244` 降到约 `3.261`
+  - 代价是 `approx_fps` 从约 `12.65` 降到约 `8.69`
+- `keyframe_seam10`
+  - 提供了简单、稳定、可解释的动态 seam 中间方案
+  - 但质量改善明显弱于 `trigger_fused`
+- `adaptive_trigger_fused_d18_fg008`
+  - 当前只保留为实验 preset
+  - 原因：
+    - `geometry_update_count ≈ 50`
+    - `approx_fps ≈ 1.76`
+    - 在稳定场景 `square` 上还会退化
+
+### Phase 2 完成边界
+- 当前可以把 Phase 2 视为完成：
+  - Dynamic seam MVP 已完成
+  - meaningful temporal evaluation 已完成
+  - trigger calibration 已完成
+  - per-trigger rearm 已完成
+  - smoothing ablation 已完成
+  - 正式 compare matrix 与 representative visuals 已完成
+- 当前明确不属于 Phase 2 阻塞项：
+  - 新 seam backend
+  - object-centered graph-cut / MRF
+  - smoothing-specific 新 temporal metric
 - 当前保存内容：
   - stitched frame snapshot
   - seam event low-res mask / overlay / overlap diff 图

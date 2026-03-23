@@ -310,6 +310,19 @@
   - 因此当前默认值仍保持：
     - `seam_smooth=none`
 
+## Phase 2 正式 compare / visuals（2026-03-23）
+- 正式 dynamic seam compare suite：
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1`
+- 当前正式代表性可视化：
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_manifest.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+- 当前对 video pipeline 的最重要结论：
+  - `fixed_geometry + seam_policy=trigger + foreground_mode=disagreement`
+    - 是当前默认推荐路径
+  - `adaptive_update`
+    - 已具备研究意义
+    - 但尚不适合作为默认视频 pipeline 路径
+
 ## 下一步
 - 总路线见 `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`。
 - Dynamic seam 与 temporal evaluation 方案见 `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`。

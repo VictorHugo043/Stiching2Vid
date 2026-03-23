@@ -2200,3 +2200,144 @@
 - 下一步建议：
   - 继续 Phase 2，但主线从“再扩控制器功能”切到“整理正式 dynamic seam 对比矩阵”。
   - 若要继续研究 smoothing，应转到有 object masks 或更强动态目标的数据，并补更贴近 flicker 的 temporal metric。
+
+## IMP-20260323-03
+- 状态：done
+- 标题：Phase 2 收尾：正式 dynamic seam 对比矩阵与代表性可视化
+- 本步目标：
+  - 固定一套正式 Phase 2 dynamic seam compare matrix。
+  - 生成代表性可视化清单与汇总文档，便于 final report 直接复用。
+  - 回顾 Phase 2 open issues，能解决的收敛，不能解决的明确降级或延期，并给出 Phase 2 完成判断。
+- 关联上一步结论：
+  - `DEC-20260323-02`：当前默认 seam preset 为 `trigger_fused_d18_fg008`。
+  - `DEC-20260323-03`：trigger controller 已切到 per-trigger rearm。
+  - `DEC-20260323-04`：seam smoothing 默认仍为 `none`，只作为实验 preset。
+  - `ISSUE-20260320-01`：trigger 默认值对场景分布仍敏感。
+  - `ISSUE-20260323-02`：当前 smoothing 指标解释仍有边界。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_phase2_trigger_calibration.py`
+  - `scripts/run_phase2_seam_smoothing_suite.py`
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+- 准备修改文件：
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/build_phase2_visual_summary.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - compare suite 需要一个正式、可复跑、面向 Phase 2 收尾的入口。
+  - 代表性可视化不应再靠人工翻 `outputs/runs/*/snapshots`，需要最小汇总脚本。
+  - Phase 2 是否可结束，取决于矩阵结果和 open issues 的收敛定义，因此必须同步更新 ai-docs。
+- 风险点：
+  - 正式矩阵如果范围过大，会拖慢 Phase 2 收尾。
+  - 可视化若依赖复杂拼图逻辑，会偏离“最小可验证改动”。
+  - 若把 smoothing 混入主矩阵，会让当前结论变得不清晰。
+- 验收标准：
+  - 新增正式 Phase 2 compare suite，能输出 `summary.csv / preset_summary.csv / pair_compare.csv / summary.json`。
+  - 代表性可视化至少能输出 `visual_manifest.csv` 和 `visual_summary.md`。
+  - ai-docs 明确：
+    - Phase 2 正式矩阵的 pair / preset
+    - 当前默认推荐 preset
+    - 哪些 issue 已解决
+    - 哪些 issue 继续延期但不阻塞结束 Phase 2
+- 替代方案与不选原因：
+  - 方案：继续手工拼命令、手工挑图。
+  - 不选原因：无法形成正式收尾入口，也不利于复现。
+  - 方案：把 smoothing ablation 强行并入主矩阵。
+  - 不选原因：当前 smoothing 结论是补充性，不适合作为 Phase 2 主对比轴。
+- 实际修改文件：
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/build_phase2_visual_summary.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增正式 Phase 2 compare 入口：
+    - `scripts/run_phase2_dynamic_compare_suite.py`
+  - 新增代表性可视化汇总入口：
+    - `scripts/build_phase2_visual_summary.py`
+  - 正式 Phase 2 matrix 固定为：
+    - pairs：
+      - `mine_source_square_left_right`
+      - `mine_source_mcd1_left_right`
+      - `mine_source_traffic2_left_right`
+      - `mine_source_walking_left_right`
+    - presets：
+      - `baseline_fixed`
+      - `keyframe_seam10`
+      - `trigger_fused_d18_fg008`
+      - `adaptive_trigger_fused_d18_fg008`
+  - 正式产物：
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/pair_compare.csv`
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_manifest.csv`
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+- 验证方式：
+  - `python3 -m py_compile scripts/run_phase2_dynamic_compare_suite.py scripts/build_phase2_visual_summary.py`
+  - `python3 scripts/run_phase2_dynamic_compare_suite.py --help`
+  - `python3 scripts/build_phase2_visual_summary.py --help`
+  - `.venv-methodb/bin/python scripts/run_phase2_dynamic_compare_suite.py --python_bin .venv-methodb/bin/python --force_cpu --max_frames 6000 --suite_id phase2_dynamic_compare_full_v1`
+  - `python3 scripts/build_phase2_visual_summary.py --suite_id phase2_dynamic_compare_full_v1`
+- 运行结果与验证结果：
+  - 正式 compare suite：
+    - `outputs/video_compare/phase2_dynamic_compare_full_v1`
+    - 4 个代表性 pair × 4 个 preset 共 16 条 full-length run 全部通过
+    - `errors_count=0`
+    - `warnings_count=0`
+  - preset 级聚合结果：
+    - `baseline_fixed`
+      - `mean_overlap_diff_after ≈ 5.244`
+      - `mean_stitched_delta ≈ 4.740`
+      - `approx_fps ≈ 12.65`
+    - `keyframe_seam10`
+      - `mean_overlap_diff_after ≈ 4.662`
+      - `mean_stitched_delta ≈ 4.743`
+      - `approx_fps ≈ 9.94`
+    - `trigger_fused_d18_fg008`
+      - `mean_overlap_diff_after ≈ 3.261`
+      - `mean_stitched_delta ≈ 4.746`
+      - `approx_fps ≈ 8.69`
+    - `adaptive_trigger_fused_d18_fg008`
+      - `mean_overlap_diff_after ≈ 3.862`
+      - `mean_stitched_delta ≈ 4.772`
+      - `geometry_update_count ≈ 50`
+      - `approx_fps ≈ 1.76`
+  - 代表性结论：
+    - `trigger_fused_d18_fg008` 是当前最合适的默认 Phase 2 preset。
+    - `keyframe_seam10` 比 `baseline_fixed` 有改善，但明显弱于 `trigger_fused`。
+    - `adaptive_trigger_fused_d18_fg008` 在动态 pair 上能带来 geometry refresh，但当前性价比过低，且在稳定场景 `square` 上会退化。
+  - 代表性可视化：
+    - `visual_manifest.csv`
+    - `visual_summary.md`
+    - 已汇总每个 pair/preset 的 preview stitched、overlay_sm 和第一张 seam event 图。
+- 与原计划相比的偏差：
+  - 正式主矩阵没有把 smoothing 混进去，只保留在单独 ablation 路线。
+  - 没有继续扩展 seam backend，也没有继续细化 stable preset。
+- 下一步建议：
+  - Phase 2 可视为完成，直接进入 Phase 3。
+  - Phase 3 先围绕现有正式入口整理：
+    - Method A vs Method B
+    - Phase 2 dynamic seam matrix
+    - smoothing supplemental table
+    - final report 图表与结论。

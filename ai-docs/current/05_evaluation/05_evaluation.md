@@ -168,6 +168,51 @@
   - `fixed_geometry + seam_policy=keyframe/trigger` 下即使 `jitter=0` 也不代表 seam 没更新，应结合 `jitter_scope / seam_recompute_count / seam_snapshot_count` 解读
   - `adaptive_update` 当前已最小落地为 seam-driven geometry refresh，应结合 `geometry_update_count / geometry_update_events / transforms.csv::geometry_recomputed` 解读
 
+### Phase 2 正式 dynamic seam compare（2026-03-23 收尾）
+- 正式入口：
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+- 正式 suite：
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/pair_compare.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_manifest.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+- 正式代表性 pairs：
+  - `mine_source_square_left_right`
+  - `mine_source_mcd1_left_right`
+  - `mine_source_traffic2_left_right`
+  - `mine_source_walking_left_right`
+- 正式 presets：
+  - `baseline_fixed`
+  - `keyframe_seam10`
+  - `trigger_fused_d18_fg008`
+  - `adaptive_trigger_fused_d18_fg008`
+- 聚合结果：
+  - `baseline_fixed`
+    - `mean_overlap_diff_after ≈ 5.244`
+    - `mean_stitched_delta ≈ 4.740`
+    - `approx_fps ≈ 12.65`
+  - `keyframe_seam10`
+    - `mean_overlap_diff_after ≈ 4.662`
+    - `mean_stitched_delta ≈ 4.743`
+    - `approx_fps ≈ 9.94`
+  - `trigger_fused_d18_fg008`
+    - `mean_overlap_diff_after ≈ 3.261`
+    - `mean_stitched_delta ≈ 4.746`
+    - `approx_fps ≈ 8.69`
+  - `adaptive_trigger_fused_d18_fg008`
+    - `mean_overlap_diff_after ≈ 3.862`
+    - `mean_stitched_delta ≈ 4.772`
+    - `geometry_update_count ≈ 50`
+    - `approx_fps ≈ 1.76`
+- 当前 Phase 2 主结论：
+  - `trigger_fused_d18_fg008` 是当前最合适的默认 dynamic seam preset。
+  - `keyframe_seam10` 是可解释、简单的中间方案，但质量弱于 `trigger_fused`。
+  - `adaptive_trigger_fused_d18_fg008` 只保留为实验 preset：
+    - 在动态场景能触发 geometry refresh
+    - 但当前速度代价过大
+    - 且在稳定场景 `square` 上会退化
+
 ### Phase 2 smoothing ablation（2026-03-23 更新）
 - 当前 smoothing 对比入口：
   - `scripts/run_phase2_seam_smoothing_suite.py`
