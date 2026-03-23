@@ -198,6 +198,42 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Trigger seam refresh when overlap diff before seam exceeds this threshold",
     )
     parser.add_argument(
+        "--seam_trigger_foreground_ratio",
+        type=float,
+        default=0.0,
+        help="Trigger seam refresh when foreground/object-aware protected ratio exceeds this value (0 disables)",
+    )
+    parser.add_argument(
+        "--seam_trigger_cooldown_frames",
+        type=int,
+        default=0,
+        help="Cooldown frames after a trigger seam event before another trigger-driven refresh is allowed",
+    )
+    parser.add_argument(
+        "--seam_trigger_hysteresis_ratio",
+        type=float,
+        default=1.0,
+        help="Re-arm ratio for trigger hysteresis in (0,1]; smaller means stronger hysteresis",
+    )
+    parser.add_argument(
+        "--foreground_mode",
+        default="off",
+        choices=["off", "disagreement"],
+        help="Compatible foreground/object-aware mode; disagreement builds a protected region from cross-view overlap diff",
+    )
+    parser.add_argument(
+        "--foreground_diff_threshold",
+        type=float,
+        default=24.0,
+        help="Pixel diff threshold used by foreground_mode=disagreement",
+    )
+    parser.add_argument(
+        "--foreground_dilate",
+        type=int,
+        default=5,
+        help="Dilate iterations for foreground/object-aware protected region",
+    )
+    parser.add_argument(
         "--seam_snapshot_on_recompute",
         type=int,
         default=1,
@@ -870,6 +906,8 @@ def _build_transform_columns() -> List[str]:
             "overlap_area_current",
             "seam_policy",
             "seam_recomputed",
+            "foreground_ratio",
+            "trigger_armed",
             "overlap_diff_before",
             "overlap_diff_after",
             "stitched_delta_mean",
@@ -930,6 +968,11 @@ def main() -> int:
         decide_seam_update,
         resolve_seam_keyframe_every,
         resolve_seam_policy,
+    )
+    from stitching.foreground import (  # noqa: E402
+        apply_protect_mask_assignment,
+        compute_disagreement_mask,
+        compute_mask_ratio,
     )
     from stitching.geometry import (  # noqa: E402
         compute_canvas_and_transform,
@@ -1034,7 +1077,13 @@ def main() -> int:
             "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
             "seam_trigger_overlap_ratio": float(args.seam_trigger_overlap_ratio),
             "seam_trigger_diff_threshold": float(args.seam_trigger_diff_threshold),
+            "seam_trigger_foreground_ratio": float(args.seam_trigger_foreground_ratio),
+            "seam_trigger_cooldown_frames": int(args.seam_trigger_cooldown_frames),
+            "seam_trigger_hysteresis_ratio": float(args.seam_trigger_hysteresis_ratio),
             "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
+            "foreground_mode": args.foreground_mode,
+            "foreground_diff_threshold": float(args.foreground_diff_threshold),
+            "foreground_dilate": int(args.foreground_dilate),
             "crop": bool(args.crop),
             "lir_method": args.lir_method,
             "lir_erode": int(args.lir_erode),
@@ -1075,11 +1124,19 @@ def main() -> int:
         "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
         "seam_trigger_overlap_ratio": float(args.seam_trigger_overlap_ratio),
         "seam_trigger_diff_threshold": float(args.seam_trigger_diff_threshold),
+        "seam_trigger_foreground_ratio": float(args.seam_trigger_foreground_ratio),
+        "seam_trigger_cooldown_frames": int(args.seam_trigger_cooldown_frames),
+        "seam_trigger_hysteresis_ratio": float(args.seam_trigger_hysteresis_ratio),
         "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
         "seam_scale": None,
         "seam_recompute_count": 0,
         "seam_snapshot_count": 0,
         "seam_policy_events": [],
+        "foreground_mode": args.foreground_mode,
+        "foreground_diff_threshold": float(args.foreground_diff_threshold),
+        "foreground_dilate": int(args.foreground_dilate),
+        "foreground_ratio_mean": 0.0,
+        "foreground_triggered_count": 0,
         "crop_enabled": bool(args.crop),
         "lir_method": args.lir_method,
         "lir_erode": int(args.lir_erode),
@@ -1315,6 +1372,7 @@ def main() -> int:
     overlap_diff_after_values: List[float] = []
     seam_mask_change_values: List[float] = []
     stitched_delta_values: List[float] = []
+    foreground_ratio_values: List[float] = []
     prev_raw_corners = None
     prev_sm_corners = None
     prev_stitched_written = None
@@ -1501,6 +1559,12 @@ def main() -> int:
                         seam_keyframe=seam_keyframe_due,
                         seam_trigger_overlap_ratio=args.seam_trigger_overlap_ratio,
                         seam_trigger_diff_threshold=args.seam_trigger_diff_threshold,
+                        seam_trigger_foreground_ratio=args.seam_trigger_foreground_ratio,
+                        seam_trigger_cooldown_frames=args.seam_trigger_cooldown_frames,
+                        seam_trigger_hysteresis_ratio=args.seam_trigger_hysteresis_ratio,
+                        foreground_mode=args.foreground_mode,
+                        foreground_diff_threshold=args.foreground_diff_threshold,
+                        foreground_dilate=args.foreground_dilate,
                         save_seam_event_snapshots=bool(int(args.seam_snapshot_on_recompute)),
                     )
                     stitched = stitch_out["stitched"]
@@ -1510,8 +1574,12 @@ def main() -> int:
                     overlap_diff_after = float(stitch_out.get("overlap_diff_after", 0.0))
                     seam_recomputed = bool(stitch_out.get("seam_recomputed", False))
                     seam_trigger_reason = str(stitch_out.get("seam_trigger_reason", "none"))
+                    seam_trigger_flags = dict(stitch_out.get("seam_trigger_flags", {}) or {})
                     seam_mask_change_ratio = float(stitch_out.get("seam_mask_change_ratio", 0.0))
                     seam_policy_used = str(stitch_out.get("seam_policy", seam_policy_effective))
+                    foreground_ratio = float(stitch_out.get("foreground_ratio", 0.0))
+                    foreground_protect_ratio = float(stitch_out.get("foreground_protect_ratio", 0.0))
+                    trigger_armed_next = int(bool(stitch_out.get("trigger_armed_next", True)))
                     proposed_output_bbox = stitch_out.get("output_bbox")
 
                     if geometry_mode == "adaptive_update" and seam_recomputed:
@@ -1574,6 +1642,7 @@ def main() -> int:
                             debug["seam_scale"] = float(
                                 video_stitcher.state.metadata.get("seam_scale", 0.0)
                             )
+                            video_stitcher.state.metadata["seam_trigger_armed"] = bool(trigger_armed_next)
                             frames_since_video_init = 0
                             is_keyframe = 1
                             geometry_recomputed = True
@@ -1632,10 +1701,13 @@ def main() -> int:
                     overlap_diff_before_values.append(overlap_diff_before)
                     overlap_diff_after_values.append(overlap_diff_after)
                     seam_mask_change_values.append(seam_mask_change_ratio)
+                    foreground_ratio_values.append(float(foreground_ratio))
                     debug["overlap_area_current"] = int(overlap_current)
                     debug["overlap_area_samples"].append(
                         {"frame_idx": int(source_idx), "overlap_area_current": overlap_current}
                     )
+                    if bool(seam_trigger_flags.get("foreground_triggered")):
+                        debug["foreground_triggered_count"] = int(debug.get("foreground_triggered_count", 0)) + 1
                     if seam_recomputed:
                         debug["seam_recompute_count"] = int(debug.get("seam_recompute_count", 0)) + 1
                         debug["seam_policy_events"].append(
@@ -1646,6 +1718,9 @@ def main() -> int:
                                 "overlap_area_current": int(overlap_current),
                                 "overlap_diff_before": overlap_diff_before,
                                 "overlap_diff_after": overlap_diff_after,
+                                "foreground_ratio": float(foreground_ratio),
+                                "foreground_protect_ratio": float(foreground_protect_ratio),
+                                "trigger_flags": seam_trigger_flags,
                                 "geometry_recomputed": bool(geometry_recomputed),
                                 "geometry_update_reason": geometry_update_reason,
                             }
@@ -1769,6 +1844,8 @@ def main() -> int:
                     note_parts.append(f"seam_policy={seam_policy_used}")
                     note_parts.append(f"seam_recomputed={int(seam_recomputed)}")
                     note_parts.append(f"seam_reason={seam_trigger_reason}")
+                    note_parts.append(f"foreground_ratio={foreground_ratio:.4f}")
+                    note_parts.append(f"trigger_armed={trigger_armed_next}")
                     note_parts.append(f"overlap_diff={overlap_diff_before:.2f}->{overlap_diff_after:.2f}")
 
                     row = {
@@ -1795,6 +1872,8 @@ def main() -> int:
                         "overlap_area_current": int(overlap_current),
                         "seam_policy": seam_policy_used,
                         "seam_recomputed": int(seam_recomputed),
+                        "foreground_ratio": float(foreground_ratio),
+                        "trigger_armed": int(trigger_armed_next),
                         "overlap_diff_before": float(overlap_diff_before),
                         "overlap_diff_after": float(overlap_diff_after),
                         "stitched_delta_mean": stitched_delta_mean,
@@ -1954,11 +2033,15 @@ def main() -> int:
                 overlap_area_current = 0
                 seam_recomputed = False
                 seam_trigger_reason = "none"
+                seam_trigger_flags: Dict[str, object] = {}
                 seam_mask_change_ratio = 0.0
                 crop_applied = 0
                 crop_method_used = "none"
                 crop_lir_rect = None
                 output_bbox_current = None
+                foreground_ratio = 0.0
+                trigger_armed_next = 1
+                foreground_mask_full = None
 
                 stitched = _blend_frames(
                     left_active,
@@ -2003,6 +2086,22 @@ def main() -> int:
                         overlap_area_current = int(
                             summarize_overlap(left_mask_full, right_mask_full).get("overlap_area", 0)
                         )
+                        overlap_mask_full = (
+                            (left_mask_full > 0) & (right_mask_full > 0)
+                        ).astype(np.uint8) * 255
+                        if str(args.foreground_mode).strip().lower() == "disagreement":
+                            foreground_mask_full = compute_disagreement_mask(
+                                left_canvas,
+                                right_canvas,
+                                left_mask_full,
+                                right_mask_full,
+                                diff_threshold=float(args.foreground_diff_threshold),
+                                dilate_iter=int(args.foreground_dilate),
+                            )
+                            foreground_ratio = compute_mask_ratio(
+                                foreground_mask_full,
+                                overlap_mask_full,
+                            )
 
                         seam_keyframe_due = bool(
                             seam_keyframe_every_effective > 0
@@ -2027,10 +2126,19 @@ def main() -> int:
                             overlap_diff_before=float(overlap_diff_before),
                             trigger_overlap_ratio=float(args.seam_trigger_overlap_ratio),
                             trigger_diff_threshold=float(args.seam_trigger_diff_threshold),
+                            foreground_ratio=float(foreground_ratio),
+                            trigger_foreground_ratio=float(args.seam_trigger_foreground_ratio),
+                            cooldown_frames=int(args.seam_trigger_cooldown_frames),
+                            hysteresis_ratio=float(args.seam_trigger_hysteresis_ratio),
+                            trigger_armed=bool(seam_cache.get("trigger_armed", True))
+                            if seam_cache is not None
+                            else True,
                             force_recompute=False,
                         )
                         seam_recomputed = bool(seam_decision.recompute)
                         seam_trigger_reason = str(seam_decision.reason)
+                        seam_trigger_flags = dict(seam_decision.trigger_flags)
+                        trigger_armed_next = int(bool(seam_decision.trigger_armed_next))
 
                         if seam_decision.recompute:
                             seam_t0 = time.perf_counter()
@@ -2370,6 +2478,7 @@ def main() -> int:
                                 "crop_aspect": float(crop_aspect),
                                 "crop_method": crop_method_used,
                                 "last_seam_frame_index": int(source_idx),
+                                "trigger_armed": bool(seam_decision.trigger_armed_next),
                                 "crop_lir_rect": (
                                     (
                                         int(crop_lir_rect.x),
@@ -2392,6 +2501,12 @@ def main() -> int:
                                     "reason": seam_trigger_reason,
                                     "overlap_area_current": int(overlap_area_current),
                                     "overlap_diff_before": float(overlap_diff_before),
+                                    "overlap_diff_after": float(overlap_diff_after),
+                                    "foreground_ratio": float(foreground_ratio),
+                                    "foreground_protect_ratio": float(foreground_protect_ratio),
+                                    "trigger_flags": seam_trigger_flags,
+                                    "geometry_recomputed": bool(geometry_recomputed),
+                                    "geometry_update_reason": geometry_update_reason,
                                 }
                             )
 
@@ -2466,9 +2581,19 @@ def main() -> int:
                                     seam_overlay_low=seam_overlay_low,
                                     overlap_diff_low=overlap_diff_low,
                                 )
+                                if foreground_mask_full is not None:
+                                    from stitching.viz import save_image  # noqa: WPS433,E402
+
+                                    snapshots_dir = output_dir / "snapshots"
+                                    snapshots_dir.mkdir(parents=True, exist_ok=True)
+                                    save_image(
+                                        snapshots_dir / f"seam_event_{source_idx:06d}_foreground_mask.png",
+                                        foreground_mask_full,
+                                    )
 
                         if seam_cache is None:
                             raise RuntimeError("seam_cache is unavailable while seam mode is enabled")
+                        seam_cache["trigger_armed"] = bool(seam_decision.trigger_armed_next)
 
                         seam_target_masks = [left_roi_mask_full, right_roi_mask_full]
                         seam_target_corners_abs = [left_corner_full, right_corner_full]
@@ -2545,6 +2670,18 @@ def main() -> int:
                         )
                         prev_final_left = seam_cache.get("left_mask_final")
                         prev_final_right = seam_cache.get("right_mask_final")
+                        foreground_protect_ratio = 0.0
+                        if foreground_mask_full is not None:
+                            final_left_mask, final_right_mask, foreground_protect_ratio = apply_protect_mask_assignment(
+                                final_left_mask,
+                                final_right_mask,
+                                left_mask_full,
+                                right_mask_full,
+                                foreground_mask_full,
+                                prefer_left_mask=prev_final_left,
+                                prefer_right_mask=prev_final_right,
+                                limit_mask_full=crop_limit_full,
+                            )
                         mask_changes = [
                             compute_mask_change_ratio(prev_final_left, final_left_mask),
                             compute_mask_change_ratio(prev_final_right, final_right_mask),
@@ -2557,7 +2694,8 @@ def main() -> int:
                             seam_mask_change_values.append(seam_mask_change_ratio)
                         seam_cache["left_mask_final"] = final_left_mask
                         seam_cache["right_mask_final"] = final_right_mask
-                        seam_cache["last_seam_frame_index"] = int(source_idx)
+                        if seam_recomputed:
+                            seam_cache["last_seam_frame_index"] = int(source_idx)
                         output_bbox_current = _mask_union_bbox(final_left_mask, final_right_mask)
 
                         overlap_diff_after = _mean_overlap_diff(
@@ -2599,6 +2737,9 @@ def main() -> int:
                     except Exception as seam_exc:
                         _warn_and_record(debug, f"seam_fallback frame={source_idx}: {seam_exc}")
                         note_parts.append("seam_fallback")
+                foreground_ratio_values.append(float(foreground_ratio))
+                if bool(seam_trigger_flags.get("foreground_triggered")):
+                    debug["foreground_triggered_count"] = int(debug.get("foreground_triggered_count", 0)) + 1
 
                 stitched_written = stitched
                 if bool(args.crop) and output_crop_rect is None and output_bbox_current is not None:
@@ -2690,6 +2831,8 @@ def main() -> int:
                     note_parts.append(f"seam_recomputed={int(seam_recomputed)}")
                     note_parts.append(f"seam_reason={seam_trigger_reason}")
                     note_parts.append(f"seam={seam_method}")
+                    note_parts.append(f"foreground_ratio={foreground_ratio:.4f}")
+                    note_parts.append(f"trigger_armed={trigger_armed_next}")
                     if seam_compute_ms > 0:
                         note_parts.append(f"seam_ms={seam_compute_ms:.2f}")
                     note_parts.append(
@@ -2724,6 +2867,8 @@ def main() -> int:
                     "overlap_area_current": int(overlap_area_current),
                     "seam_policy": seam_policy_effective,
                     "seam_recomputed": int(seam_recomputed),
+                    "foreground_ratio": float(foreground_ratio),
+                    "trigger_armed": int(trigger_armed_next),
                     "overlap_diff_before": float(overlap_diff_before),
                     "overlap_diff_after": float(overlap_diff_after),
                     "stitched_delta_mean": stitched_delta_mean,
@@ -2815,10 +2960,16 @@ def main() -> int:
         if stitched_delta_values
         else 0.0
     )
+    foreground_ratio_mean = (
+        float(sum(foreground_ratio_values) / len(foreground_ratio_values))
+        if foreground_ratio_values
+        else 0.0
+    )
     temporal_primary_metric = _primary_temporal_metric_for_geometry_mode(geometry_mode)
     temporal_primary_value = (
         jitter_sm_mean if temporal_primary_metric == "mean_jitter_sm" else overlap_diff_after_mean
     )
+    debug["foreground_ratio_mean"] = float(foreground_ratio_mean)
 
     debug["jitter_summary"] = {
         "mean_raw": jitter_raw_mean,
@@ -2835,6 +2986,8 @@ def main() -> int:
         "mean_overlap_diff_after": float(overlap_diff_after_mean),
         "mean_seam_mask_change_ratio": float(seam_mask_change_mean),
         "mean_stitched_delta": float(stitched_delta_mean),
+        "mean_foreground_ratio": float(foreground_ratio_mean),
+        "foreground_triggered_count": int(debug.get("foreground_triggered_count", 0)),
         "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
         "meaningful_under_current_geometry_mode": {
             "jitter": bool(jitter_meaningful),
@@ -2911,6 +3064,7 @@ def main() -> int:
         "mean_overlap_diff_after": overlap_diff_after_mean,
         "mean_seam_mask_change_ratio": seam_mask_change_mean,
         "mean_stitched_delta": stitched_delta_mean,
+        "mean_foreground_ratio": foreground_ratio_mean,
         "temporal_primary_metric": temporal_primary_metric,
         "temporal_primary_value": float(temporal_primary_value),
         "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
@@ -2923,6 +3077,7 @@ def main() -> int:
         "seam_recompute_count": int(debug.get("seam_recompute_count", 0)),
         "seam_snapshot_count": int(debug.get("seam_snapshot_count", 0)),
         "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
+        "foreground_triggered_count": int(debug.get("foreground_triggered_count", 0)),
         "geometry_keyframe_every_effective": int(geometry_keyframe_every_effective),
         "geometry_update_count": int(debug.get("geometry_update_count", 0)),
         "adaptive_update_strategy": mode_semantics.get("adaptive_update_strategy"),

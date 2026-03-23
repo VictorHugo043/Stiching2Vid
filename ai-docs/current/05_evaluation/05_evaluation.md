@@ -45,6 +45,8 @@
   - `seam_recompute_count`
   - `geometry_update_count`
   - `adaptive_update_strategy`
+  - `mean_foreground_ratio`
+  - `foreground_triggered_count`
   - `transforms.csv::geometry_recomputed`
   - `transforms.csv::geometry_update_reason`
 
@@ -197,6 +199,29 @@
   - 统一 experiment driver
   - 独立 metrics 模块
   - summary CSV / plots 生成脚本
+
+## 当前 Phase 2 calibration 入口（2026-03-23）
+- calibration driver：
+  - `scripts/run_phase2_trigger_calibration.py`
+- 当前正式 suite：
+  - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2/summary.csv`
+  - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2/preset_summary.csv`
+- 当前 suite 结论摘要：
+  - `trigger_fused_d18_fg008`
+    - 把 `mean_overlap_diff_after` 从约 `6.29` 降到约 `3.75`
+    - `seam_recompute_after_init_per_100f ≈ 1.25`
+    - `approx_fps ≈ 10.30`
+  - `adaptive_fused_d18_fg008`
+    - 已能产生 `geometry_update_per_100f ≈ 1.25`
+    - 但当前比 `trigger_fused` 更慢，且没有显示出更好的 `mean_overlap_diff_after`
+  - `trigger_stable_d18_fg008_cd6_h075` 与 `adaptive_stable_d18_fg008_cd6_h075`
+    - 在当前 `mine_source` 视频上过于保守，init 后重算次数趋近于 0
+- 当前推荐默认值：
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=18`
+  - `foreground_mode=disagreement`
+  - `seam_trigger_foreground_ratio=0.08`
 
 ## 运行参数解释约束（2026-03-20 更新）
 - 新实验应优先使用：

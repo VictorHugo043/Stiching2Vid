@@ -269,10 +269,9 @@
   - `outputs/runs/phase2_kitti0002_adaptive_keyframe`
   - `outputs/runs/phase2_kitti0002_adaptive_trigger`
 - 当前尚未完成：
-  - object-aware penalty / foreground mask
   - seam temporal smoothing
-  - `adaptive_update` 的 cooldown / 更强 trigger 设计
   - 新 seam backend
+  - per-trigger rearm / 更细的 trigger fusion 设计
 - 本轮进一步收敛的配置结论：
   - `geometry_mode` 现在应视为正式用户入口。
   - `video_mode` 仅保留为 legacy 兼容别名。
@@ -287,6 +286,22 @@
     - `mean_overlap_diff_after`
     - `geometry_update_count`
     - `geometry_update_events`
+  - 当前已新增兼容式 foreground-aware MVP：
+    - `foreground_mode=disagreement`
+    - `seam_trigger_foreground_ratio`
+    - `seam_trigger_cooldown_frames`
+    - `seam_trigger_hysteresis_ratio`
+  - 当前 Phase 2 calibration suite：
+    - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2`
+  - 当前推荐默认 seam preset：
+    - `geometry_mode=fixed_geometry`
+    - `seam_policy=trigger`
+    - `seam_trigger_diff_threshold=18`
+    - `foreground_mode=disagreement`
+    - `seam_trigger_foreground_ratio=0.08`
+  - 当前 `adaptive_fused` 仅作为实验 preset 保留：
+    - 已能触发 geometry refresh
+    - 但当前比 `trigger_fused` 更慢，且没有显示出更好的 `mean_overlap_diff_after`
 
 ## Phase 3
 ### 目标

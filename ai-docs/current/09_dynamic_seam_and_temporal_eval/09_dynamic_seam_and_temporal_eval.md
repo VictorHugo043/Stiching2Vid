@@ -276,10 +276,93 @@
 - `adaptive_update` 当前只是最小版：
   - seam event 驱动 geometry refresh
   - 不是完整的自适应 geometry controller
-  - 还没有 cooldown / hysteresis / 多 trigger 融合
-- 还没有 object-aware penalty。
 - 还没有 seam temporal smoothing。
-- `trigger seam` 当前对阈值较敏感，需要在代表性 pair 上继续校准。
+
+## 当前 Phase 2 第三批落地（2026-03-23）
+### 已实现的新增控制面
+- `run_baseline_video.py` 已新增：
+  - `--seam_trigger_foreground_ratio`
+  - `--seam_trigger_cooldown_frames`
+  - `--seam_trigger_hysteresis_ratio`
+  - `--foreground_mode=off|disagreement`
+  - `--foreground_diff_threshold`
+  - `--foreground_dilate`
+- 已新增 `src/stitching/foreground.py`
+  - `compute_disagreement_mask()`
+  - `compute_mask_ratio()`
+  - `apply_protect_mask_assignment()`
+- 当前 `foreground_mode=disagreement` 的语义：
+  - 用 overlap ROI 的 cross-view absdiff 构造 protected region
+  - protected ratio 同时参与 trigger 判断
+  - final seam mask 再做一次兼容式 reassignment，尽量避免 seam 穿过 protected region
+
+### 本轮没有执行的内容
+- 没有接 detector / segmentation 模型。
+- 没有重写 OpenCV seam backend。
+- 没有直接复现 object-centered MRF seam。
+- 原因：
+  - 当前 `mine_source_*` pairs 没有现成 object masks
+  - 本轮更适合先验证兼容式 foreground-aware MVP 是否值得继续推进
+
+### 当前 calibration suite
+- 入口：
+  - `scripts/run_phase2_trigger_calibration.py`
+- 正式 suite：
+  - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2`
+- 覆盖 pairs：
+  - `mine_source_mcd1_left_right`
+  - `mine_source_mcd2_left_right`
+  - `mine_source_square_left_right`
+  - `mine_source_traffic1_left_right`
+  - `mine_source_traffic2_left_right`
+  - `mine_source_walking_left_right`
+- preset 梯度：
+  - `trigger_plain_d18`
+  - `trigger_fused_d18_fg008`
+  - `trigger_stable_d18_fg008_cd6_h075`
+  - `adaptive_fused_d18_fg008`
+  - `adaptive_stable_d18_fg008_cd6_h075`
+
+### 当前 calibration 结论
+- `trigger_plain_d18`
+  - `mean_overlap_diff_after ≈ 6.29`
+  - `seam_recompute_after_init_per_100f ≈ 0.42`
+- `trigger_fused_d18_fg008`
+  - `mean_overlap_diff_after ≈ 3.75`
+  - `seam_recompute_after_init_per_100f ≈ 1.25`
+  - `approx_fps ≈ 10.30`
+- `trigger_stable_d18_fg008_cd6_h075`
+  - `mean_overlap_diff_after ≈ 3.75`
+  - 但 `seam_recompute_after_init_per_100f = 0`
+  - 说明当前全局 `cooldown + hysteresis` 已把 trigger 压成近似一次性事件
+- `adaptive_fused_d18_fg008`
+  - `geometry_update_per_100f ≈ 1.25`
+  - `approx_fps ≈ 7.63`
+  - 当前没有显示出比 `trigger_fused` 更好的 `mean_overlap_diff_after`
+- `adaptive_stable_d18_fg008_cd6_h075`
+  - `geometry_update_per_100f = 0`
+  - 在这批 `mine_source` 视频上过于保守，不适合作为默认 preset
+
+### 当前推荐配置
+- 当前 Phase 2 默认 seam preset，优先推荐：
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=18`
+  - `foreground_mode=disagreement`
+  - `seam_trigger_foreground_ratio=0.08`
+- 原因：
+  - 比 `trigger_plain_d18` 明显降低 `mean_overlap_diff_after`
+  - 比 `adaptive_fused` 更快
+  - 比 `stable` 版本更确实会在 init 后发生 seam 重算
+
+### 当前暴露出的结构性问题
+- 当前 `multi-trigger fusion` 是全局 OR 触发，但 `trigger_armed / hysteresis` 也是全局共享的。
+- 在 `foreground_ratio` 长时间维持高位的真实视频上，这会导致：
+  - 首次触发后长期无法 re-arm
+  - `adaptive_update` 退化成“最多在开头补一次 geometry refresh”
+- 因此本轮结论不是“adaptive_update 无效”，而是：
+  - 当前全局 armed/hysteresis 设计对 sustained foreground 场景过于保守
+  - 下一步应优先考虑 per-trigger rearm、foreground-specific cooldown 或更细的 trigger fusion 策略
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

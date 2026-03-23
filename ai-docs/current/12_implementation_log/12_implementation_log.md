@@ -1931,3 +1931,134 @@
   - 继续 Phase 2，优先做 `trigger seam` 与 `adaptive_update` 的阈值 / cadence 校准表。
   - 然后再补 foreground / object-aware penalty。
   - seam temporal smoothing 放在 object-aware penalty 之后。
+
+## IMP-20260323-01
+- 状态：done
+- 标题：Phase 2 子任务 5：trigger seam / adaptive_update 校准表、稳触发机制与兼容式 foreground penalty
+- 本步目标：
+  - 为 `trigger seam + adaptive_update` 建立可复跑的阈值 / 频率校准入口与汇总表。
+  - 在当前 `trigger` 决策上补 `cooldown / hysteresis / multi-trigger fusion`，降低过于频繁重算的风险。
+  - 在不重写 OpenCV seam backend 的前提下，接入兼容式 `foreground / object-aware penalty`。
+  - 尽量覆盖新加入的 `mine_source_*` pairs：
+    - `mine_source_mcd1_left_right`
+    - `mine_source_mcd2_left_right`
+    - `mine_source_square_left_right`
+    - `mine_source_traffic1_left_right`
+    - `mine_source_traffic2_left_right`
+    - `mine_source_walking_left_right`
+- 关联上一步结论：
+  - `DEC-20260320-10`：`adaptive_update` 已最小落地为 seam-driven geometry refresh。
+  - `ISSUE-20260320-01`：`trigger seam` 当前对阈值较敏感。
+  - `ISSUE-20260320-02`：`adaptive_update` 当前缺少 cooldown / hysteresis / 多 trigger 融合。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/temporal.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_video_compare_suite.py`
+  - `data/manifests/pairs.yaml`
+- 准备修改文件：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/video_state.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/temporal.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_phase2_trigger_calibration.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `seam_policy.py` 是 cooldown / hysteresis / multi-trigger fusion 的最小落点。
+  - `video_stitcher.py` 当前掌握 overlap ROI、seam recompute 与 cached state，是兼容式 foreground penalty 的最佳插入点。
+  - `run_baseline_video.py` 负责 CLI、bundle 导出和 adaptive geometry 事件日志。
+  - 单独 calibration driver 可以把参数扫表和结果汇总从主脚本中剥离，避免继续放大 orchestrator。
+- 风险点：
+  - trigger 规则增加后，行为更复杂，若日志不清楚会降低可解释性。
+  - `mine_source_*` pairs 没有现成 object masks，若直接上 detector 会超出当前阶段范围。
+  - 兼容式 foreground penalty 若过强，可能把 seam 挤到更差的位置。
+  - 校准表若参数组合过多，运行成本会过高。
+- 验收标准：
+  - 新增正式 calibration 入口，能输出 summary CSV / JSON。
+  - `trigger seam` 支持 cooldown / hysteresis / 多 trigger 融合，并把关键状态写入 bundle。
+  - 在无 object masks 的 `mine_source_*` pairs 上，至少落地一种兼容式 foreground penalty。
+  - 能在代表性 `mine_source_*` pairs 上得到一张可读的阈值 / 频率校准表。
+- 替代方案与不选原因：
+  - 方案：先只做 calibration table，不改 trigger 逻辑或 foreground penalty。
+  - 不选原因：现有 trigger 行为已知不稳，只扫旧参数会把不稳定行为固化进表里。
+  - 方案：直接接 detector 或完整 object-centered seam cost。
+  - 不选原因：当前 `mine_source_*` pairs 无现成 masks，且 OpenCV seam backend 不适合在本步直接扩成完整 object-centered 系统。
+- 实际修改文件：
+  - `src/stitching/foreground.py`
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_phase2_trigger_calibration.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增兼容式 foreground/object-aware MVP：
+    - `foreground_mode=disagreement`
+    - `compute_disagreement_mask()`
+    - `apply_protect_mask_assignment()`
+  - `trigger seam` 当前已支持：
+    - `seam_trigger_foreground_ratio`
+    - `seam_trigger_cooldown_frames`
+    - `seam_trigger_hysteresis_ratio`
+    - 多 trigger 融合（当前为 diff / overlap / foreground 的 OR 触发）
+  - `run_baseline_video.py` 已补齐两条执行路径的导出字段：
+    - `foreground_ratio`
+    - `foreground_triggered_count`
+    - `mean_foreground_ratio`
+    - `trigger_armed`
+  - 新增 calibration driver：
+    - `scripts/run_phase2_trigger_calibration.py`
+    - 产出 `summary.csv / preset_summary.csv / summary.json / preset_summary.json`
+- 验证方式：
+  - `python3 -m py_compile src/stitching/foreground.py src/stitching/seam_policy.py src/stitching/video_stitcher.py scripts/run_baseline_video.py scripts/run_phase2_trigger_calibration.py`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_walking_left_right --max_frames 40 --geometry_mode adaptive_update --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --seam_policy trigger --seam_trigger_diff_threshold 18 --seam_trigger_foreground_ratio 0.08 --seam_trigger_cooldown_frames 6 --seam_trigger_hysteresis_ratio 0.75 --foreground_mode disagreement --foreground_diff_threshold 24 --foreground_dilate 5 --snapshot_every 1000 --seam_snapshot_on_recompute 0 --force_cpu --run_id phase2_adaptive_fg_smoke_walk_v2`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_walking_left_right --max_frames 40 --geometry_mode adaptive_update --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --seam_policy trigger --seam_trigger_diff_threshold 18 --seam_trigger_foreground_ratio 0.08 --seam_trigger_cooldown_frames 0 --seam_trigger_hysteresis_ratio 1.0 --foreground_mode disagreement --foreground_diff_threshold 24 --foreground_dilate 5 --snapshot_every 1000 --seam_snapshot_on_recompute 0 --force_cpu --run_id phase2_adaptive_fused_smoke_walk_v1`
+  - `.venv-methodb/bin/python scripts/run_phase2_trigger_calibration.py --python_bin .venv-methodb/bin/python --force_cpu --max_frames 80 --suite_id phase2_trigger_adaptive_minesource_calib_v2`
+- 运行结果与验证结果：
+  - calibration suite：
+    - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2`
+  - 核心汇总：
+    - `trigger_plain_d18`
+      - `mean_overlap_diff_after ≈ 6.29`
+      - `seam_recompute_after_init_per_100f ≈ 0.42`
+    - `trigger_fused_d18_fg008`
+      - `mean_overlap_diff_after ≈ 3.75`
+      - `seam_recompute_after_init_per_100f ≈ 1.25`
+      - `approx_fps ≈ 10.30`
+    - `adaptive_fused_d18_fg008`
+      - `geometry_update_per_100f ≈ 1.25`
+      - `approx_fps ≈ 7.63`
+      - 当前没有比 `trigger_fused` 更好的 `mean_overlap_diff_after`
+    - `trigger_stable_d18_fg008_cd6_h075` 与 `adaptive_stable_d18_fg008_cd6_h075`
+      - init 后重算次数趋近于 0
+      - 暴露出当前全局 `cooldown + hysteresis` 过于保守
+- 与原计划相比的偏差：
+  - 没有接 detector / segmentation，也没有直接接 DynamicStereo object masks。
+  - `adaptive_update` 虽已结合 foreground trigger 跑通，但在当前 `mine_source` 视频上，geometry refresh 主要仍发生在起始帧附近。
+- 下一步建议：
+  - 优先继续 Phase 2，细化 per-trigger rearm / foreground-specific cooldown，解决 sustained foreground 下 trigger 近似一次性的问题。
+  - 然后再接 seam temporal smoothing。
+  - object-aware 更强版本应放到有现成 masks 的数据或单独新 seam backend 阶段。

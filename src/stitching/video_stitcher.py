@@ -368,9 +368,18 @@ class VideoStitcher:
 
         return compute_seam_masks_opencv(imgs, corners, masks, method=self.seam_method)
 
-    def _compose_final_masks(self, seam_masks_low, final_data, limit_mask_full=None):
+    def _compose_final_masks(
+        self,
+        seam_masks_low,
+        final_data,
+        limit_mask_full=None,
+        protect_mask_full=None,
+        prefer_left_mask=None,
+        prefer_right_mask=None,
+    ):
         import numpy as np  # type: ignore
 
+        from stitching.foreground import apply_protect_mask_assignment
         from stitching.seam_opencv import place_mask_on_canvas, resize_seam_to_compose
 
         left_roi_mask, right_roi_mask = final_data["masks"]
@@ -399,7 +408,19 @@ class VideoStitcher:
             seam_right_full,
             limit_mask_full=limit_mask_full,
         )
-        return final_left_mask, final_right_mask
+        protect_ratio = 0.0
+        if protect_mask_full is not None:
+            final_left_mask, final_right_mask, protect_ratio = apply_protect_mask_assignment(
+                final_left_mask,
+                final_right_mask,
+                left_canvas_mask,
+                right_canvas_mask,
+                protect_mask_full,
+                prefer_left_mask=prefer_left_mask,
+                prefer_right_mask=prefer_right_mask,
+                limit_mask_full=limit_mask_full,
+            )
+        return final_left_mask, final_right_mask, float(protect_ratio)
 
     def initialize_from_first_frame(
         self,
@@ -434,7 +455,7 @@ class VideoStitcher:
                 final_data["masks"],
                 final_data["corners"],
             )
-        final_left_mask, final_right_mask = self._compose_final_masks(
+        final_left_mask, final_right_mask, _ = self._compose_final_masks(
             seam_low,
             final_data,
             limit_mask_full=crop_limit_mask,
@@ -540,6 +561,7 @@ class VideoStitcher:
             "last_seam_frame_index": int(frame_idx),
             "last_seam_policy": "init",
             "last_seam_reason": "init",
+            "seam_trigger_armed": True,
             "seam_recompute_count": 1,
             "mask_area_before": int(crop_out.get("mask_area_before", 0)),
             "mask_area_after": int(crop_out.get("mask_area_after", 0)),
@@ -587,6 +609,12 @@ class VideoStitcher:
         seam_keyframe: bool = False,
         seam_trigger_overlap_ratio: float = 0.0,
         seam_trigger_diff_threshold: float = 0.0,
+        seam_trigger_foreground_ratio: float = 0.0,
+        seam_trigger_cooldown_frames: int = 0,
+        seam_trigger_hysteresis_ratio: float = 1.0,
+        foreground_mode: str = "off",
+        foreground_diff_threshold: float = 24.0,
+        foreground_dilate: int = 5,
         save_seam_event_snapshots: bool = False,
     ) -> Dict[str, object]:
         """Stitch one frame using cached state with optional seam refresh."""
@@ -595,6 +623,7 @@ class VideoStitcher:
             raise RuntimeError("VideoStitcher state is not initialized")
 
         from stitching.seam_policy import decide_seam_update
+        from stitching.foreground import compute_disagreement_mask, compute_mask_ratio
         from stitching.temporal import compute_mask_change_ratio
 
         final_data = self._compute_final_rois(left_frame, right_frame, H, T, canvas_size)
@@ -634,6 +663,22 @@ class VideoStitcher:
             self.state.metadata.get("last_seam_frame_index", self.state.frame0_index or frame_idx)
         )
         seam_age_frames = max(0, int(frame_idx) - int(last_seam_frame_index))
+        overlap_mask_full = (
+            (final_data["canvas_masks"][0] > 0) & (final_data["canvas_masks"][1] > 0)
+        ).astype("uint8") * 255
+        foreground_mask_full = None
+        foreground_ratio = 0.0
+        if str(foreground_mode).strip().lower() == "disagreement":
+            foreground_mask_full = compute_disagreement_mask(
+                final_data["canvas_imgs"][0],
+                final_data["canvas_imgs"][1],
+                final_data["canvas_masks"][0],
+                final_data["canvas_masks"][1],
+                diff_threshold=float(foreground_diff_threshold),
+                dilate_iter=int(foreground_dilate),
+            )
+            foreground_ratio = compute_mask_ratio(foreground_mask_full, overlap_mask_full)
+        trigger_armed = bool(self.state.metadata.get("seam_trigger_armed", True))
         seam_decision = decide_seam_update(
             policy=seam_policy,
             seam_cache_available=self.state.seam_masks_low is not None,
@@ -644,6 +689,11 @@ class VideoStitcher:
             overlap_diff_before=float(overlap_diff_before),
             trigger_overlap_ratio=float(seam_trigger_overlap_ratio),
             trigger_diff_threshold=float(seam_trigger_diff_threshold),
+            foreground_ratio=float(foreground_ratio),
+            trigger_foreground_ratio=float(seam_trigger_foreground_ratio),
+            cooldown_frames=int(seam_trigger_cooldown_frames),
+            hysteresis_ratio=float(seam_trigger_hysteresis_ratio),
+            trigger_armed=bool(trigger_armed),
             force_recompute=bool(recompute_seam),
         )
 
@@ -674,10 +724,16 @@ class VideoStitcher:
                 final_data["masks"],
                 final_data["corners"],
             )
-        final_left_mask, final_right_mask = self._compose_final_masks(
+        prev_final_masks = self.state.seam_masks_final
+        prev_left_mask = prev_final_masks[0] if prev_final_masks is not None and len(prev_final_masks) == 2 else None
+        prev_right_mask = prev_final_masks[1] if prev_final_masks is not None and len(prev_final_masks) == 2 else None
+        final_left_mask, final_right_mask, foreground_protect_ratio = self._compose_final_masks(
             seam_low,
             final_data,
             limit_mask_full=crop_limit_mask,
+            protect_mask_full=foreground_mask_full,
+            prefer_left_mask=prev_left_mask,
+            prefer_right_mask=prev_right_mask,
         )
         overlap_diff_after = _mean_overlap_diff(
             final_data["canvas_imgs"][0],
@@ -685,7 +741,6 @@ class VideoStitcher:
             final_left_mask,
             final_right_mask,
         )
-        prev_final_masks = self.state.seam_masks_final
         seam_mask_change_ratio = 0.0
         if prev_final_masks is not None and len(prev_final_masks) == 2:
             change_left = compute_mask_change_ratio(prev_final_masks[0], final_left_mask)
@@ -757,12 +812,15 @@ class VideoStitcher:
             save_image(snapshots_dir / f"{frame_tag}_seam_mask_right.png", seam_right_low_full)
             save_image(snapshots_dir / f"{frame_tag}_seam_overlay.png", seam_overlay)
             save_image(snapshots_dir / f"{frame_tag}_overlap_diff.png", overlap_diff_low)
+            if foreground_mask_full is not None:
+                save_image(snapshots_dir / f"{frame_tag}_foreground_mask.png", foreground_mask_full)
         self.state.seam_masks_final = [final_left_mask, final_right_mask]
         self.state.metadata["overlap_area_current"] = int(final_data["overlap_area"])
         self.state.metadata["overlap_diff_before"] = float(overlap_diff_before)
         self.state.metadata["overlap_diff_after"] = float(overlap_diff_after)
         self.state.metadata["last_seam_policy"] = seam_decision.policy
         self.state.metadata["last_seam_reason"] = seam_decision.reason
+        self.state.metadata["seam_trigger_armed"] = bool(seam_decision.trigger_armed_next)
         if seam_decision.recompute:
             self.state.metadata["last_seam_frame_index"] = int(frame_idx)
             self.state.metadata["seam_recompute_count"] = int(
@@ -777,7 +835,11 @@ class VideoStitcher:
             "seam_recomputed": bool(seam_decision.recompute),
             "seam_policy": seam_decision.policy,
             "seam_trigger_reason": seam_decision.reason,
+            "seam_trigger_flags": dict(seam_decision.trigger_flags),
             "seam_mask_change_ratio": float(seam_mask_change_ratio),
+            "foreground_ratio": float(foreground_ratio),
+            "foreground_protect_ratio": float(foreground_protect_ratio),
+            "trigger_armed_next": bool(seam_decision.trigger_armed_next),
             "crop_applied": bool(crop_applied),
             "crop_method": crop_method,
             "crop_rect": crop_rect,

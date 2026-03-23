@@ -15,13 +15,14 @@
 | ISSUE-20260319-05 | closed | `scripts/ablate_crop.py`、`scripts/ablate_video_reuse.py` 的历史文档漂移已不再构成当前主线问题；相关旧描述已移出当前工作流 | 不再影响 Phase 1 / Phase 2 推进 | 保留为历史背景，不再作为活跃 issue 跟踪 |
 | ISSUE-20260319-07 | closed | `run_baseline_video.py` 已通过 `frame_pair_pipeline` 接到结果对象层，视频入口已可使用 Method B backend 配置 | Method B 现在可以复用视频 orchestrator 的现有 seam/crop/blend/cache 路线 | 后续若要继续演进，只需在当前 adapter 基础上补更长时长回归和实验，不再把“未接到结果对象层”视为 issue |
 | ISSUE-20260319-08 | partial | `run_baseline_frame.py` 与 `run_baseline_video.py` 在质量链路上仍有边界差距：单帧入口现已补齐 seam / crop / blend 静态路径，但仍没有 temporal / cache / 完整 run bundle | 用户若忽略边界，仍可能把单帧 smoke 输出误认为完整视频行为 | 已通过 `frame_quality_preview` 缩小静态质量差距；后续仅在需要时再补 diagnostics parity，不把 temporal/cache 强塞进单帧入口 |
-| ISSUE-20260320-01 | open | `trigger seam` 当前对阈值较敏感，不同 pair 上可能出现“不触发”或“过于频繁触发” | 若直接拿默认阈值做实验，容易得到不稳定或难解释的结果 | 先在代表性 pair 上校准 `seam_trigger_diff_threshold / seam_trigger_overlap_ratio`，必要时再加入更稳的 trigger 条件或 cooldown |
-| ISSUE-20260320-02 | open | `adaptive_update` 当前只是 seam-driven geometry refresh MVP，尚未加入 cooldown / hysteresis / 多 trigger 融合 | 若直接把当前实现当作最终版 adaptive geometry，可能在某些动态样例上过于频繁刷新或引入额外抖动 | 先在代表性 pair 上记录 `geometry_update_count / mean_jitter_sm / runtime` 的变化，再决定是否引入 cooldown 或更稳的自适应触发器 |
+| ISSUE-20260320-01 | partial | `trigger seam` 的参数已完成一轮 mine_source calibration，但默认阈值仍对场景分布敏感 | 当前已有 `phase2_trigger_adaptive_minesource_calib_v2` 可供选默认值，但换数据域后仍可能需要重标定 | 当前默认先用 `trigger_fused_d18_fg008`；后续在 DynamicStereo 或更强动态样例上继续补校准 |
+| ISSUE-20260320-02 | partial | `adaptive_update` 已接入 cooldown / hysteresis / 多 trigger 融合，但当前全局 armed/hysteresis 设计在 sustained foreground 场景上会把 geometry refresh 压成近似一次性事件 | 若直接把当前 `adaptive_stable` 当默认值，会误以为 adaptive geometry 没有收益，实际是 trigger controller 过于保守 | 下一步优先尝试 per-trigger rearm、foreground-specific cooldown 或更细的 trigger fusion 策略 |
+| ISSUE-20260323-01 | open | 当前 `foreground_mode=disagreement` 在 `mine_source_*` 视频上长期高位，导致全局 `trigger_armed / hysteresis` 很难 re-arm，`adaptive_update` 常常只在开头发生一次 geometry refresh | 会限制 dynamic seam + adaptive geometry 的长期作用，且让 calibration table 出现“stable preset 几乎不再重算”的现象 | 优先把 armed/hysteresis 从全局状态细化为 per-trigger 或至少对 foreground trigger 单独处理；在此之前，默认不要把 `adaptive_stable` 当正式推荐 preset |
 
 ## 接下来最先做的 3 件事
-1. 继续 Phase 2，先做 `trigger seam` 与 `adaptive_update` 的阈值 / cadence 校准，固定 DynamicStereo 与代表性静态样例上的推荐参数。
-2. 在现有 OpenCV seam backend 外层加入 foreground / object-aware penalty 的兼容式做法，再评估对 seam artefacts 的改善。
-3. 然后再补 seam temporal smoothing，并扩展 Phase 2 的对比实验矩阵。
+1. 继续 Phase 2，优先细化 `trigger_armed / hysteresis`，解决 sustained foreground 下 trigger 近似一次性的问题。
+2. 然后补 seam temporal smoothing，并在当前推荐 preset 上评估对 flicker / stitched delta 的影响。
+3. 再把 object-aware 更强版本迁移到有现成 masks 的数据或独立新 seam backend 路线。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -42,6 +43,22 @@
   - 再看 `snapshots/seam_event_*`
 - 推荐开启：
   - `--seam_snapshot_on_recompute 1`
+
+## 当前 Phase 2 推荐配置（2026-03-23 更新）
+- 默认 seam preset：
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=18`
+  - `foreground_mode=disagreement`
+  - `seam_trigger_foreground_ratio=0.08`
+- 当前仅作实验 preset：
+  - `geometry_mode=adaptive_update`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=18`
+  - `foreground_mode=disagreement`
+  - `seam_trigger_foreground_ratio=0.08`
+- 当前不建议作为默认值：
+  - 任何依赖全局 `cooldown + hysteresis` 的 stable preset
 
 ## 当前建议的下一步实施入口
 - 先读：

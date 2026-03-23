@@ -261,6 +261,25 @@
     - `seam_event_<idx>_overlap_diff.png`
 - 这套图与 `snapshot_every` 解耦，不再依赖碰巧命中定时 snapshot。
 
+## trigger / foreground / adaptive 校准更新（2026-03-23）
+- 当前 video pipeline 已新增：
+  - `--seam_trigger_foreground_ratio`
+  - `--seam_trigger_cooldown_frames`
+  - `--seam_trigger_hysteresis_ratio`
+  - `--foreground_mode=off|disagreement`
+  - `--foreground_diff_threshold`
+  - `--foreground_dilate`
+- `foreground_mode=disagreement` 当前不引入新 detector：
+  - 只在 overlap ROI 上用 cross-view absdiff 构造 protected region
+  - 同时影响 trigger 判定与 final seam mask reassignment
+- 当前校准结果表明：
+  - `trigger_fused_d18_fg008` 是现阶段更合适的默认 seam preset
+  - `adaptive_fused_d18_fg008` 已能触发 geometry refresh，但当前主要发生在开头，且 runtime 代价更高
+  - `trigger_stable_d18_fg008_cd6_h075` 与 `adaptive_stable_d18_fg008_cd6_h075` 在真实 `mine_source` 视频上过于保守
+- 当前结构性问题：
+  - `trigger_armed / hysteresis` 仍是全局共享状态
+  - 当 `foreground_ratio` 长时间高位时，trigger 容易退化成“一次触发后长期不上膛”
+
 ## 下一步
 - 总路线见 `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`。
 - Dynamic seam 与 temporal evaluation 方案见 `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`。
