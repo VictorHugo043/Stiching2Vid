@@ -277,8 +277,38 @@
   - `adaptive_fused_d18_fg008` 已能触发 geometry refresh，但当前主要发生在开头，且 runtime 代价更高
   - `trigger_stable_d18_fg008_cd6_h075` 与 `adaptive_stable_d18_fg008_cd6_h075` 在真实 `mine_source` 视频上过于保守
 - 当前结构性问题：
-  - `trigger_armed / hysteresis` 仍是全局共享状态
+  - 旧实现里 `trigger_armed / hysteresis` 是全局共享状态
   - 当 `foreground_ratio` 长时间高位时，trigger 容易退化成“一次触发后长期不上膛”
+
+## per-trigger rearm 与 seam smoothing 更新（2026-03-23）
+- 当前 `trigger seam` 已细化为三路独立 trigger state：
+  - `overlap`
+  - `diff`
+  - `foreground`
+- 当前 `cooldown / hysteresis` 只对对应 trigger 通道生效，而不是所有触发器共用一个 armed bit。
+- 当前 cached path 与 non-cached path 都会在 metadata / bundle 中保留：
+  - `trigger_states_next`
+  - `trigger_reason`
+- 当前 seam temporal smoothing 已接入：
+  - `--seam_smooth=none|ema|window`
+  - `--seam_smooth_alpha`
+  - `--seam_smooth_window`
+- 注意：
+  - smoothing 仍只在 OpenCV seam backend 外层对最终二值 assignment 做时间平滑
+  - 不改变 seam backend 本身，也不改变 trigger 触发逻辑
+
+## 当前验证结论（2026-03-23）
+- per-trigger rearm：
+  - `outputs/runs/phase2_adaptive_fused_mcd1_rearm_smoke_v1`
+    - `seam_recompute_count=6`
+    - `geometry_update_count=5`
+  - 说明 `adaptive_update` 已不再系统性退化为“一次性 geometry refresh”
+- full-length smoothing suite：
+  - `outputs/video_smoothing/phase2_seam_smoothing_full_v1/smooth_summary.csv`
+  - `ema/window` 会显著压低 `mean_seam_mask_change_ratio`
+  - 但对 `mean_stitched_delta` 没有带来改善
+  - 因此当前默认值仍保持：
+    - `seam_smooth=none`
 
 ## 下一步
 - 总路线见 `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`。

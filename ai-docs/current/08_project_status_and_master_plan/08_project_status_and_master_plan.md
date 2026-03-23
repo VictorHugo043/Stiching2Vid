@@ -269,9 +269,8 @@
   - `outputs/runs/phase2_kitti0002_adaptive_keyframe`
   - `outputs/runs/phase2_kitti0002_adaptive_trigger`
 - 当前尚未完成：
-  - seam temporal smoothing
   - 新 seam backend
-  - per-trigger rearm / 更细的 trigger fusion 设计
+  - 更强的 smoothing-specific temporal metric
 - 本轮进一步收敛的配置结论：
   - `geometry_mode` 现在应视为正式用户入口。
   - `video_mode` 仅保留为 legacy 兼容别名。
@@ -302,6 +301,17 @@
   - 当前 `adaptive_fused` 仅作为实验 preset 保留：
     - 已能触发 geometry refresh
     - 但当前比 `trigger_fused` 更慢，且没有显示出更好的 `mean_overlap_diff_after`
+  - 当前已完成 per-trigger rearm：
+    - `trigger_armed / hysteresis` 已从单一全局状态细化为 `overlap / diff / foreground` 三路状态
+    - `phase2_adaptive_fused_mcd1_rearm_smoke_v1` 中 `geometry_update_count=5`
+    - 说明 sustained foreground 下的“一次性事件”问题已明显缓解
+  - 当前已完成 seam temporal smoothing：
+    - `none / ema / window`
+    - full-length suite：`outputs/video_smoothing/phase2_seam_smoothing_full_v1`
+  - 当前 smoothing 结论：
+    - `ema/window` 明显降低 `mean_seam_mask_change_ratio`
+    - 但对 `mean_stitched_delta` 没有带来收益
+    - 因此默认值仍保持 `seam_smooth=none`
 
 ## Phase 3
 ### 目标

@@ -171,6 +171,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Dilate iterations for seam mask before resizing to full compose mask",
     )
     parser.add_argument(
+        "--seam_smooth",
+        default="none",
+        choices=["none", "ema", "window"],
+        help="Temporal smoothing policy for final seam masks",
+    )
+    parser.add_argument(
+        "--seam_smooth_alpha",
+        type=float,
+        default=0.8,
+        help="EMA alpha for seam mask smoothing",
+    )
+    parser.add_argument(
+        "--seam_smooth_window",
+        type=int,
+        default=5,
+        help="Window size for seam mask smoothing when --seam_smooth=window",
+    )
+    parser.add_argument(
         "--seam_policy",
         default="auto",
         choices=["auto", "fixed", "keyframe", "trigger"],
@@ -980,6 +998,7 @@ def main() -> int:
     )
     from stitching.temporal import (  # noqa: E402
         HomographySmoother,
+        SeamMaskSmoother,
         compute_frame_absdiff_mean,
         compute_jitter,
         compute_mask_change_ratio,
@@ -1071,6 +1090,9 @@ def main() -> int:
             "seam": args.seam,
             "seam_megapix": args.seam_megapix,
             "seam_dilate": args.seam_dilate,
+            "seam_smooth": args.seam_smooth,
+            "seam_smooth_alpha": args.seam_smooth_alpha,
+            "seam_smooth_window": int(args.seam_smooth_window),
             "seam_policy": args.seam_policy,
             "seam_policy_effective": seam_policy_effective,
             "seam_keyframe_every": int(args.seam_keyframe_every),
@@ -1120,6 +1142,9 @@ def main() -> int:
         "seam": args.seam,
         "seam_megapix": args.seam_megapix,
         "seam_dilate": args.seam_dilate,
+        "seam_smooth": args.seam_smooth,
+        "seam_smooth_alpha": args.seam_smooth_alpha,
+        "seam_smooth_window": int(args.seam_smooth_window),
         "seam_policy": seam_policy_effective,
         "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
         "seam_trigger_overlap_ratio": float(args.seam_trigger_overlap_ratio),
@@ -1381,6 +1406,9 @@ def main() -> int:
         seam_method=_seam_cli_to_method(args.seam),
         seam_megapix=args.seam_megapix,
         seam_dilate=args.seam_dilate,
+        seam_smooth_method=args.seam_smooth,
+        seam_smooth_alpha=args.seam_smooth_alpha,
+        seam_smooth_window=args.seam_smooth_window,
         blend_mode=args.blend,
         mb_levels=args.mb_levels,
         crop_enabled=bool(args.crop),
@@ -1390,6 +1418,11 @@ def main() -> int:
         reuse_mode=args.reuse_mode,
         output_dir=output_dir,
         warning_handler=lambda msg: _warn_and_record(debug, msg),
+    )
+    seam_mask_smoother = SeamMaskSmoother(
+        method=args.seam_smooth,
+        alpha=args.seam_smooth_alpha,
+        window=args.seam_smooth_window,
     )
     video_prev_H = None
     frames_since_video_init = 0
@@ -1580,6 +1613,7 @@ def main() -> int:
                     foreground_ratio = float(stitch_out.get("foreground_ratio", 0.0))
                     foreground_protect_ratio = float(stitch_out.get("foreground_protect_ratio", 0.0))
                     trigger_armed_next = int(bool(stitch_out.get("trigger_armed_next", True)))
+                    trigger_states_next = dict(stitch_out.get("trigger_states_next", {}) or {})
                     proposed_output_bbox = stitch_out.get("output_bbox")
 
                     if geometry_mode == "adaptive_update" and seam_recomputed:
@@ -1643,6 +1677,7 @@ def main() -> int:
                                 video_stitcher.state.metadata.get("seam_scale", 0.0)
                             )
                             video_stitcher.state.metadata["seam_trigger_armed"] = bool(trigger_armed_next)
+                            video_stitcher.state.metadata["seam_trigger_states"] = dict(trigger_states_next)
                             frames_since_video_init = 0
                             is_keyframe = 1
                             geometry_recomputed = True
@@ -1721,6 +1756,7 @@ def main() -> int:
                                 "foreground_ratio": float(foreground_ratio),
                                 "foreground_protect_ratio": float(foreground_protect_ratio),
                                 "trigger_flags": seam_trigger_flags,
+                                "trigger_states_next": trigger_states_next,
                                 "geometry_recomputed": bool(geometry_recomputed),
                                 "geometry_update_reason": geometry_update_reason,
                             }
@@ -2041,6 +2077,7 @@ def main() -> int:
                 output_bbox_current = None
                 foreground_ratio = 0.0
                 trigger_armed_next = 1
+                trigger_states_next: Dict[str, object] = {}
                 foreground_mask_full = None
 
                 stitched = _blend_frames(
@@ -2133,12 +2170,18 @@ def main() -> int:
                             trigger_armed=bool(seam_cache.get("trigger_armed", True))
                             if seam_cache is not None
                             else True,
+                            trigger_states=(
+                                seam_cache.get("trigger_states")
+                                if seam_cache is not None
+                                else None
+                            ),
                             force_recompute=False,
                         )
                         seam_recomputed = bool(seam_decision.recompute)
                         seam_trigger_reason = str(seam_decision.reason)
                         seam_trigger_flags = dict(seam_decision.trigger_flags)
                         trigger_armed_next = int(bool(seam_decision.trigger_armed_next))
+                        trigger_states_next = dict(seam_decision.trigger_states_next)
 
                         if seam_decision.recompute:
                             seam_t0 = time.perf_counter()
@@ -2479,6 +2522,7 @@ def main() -> int:
                                 "crop_method": crop_method_used,
                                 "last_seam_frame_index": int(source_idx),
                                 "trigger_armed": bool(seam_decision.trigger_armed_next),
+                                "trigger_states": dict(seam_decision.trigger_states_next),
                                 "crop_lir_rect": (
                                     (
                                         int(crop_lir_rect.x),
@@ -2505,6 +2549,7 @@ def main() -> int:
                                     "foreground_ratio": float(foreground_ratio),
                                     "foreground_protect_ratio": float(foreground_protect_ratio),
                                     "trigger_flags": seam_trigger_flags,
+                                    "trigger_states_next": trigger_states_next,
                                     "geometry_recomputed": bool(geometry_recomputed),
                                     "geometry_update_reason": geometry_update_reason,
                                 }
@@ -2594,6 +2639,7 @@ def main() -> int:
                         if seam_cache is None:
                             raise RuntimeError("seam_cache is unavailable while seam mode is enabled")
                         seam_cache["trigger_armed"] = bool(seam_decision.trigger_armed_next)
+                        seam_cache["trigger_states"] = dict(seam_decision.trigger_states_next)
 
                         seam_target_masks = [left_roi_mask_full, right_roi_mask_full]
                         seam_target_corners_abs = [left_corner_full, right_corner_full]
@@ -2682,6 +2728,13 @@ def main() -> int:
                                 prefer_right_mask=prev_final_right,
                                 limit_mask_full=crop_limit_full,
                             )
+                        final_left_mask, final_right_mask = seam_mask_smoother.update(
+                            final_left_mask,
+                            final_right_mask,
+                            left_mask_full,
+                            right_mask_full,
+                            limit_mask=crop_limit_full,
+                        )
                         mask_changes = [
                             compute_mask_change_ratio(prev_final_left, final_left_mask),
                             compute_mask_change_ratio(prev_final_right, final_right_mask),
@@ -3072,6 +3125,9 @@ def main() -> int:
         "seam_runtime_ms_mean": float(sum(seam_keyframe_ms) / len(seam_keyframe_ms))
         if seam_keyframe_ms
         else 0.0,
+        "seam_smooth": args.seam_smooth,
+        "seam_smooth_alpha": float(args.seam_smooth_alpha),
+        "seam_smooth_window": int(args.seam_smooth_window),
         "seam_policy": seam_policy_effective,
         "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
         "seam_recompute_count": int(debug.get("seam_recompute_count", 0)),

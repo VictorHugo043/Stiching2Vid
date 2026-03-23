@@ -2062,3 +2062,141 @@
   - 优先继续 Phase 2，细化 per-trigger rearm / foreground-specific cooldown，解决 sustained foreground 下 trigger 近似一次性的问题。
   - 然后再接 seam temporal smoothing。
   - object-aware 更强版本应放到有现成 masks 的数据或单独新 seam backend 阶段。
+
+## IMP-20260323-02
+- 状态：done
+- 标题：Phase 2 子任务 6：per-trigger armed/hysteresis 细化与 seam temporal smoothing
+- 本步目标：
+  - 细化当前全局 `trigger_armed / hysteresis`，解决 sustained foreground 下 trigger 近似一次性的问题。
+  - 在不改 OpenCV seam backend 的前提下，新增 seam temporal smoothing。
+  - 在当前推荐 preset 上评估 smoothing 对 `flicker / mean_stitched_delta / seam_mask_change_ratio` 的影响。
+- 关联上一步结论：
+  - `DEC-20260323-02`：当前默认 seam preset 为 `trigger_fused_d18_fg008`。
+  - `ISSUE-20260320-02`：当前 `adaptive_update` 在 sustained foreground 场景上被全局 armed/hysteresis 过度抑制。
+  - `ISSUE-20260323-01`：`foreground_mode=disagreement` 长时间高位会让全局 armed 很难 re-arm。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/video_state.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_phase2_trigger_calibration.py`
+- 准备修改文件：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_phase2_seam_smoothing_suite.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `seam_policy.py` 是把 global armed 改成 per-trigger rearm 的最小核心落点。
+  - `temporal.py` 是 seam smoothing 最适合的放置位置，可避免把 mask smoothing 混进 orchestrator。
+  - `video_stitcher.py` 与 `run_baseline_video.py` 分别对应 cached path 与 non-cached path，需要保证两条视频路径都能使用 smoothing。
+  - 单独 smoothing suite 可以固定“当前推荐 preset + smoothing ablation”的评估入口，避免把 Phase 2 评测继续塞进主脚本。
+- 风险点：
+  - per-trigger state 引入后，trigger 行为更复杂，若 debug 字段不清晰会降低可解释性。
+  - seam smoothing 若过强，可能降低 seam 对真实变化的响应，造成 ghosting 或 boundary lag。
+  - 当前推荐 preset 的 seam 重算频率本来就不高，smoothing 效果可能偏小，需要用 `stitched_delta / seam_mask_change_ratio` 解释。
+- 验收标准：
+  - trigger controller 不再因 sustained foreground 而系统性退化为“最多一次事件”。
+  - seam smoothing 支持 `none / ema / window`，且不改 OpenCV seam backend。
+  - 在当前推荐 preset 上有一套可复跑的 smoothing 对比输出，能比较 `mean_stitched_delta / mean_seam_mask_change_ratio / mean_overlap_diff_after / approx_fps`。
+- 替代方案与不选原因：
+  - 方案：只做 smoothing，不先修 trigger controller。
+  - 不选原因：当前 trigger 行为本身仍有结构性问题，会污染 smoothing 评估。
+  - 方案：直接改 seam backend 或引入新 graph-cut。
+  - 不选原因：当前用户明确不再修改 seam backend，本步只允许围绕 OpenCV seam 外层增强。
+- 实际修改文件：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_phase2_seam_smoothing_suite.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `seam_policy.py`
+    - 将 `trigger_armed / hysteresis` 从单一全局状态细化为 `overlap / diff / foreground` 三路独立状态。
+    - cooldown 只对当前实际触发的 trigger 通道生效。
+    - 新增 `trigger_states_next` 诊断输出。
+  - `temporal.py`
+    - 新增 `SeamMaskSmoother`，支持 `none / ema / window`。
+  - `video_stitcher.py`
+    - cached path 接入 seam mask smoothing。
+    - 在 metadata 中保存 `seam_trigger_states`。
+  - `run_baseline_video.py`
+    - 两条视频路径都接入 per-trigger rearm 状态流转与 seam smoothing。
+    - 新增 CLI：
+      - `--seam_smooth`
+      - `--seam_smooth_alpha`
+      - `--seam_smooth_window`
+    - 新增 smoothing 相关 bundle 字段。
+  - 新增 `scripts/run_phase2_seam_smoothing_suite.py`
+    - 用当前推荐 preset 批量比较 `smooth_none / smooth_ema_a080 / smooth_window_5`。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/seam_policy.py src/stitching/temporal.py src/stitching/video_stitcher.py scripts/run_baseline_video.py scripts/run_phase2_seam_smoothing_suite.py`
+  - `python3 scripts/run_phase2_seam_smoothing_suite.py --help`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_traffic2_left_right --max_frames 220 --geometry_mode adaptive_update --reuse_mode frame0_all --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --seam_policy trigger --seam_trigger_diff_threshold 18 --foreground_mode disagreement --seam_trigger_foreground_ratio 0.08 --seam_snapshot_on_recompute 0 --force_cpu --run_id phase2_adaptive_fused_traffic2_rearm_smoke_v1`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_mcd1_left_right --max_frames 449 --geometry_mode adaptive_update --reuse_mode frame0_all --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --seam_policy trigger --seam_trigger_diff_threshold 18 --foreground_mode disagreement --seam_trigger_foreground_ratio 0.08 --seam_snapshot_on_recompute 0 --force_cpu --run_id phase2_adaptive_fused_mcd1_rearm_smoke_v1`
+  - `.venv-methodb/bin/python scripts/run_phase2_seam_smoothing_suite.py --python_bin .venv-methodb/bin/python --pairs mine_source_walking_left_right --force_cpu --max_frames 120 --suite_id phase2_seam_smoothing_walk_smoke_v1`
+  - `.venv-methodb/bin/python scripts/run_phase2_seam_smoothing_suite.py --python_bin .venv-methodb/bin/python --force_cpu --max_frames 6000 --suite_id phase2_seam_smoothing_full_v1`
+- 运行结果与验证结果：
+  - per-trigger rearm 关键结果：
+    - `phase2_adaptive_fused_mcd1_rearm_smoke_v1`
+      - `processed_frames=449`
+      - `seam_recompute_count=6`
+      - `geometry_update_count=5`
+      - `mean_overlap_diff_after=5.0072`
+      - `mean_stitched_delta=3.1706`
+      - `approx_fps=6.57`
+    - 说明 `adaptive_update` 不再系统性退化为“几乎只在开头更新一次几何”。
+    - `phase2_adaptive_fused_traffic2_rearm_smoke_v1`
+      - 也已跑通，但该序列后段没有新的 `diff>=18` 候选帧，因此不适合作为 rearm 改善的主证据。
+  - full-length smoothing suite：
+    - `outputs/video_smoothing/phase2_seam_smoothing_full_v1/smooth_summary.csv`
+    - `smooth_none`
+      - `approx_fps ≈ 10.645`
+      - `mean_stitched_delta ≈ 6.14523`
+      - `mean_seam_mask_change_ratio ≈ 0.00641`
+      - `mean_overlap_diff_after ≈ 3.5905`
+    - `smooth_ema_a080`
+      - `approx_fps ≈ 10.713`
+      - `mean_stitched_delta ≈ 6.14661`
+      - `mean_seam_mask_change_ratio ≈ 0.0000436`
+      - `mean_overlap_diff_after = 0.0`
+    - `smooth_window_5`
+      - `approx_fps ≈ 10.112`
+      - `mean_stitched_delta ≈ 6.14661`
+      - `mean_seam_mask_change_ratio ≈ 0.0000437`
+      - `mean_overlap_diff_after = 0.0`
+  - 结论：
+    - smoothing 明显降低了 seam mask 变化率，但没有带来可见的 `mean_stitched_delta` 改善。
+    - 当前 `mean_overlap_diff_after` 在 smoothed mask 上会出现解释偏差，不适合作为 smoothing 主比较项。
+    - 当前默认值仍应保持 `seam_smooth=none`，`ema/window` 只保留为实验 preset。
+- 与原计划相比的偏差：
+  - 没有重跑一轮新的 trigger calibration 表；本步优先完成 controller 结构修正与 smoothing ablation。
+  - 没有修改 OpenCV seam backend，只在其外层增加 controller 和 mask smoothing。
+- 下一步建议：
+  - 继续 Phase 2，但主线从“再扩控制器功能”切到“整理正式 dynamic seam 对比矩阵”。
+  - 若要继续研究 smoothing，应转到有 object masks 或更强动态目标的数据，并补更贴近 flicker 的 temporal metric。

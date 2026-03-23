@@ -168,6 +168,49 @@
   - `fixed_geometry + seam_policy=keyframe/trigger` 下即使 `jitter=0` 也不代表 seam 没更新，应结合 `jitter_scope / seam_recompute_count / seam_snapshot_count` 解读
   - `adaptive_update` 当前已最小落地为 seam-driven geometry refresh，应结合 `geometry_update_count / geometry_update_events / transforms.csv::geometry_recomputed` 解读
 
+### Phase 2 smoothing ablation（2026-03-23 更新）
+- 当前 smoothing 对比入口：
+  - `scripts/run_phase2_seam_smoothing_suite.py`
+- 固定前提：
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=18`
+  - `foreground_mode=disagreement`
+  - `seam_trigger_foreground_ratio=0.08`
+  - Method B：`superpoint + lightglue + opencv_usac_magsac`
+- full-length suite：
+  - `outputs/video_smoothing/phase2_seam_smoothing_full_v1/smooth_summary.csv`
+- 当前聚合结果：
+  - `smooth_none`
+    - `approx_fps ≈ 10.645`
+    - `mean_stitched_delta ≈ 6.14523`
+    - `mean_seam_mask_change_ratio ≈ 0.00641`
+  - `smooth_ema_a080`
+    - `approx_fps ≈ 10.713`
+    - `mean_stitched_delta ≈ 6.14661`
+    - `mean_seam_mask_change_ratio ≈ 0.0000436`
+  - `smooth_window_5`
+    - `approx_fps ≈ 10.112`
+    - `mean_stitched_delta ≈ 6.14661`
+    - `mean_seam_mask_change_ratio ≈ 0.0000437`
+- 当前结论：
+  - smoothing 的主要效果是明显降低 seam mask 抖动。
+  - 但在当前推荐 preset 上，没有带来 `mean_stitched_delta` 改善。
+  - 因此：
+    - 当前默认值仍应保持 `seam_smooth=none`
+    - `ema/window` 继续保留为实验 preset
+    - 若后续要强调 flicker，需要补更贴近 seam band / object region 的 temporal metric
+
+### smoothing 指标解释约束（2026-03-23 更新）
+- `mean_overlap_diff_after`
+  - 仍适合作为 fixed-geometry seam policy 的一般主指标
+  - 但不适合作为 smoothing 的主比较项
+  - 原因：当前 smoothed mask 会把 assignment 压成更严格的分区，导致该值可退化到 `0.0`
+- smoothing 当前优先比较：
+  - `mean_seam_mask_change_ratio`
+  - `mean_stitched_delta`
+  - `approx_fps`
+
 ### Phase 3
 - 在代表性 pair 上做系统矩阵：
   - DynamicStereo 动态样例

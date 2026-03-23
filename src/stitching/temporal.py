@@ -196,3 +196,78 @@ class HomographySmoother:
 
         self._last_smoothed_H = H_sm
         return self._last_smoothed_H
+
+
+class SeamMaskSmoother:
+    """Smooth binary seam assignments over time without changing seam backend."""
+
+    def __init__(self, method: str = "none", alpha: float = 0.8, window: int = 5) -> None:
+        self.method = str(method).strip().lower()
+        self.alpha = float(alpha)
+        self.window = max(1, int(window))
+        self._ema = None
+        self._history: Deque = deque(maxlen=self.window)
+        self._shape = None
+
+    def reset(self) -> None:
+        self._ema = None
+        self._history.clear()
+        self._shape = None
+
+    def _ensure_shape(self, shape: Tuple[int, int]) -> None:
+        if self._shape != shape:
+            self.reset()
+            self._shape = shape
+
+    def update(
+        self,
+        left_mask,
+        right_mask,
+        left_canvas_mask,
+        right_canvas_mask,
+        *,
+        limit_mask=None,
+    ):
+        import numpy as np  # type: ignore
+
+        if self.method == "none":
+            return left_mask, right_mask
+
+        left_valid = np.asarray(left_canvas_mask) > 0
+        right_valid = np.asarray(right_canvas_mask) > 0
+        overlap = left_valid & right_valid
+        left_only = left_valid & (~right_valid)
+        right_only = right_valid & (~left_valid)
+
+        if limit_mask is not None:
+            limit = np.asarray(limit_mask) > 0
+            overlap &= limit
+            left_only &= limit
+            right_only &= limit
+        else:
+            limit = None
+
+        raw_left_overlap = overlap & (np.asarray(left_mask) > 0)
+        self._ensure_shape(raw_left_overlap.shape)
+        raw_float = raw_left_overlap.astype("float32")
+
+        if self.method == "ema":
+            if self._ema is None:
+                self._ema = raw_float
+            else:
+                self._ema = self.alpha * self._ema + (1.0 - self.alpha) * raw_float
+            smoothed_left_overlap = self._ema >= 0.5
+        elif self.method == "window":
+            self._history.append(raw_float)
+            smoothed_left_overlap = (
+                np.mean(np.stack(list(self._history), axis=0), axis=0) >= 0.5
+            )
+        else:
+            raise ValueError(f"Unsupported seam smooth method: {self.method}")
+
+        final_left = left_only | smoothed_left_overlap
+        final_right = right_only | (overlap & (~smoothed_left_overlap))
+        if limit is not None:
+            final_left &= limit
+            final_right &= limit
+        return final_left.astype(np.uint8) * 255, final_right.astype(np.uint8) * 255

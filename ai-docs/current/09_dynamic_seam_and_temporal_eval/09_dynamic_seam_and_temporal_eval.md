@@ -125,6 +125,9 @@
 - `seam_smooth_window`
 - `foreground_mode`
 - `foreground_mask_source`
+- `seam_trigger_cooldown_frames`
+- `seam_trigger_hysteresis_ratio`
+- `seam_trigger_foreground_ratio`
 
 ## geometry mode 与 seam policy 的关系（2026-03-20 更新）
 - `geometry_mode`
@@ -238,6 +241,62 @@
 - `phase2_kitti0002_fixedgeom_trigger`
   - `geometry_mode=fixed_geometry`
   - `seam_policy=trigger`
+
+## per-trigger rearm 与 smoothing 更新（2026-03-23）
+### trigger controller 的当前实现
+- 当前 `trigger seam` 已不再使用单一全局 `trigger_armed`。
+- 新实现把 trigger 状态拆成三路：
+  - `overlap`
+  - `diff`
+  - `foreground`
+- `cooldown` 现在只对本次实际触发的通道生效。
+- `hysteresis` 也按通道独立 re-arm，而不是所有 trigger 共用一个 armed bit。
+
+### 为什么这样改
+- sustained foreground 场景里，`foreground_ratio` 可以长时间高位。
+- 若所有 trigger 共用一个 armed bit：
+  - 一次 foreground 触发后
+  - `diff` 和 `overlap` 也会被一起压住
+  - `adaptive_update` 就会近似退化成“一次性 geometry refresh”
+- per-trigger rearm 的目标是：
+  - 让 `foreground` 的长期高位不会阻塞 `diff`/`overlap` 的后续有效事件
+  - 保持 trigger controller 的可解释性
+
+### 当前验证结论
+- `phase2_adaptive_fused_mcd1_rearm_smoke_v1`
+  - `processed_frames=449`
+  - `seam_recompute_count=6`
+  - `geometry_update_count=5`
+- 这表明：
+  - `adaptive_update` 已不再系统性退化为“开头一次 geometry refresh”
+  - 但依赖较强 `cooldown + hysteresis` 的 stable preset 仍偏保守
+
+### seam temporal smoothing 的当前实现
+- 仍不改 OpenCV seam backend。
+- 当前 smoothing 仅是 seam assignment 外层的 mask-level smoothing：
+  - `none`
+  - `ema`
+  - `window`
+- 落点：
+  - `src/stitching/temporal.py::SeamMaskSmoother`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+
+### smoothing 的评估解释边界
+- full-length suite：
+  - `outputs/video_smoothing/phase2_seam_smoothing_full_v1/smooth_summary.csv`
+- 当前结果：
+  - `ema/window` 会显著压低 `mean_seam_mask_change_ratio`
+  - 但没有带来稳定的 `mean_stitched_delta` 改善
+  - `mean_overlap_diff_after` 在 smoothed mask 上会出现 `0.0` 的解释偏差
+- 因此当前规则固定为：
+  - smoothing 比较优先看：
+    - `mean_seam_mask_change_ratio`
+    - `mean_stitched_delta`
+    - `approx_fps`
+  - 不把 `mean_overlap_diff_after` 作为 smoothing 主比较项
+  - 默认值仍保持：
+    - `seam_smooth=none`
   - `seam_trigger_diff_threshold=21.0`
   - `seam_recompute_count=11`
 - `phase2_kitti0002_adaptive_keyframe`
