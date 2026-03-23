@@ -1456,3 +1456,478 @@
 - 下一步建议：
   - 可以正式结束 Phase 1。
   - 下一步应按 Phase 2 主线进入 dynamic seam MVP 与 meaningful temporal evaluation。
+
+## IMP-20260320-07
+- 状态：done
+- 标题：Phase 2 子任务 1：dynamic seam MVP 外壳与 meaningful temporal evaluation 最小落地
+- 本步目标：
+  - 在不重写 seam backend 的前提下，新增显式 `seam_policy` 外壳：
+    - `fixed`
+    - `keyframe`
+    - `trigger`
+    - `auto`
+  - 统一 `video_mode=1` 与 `video_mode=0` 的 seam 更新决策逻辑，只决定“何时重算 seam”。
+  - 补最小 temporal evaluation，使 `fixed_geometry` 下不再只能看到退化为 0 的 `jitter`。
+- 关联上一步结论：
+  - `IMP-20260320-06`：Phase 1 已完成，正式 compare 入口与统计表已固定。
+  - `14_open_issues_and_next_steps` 当前首要任务已转为 Phase 2 的 dynamic seam MVP。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码 / 配置：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/video_state.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/seam_opencv.py`
+- 准备修改文件：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `src/stitching/video_state.py`
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前 seam 更新策略分散在 `run_baseline_video.py` 与 `VideoStitcher.stitch_frame()` 中，只能表达固定 seam 或隐式 keyframe seam。
+  - `temporal.py` 当前只覆盖 homography jitter，无法支撑 `fixed_geometry` 下更有意义的时序解释。
+  - 需要先把 Phase 2 的 MVP 外壳、字段和评估语义固定下来，再考虑更重的 seam/object-aware 改造。
+- 风险点：
+  - 若直接改 seam backend，会超出本步范围并破坏 Method A / Method B 共用路径。
+  - `video_mode=1` 下 trigger 逻辑若设计不当，可能退化为“永不触发”或“每帧都触发”。
+  - temporal 指标若选得太重，会把 Phase 2 MVP 变成新的实验框架重写。
+- 验收标准：
+  - CLI 支持 `seam_policy` 相关参数。
+  - `fixed / keyframe / trigger` 三种 seam policy 都能在现有 video pipeline 中跑通。
+  - `metrics_preview.json / debug.json / transforms.csv` 有新的 seam policy 与 temporal evaluation 字段。
+  - 短视频验证能证明：
+    - `fixed seam` 不重算 seam
+    - `keyframe seam` 按 cadence 重算
+    - `trigger seam` 能按阈值触发重算
+  - `fixed_geometry` 下有除 `jitter` 之外的更有解释力的时序字段。
+- 替代方案与不选原因：
+  - 方案：直接进入 object-centered seam 或 graph-cut backend。
+  - 不选原因：超出本步 MVP 范围，也无法先冻结 Phase 2 的最小控制面与评估语义。
+- 实际修改文件：
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `src/stitching/seam_policy.py`，统一 `fixed / keyframe / trigger / auto` seam policy 决策。
+  - 在 `VideoStitcher.stitch_frame()` 与 `run_baseline_video.py` 中接入 seam policy 壳层，不改 OpenCV seam backend。
+  - `metrics_preview.json / debug.json / transforms.csv` 新增：
+    - `seam_policy`
+    - `seam_recomputed`
+    - `overlap_diff_before`
+    - `overlap_diff_after`
+    - `seam_mask_change_ratio`
+    - `stitched_delta_mean`
+    - `temporal_primary_metric`
+    - `temporal_primary_value`
+    - `seam_recompute_count`
+  - `fixed_geometry` 当前主 temporal 指标改为 `mean_overlap_diff_after`。
+  - `keyframe_update` 当前主 temporal 指标保持 `mean_jitter_sm`。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/seam_policy.py src/stitching/temporal.py src/stitching/video_stitcher.py scripts/run_baseline_video.py`
+  - `python3 scripts/run_baseline_video.py --help`
+  - 运行：
+    - `phase2_seam_fixed_smoke`
+    - `phase2_seam_keyframe_smoke`
+    - `phase2_seam_trigger_smoke`
+    - `phase2_seam_trigger_smoke_v2`
+    - `phase2_temporal_keyframeupdate_smoke`
+- 运行结果与验证结果：
+  - `phase2_seam_fixed_smoke`
+    - `geometry_mode=fixed_geometry`
+    - `seam_policy=fixed`
+    - `seam_recompute_count=1`
+    - `temporal_primary_metric=mean_overlap_diff_after`
+  - `phase2_seam_keyframe_smoke`
+    - `seam_policy=keyframe`
+    - `seam_keyframe_every_effective=5`
+    - `seam_recompute_count=4`
+  - `phase2_seam_trigger_smoke_v2`
+    - `seam_policy=trigger`
+    - `seam_recompute_count=8`
+    - `debug.json` 中已记录 7 条 trigger 事件，原因示例：`trigger_diff>=6.300`
+  - `phase2_temporal_keyframeupdate_smoke`
+    - `geometry_mode=keyframe_update`
+    - `jitter_meaningful=1`
+    - `temporal_primary_metric=mean_jitter_sm`
+    - `temporal_primary_value=0.7484893673344662`
+  - 结论：
+    - `fixed / keyframe / trigger` 三种 seam policy 已在现有 video pipeline 中跑通
+    - `fixed_geometry` 下已经不必再仅依赖退化 `jitter` 来解释 temporal 行为
+- 遇到的问题与处理：
+  - 初始 `trigger seam` 阈值过高时可能完全不触发。
+  - 已通过 `phase2_seam_trigger_smoke_v2` 验证在 `seam_trigger_diff_threshold=6.3` 时可稳定触发；该问题转入后续阈值校准 issue。
+- 与原计划相比的偏差：
+  - 计划中列出的 `src/stitching/video_state.py` 本步未实际修改。
+  - 本步没有实现 foreground/object-aware penalty，也没有实现 seam temporal smoothing。
+- 下一步建议：
+  - 继续 Phase 2，优先做：
+    - trigger 条件与阈值校准
+    - foreground / object-aware penalty 的兼容式做法
+    - seam temporal smoothing
+
+## IMP-20260320-08
+- 状态：done
+- 标题：Phase 2 子任务 2：显式 geometry_mode 入口、legacy video_mode 降级与 seam policy 语义校正
+- 本步目标：
+  - 明确回答并落地：
+    - `video_mode` 在已有 `fixed_geometry / keyframe_update / adaptive_update` 语义下是否还需要保留
+    - `keyframe` 在几何和 seam 两个层面的职责边界
+  - 将 `run_baseline_video.py` 的用户入口改为以 `geometry_mode` 为主。
+  - 保留 `video_mode` 只作为 legacy 兼容别名，避免继续混淆用户配置面。
+  - 在 bundle 中显式导出 geometry keyframe 与 seam keyframe 的有效语义。
+- 关联上一步结论：
+  - `DEC-20260319-05`：运行模式文档层显式拆分为 `fixed_geometry / keyframe_update / adaptive_update`。
+  - `DEC-20260319-07`：Phase 0 先保留 `video_mode` 兼容，但语义以导出字段固定。
+  - `DEC-20260320-07`：Phase 2 第一批已落地 seam policy 外壳和最小 meaningful temporal evaluation。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码 / 配置：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/seam_policy.py`
+  - `src/stitching/video_stitcher.py`
+- 准备修改文件：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/seam_policy.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前 `video_mode`、`geometry_mode`、`keyframe_every`、`seam_policy` 的职责边界对使用者仍不够直观。
+  - Phase 2 接下来会继续做 trigger calibration / object-aware penalty / seam smoothing，若配置面继续混乱，后续实验和 GUI 都会被污染。
+  - 需要用一轮最小结构调整把“几何模式”和“seam 更新策略”彻底正交化。
+- 风险点：
+  - 若直接删除 `video_mode`，会破坏现有脚本和历史复现命令。
+  - 若把 geometry keyframe 与 seam keyframe 再次混在一起，只会继续扩大歧义。
+  - `adaptive_update` 当前尚未实现，入口设计必须避免误导用户认为已经可用。
+- 验收标准：
+  - CLI 新增显式 `geometry_mode` 入口，`video_mode` 仅作为 legacy 兼容层。
+  - 文档和 bundle 能清楚说明：
+    - geometry mode 决定几何更新路径
+    - `keyframe_every` 只决定 geometry keyframe cadence
+    - `seam_policy` / `seam_keyframe_every` 只决定 seam 更新 cadence
+  - 在 `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03` 上完成 80 帧、10fps 的 `fixed|keyframe|trigger` seam policy 验证。
+- 替代方案与不选原因：
+  - 方案：继续只靠文档解释，不改 CLI 配置面。
+  - 不选原因：歧义已经直接影响用户使用，继续只写文档不足以防止误配。
+- 实际修改文件：
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `run_baseline_video.py` 中新增正式用户入口：
+    - `--geometry_mode`
+  - 将 `--video_mode` 明确降级为 legacy 兼容参数：
+    - 仅作为内部路径别名和历史命令兼容层
+  - 新增显式导出：
+    - `geometry_mode_source`
+    - `geometry_mode_requested`
+    - `video_mode_requested`
+    - `geometry_keyframe_every_effective`
+  - 将参数语义明确拆分为：
+    - `geometry_mode + keyframe_every`
+    - `seam_policy + seam_keyframe_every`
+  - `geometry_mode=adaptive_update` 当前会 fail-fast 输出清晰错误，不再给 traceback。
+- 验证方式：
+  - `python3 -m py_compile scripts/run_baseline_video.py`
+  - `python3 scripts/run_baseline_video.py --help`
+  - `python3 scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 --geometry_mode adaptive_update --max_frames 1`
+  - 使用 `.venv-methodb/bin/python` 跑：
+    - `phase2_kitti0002_fixedgeom_fixed`
+    - `phase2_kitti0002_fixedgeom_keyframe`
+    - `phase2_kitti0002_fixedgeom_trigger`
+- 运行结果与验证结果：
+  - pair：
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - `max_frames=80`
+    - `fps=10`
+  - 统一前提：
+    - `geometry_mode=fixed_geometry`
+    - Method B backend：`superpoint + lightglue + opencv_usac_magsac`
+  - `fixed`
+    - `video_mode=1`
+    - `geometry_keyframe_every_effective=0`
+    - `seam_recompute_count=1`
+    - `temporal_primary_metric=mean_overlap_diff_after`
+  - `keyframe`
+    - `seam_keyframe_every_effective=10`
+    - `seam_recompute_count=8`
+    - 首个 seam 事件：`frame_idx=10`
+  - `trigger`
+    - `seam_trigger_diff_threshold=21.0`
+    - `seam_recompute_count=11`
+    - 首个 seam 事件：`frame_idx=21`
+  - 结论：
+    - `geometry_mode` 与 `seam_policy` 已从配置层解耦
+    - 在 `fixed_geometry` 下，`keyframe_every` 不再控制 seam，只有 `seam_keyframe_every` 才控制 seam cadence
+- 遇到的问题与处理：
+  - `trigger` 阈值需要针对数据分布选值。
+  - 本次先通过 fixed run 观察 `overlap_diff_before` 分布后，选用 `21.0` 作为 KITTI 0002 的最小验证阈值。
+- 与原计划相比的偏差：
+  - 本步没有改 `src/stitching/seam_policy.py` 的逻辑主体，只在视频入口层完成了语义正交化。
+  - 本步没有扩展到 `adaptive_update` 实现，只补了清晰的 fail-fast 入口。
+- 下一步建议：
+  - 继续 Phase 2，先做 `trigger seam` 参数校准表与推荐默认值。
+  - 然后做 foreground / object-aware penalty 的兼容式接入。
+
+## IMP-20260320-09
+- 状态：done
+- 标题：Phase 2 子任务 3：固定几何下的 jitter 解释收敛与 seam 重算事件 snapshot 补齐
+- 本步目标：
+  - 回顾并明确解释：为什么 `fixed_geometry + seam_policy=keyframe/trigger` 下 `jitter` 仍然可能为 0。
+  - 避免把“seam 已重算但 jitter 为 0”误判为 seam 没有生效。
+  - 给 seam 重算事件补独立 snapshot 开关，使每次新 seam/mask 生成时都能保存对应帧的 seam/mask/stitched 可视化。
+- 关联上一步结论：
+  - `DEC-20260320-07`：Phase 2 第一批已把 seam policy 与 temporal primary metric 接入。
+  - `DEC-20260320-08`：`geometry_mode` 与 `seam_policy` 已经正交化，`fixed_geometry` 下 `keyframe_every` 不再控制 seam。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码 / 输出：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+  - `outputs/runs/phase2_kitti0002_fixedgeom_fixed/debug.json`
+  - `outputs/runs/phase2_kitti0002_fixedgeom_keyframe/debug.json`
+  - `outputs/runs/phase2_kitti0002_fixedgeom_trigger/debug.json`
+- 准备修改文件：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 用户已经在真实 Phase 2 run 中看到 `jitter=0` 与“看不到 seam 新 mask snapshot”的组合，这会直接影响后续 dynamic seam 调试和实验解释。
+  - 需要把“geometry jitter”和“seam 变化”在输出层进一步区分，并给 seam 重算事件留下证据图。
+- 风险点：
+  - 若让 seam 事件 snapshot 绑定 `snapshot_every`，仍然会漏掉多数重算帧。
+  - 若强行把 seam 变化折算成 `jitter`，会混淆几何和 seam 两类时序现象。
+- 验收标准：
+  - `fixed_geometry` 下能在输出中更明确看到 `jitter` 只跟 geometry 相关。
+  - 新增 `seam_snapshot_on_recompute` 开关。
+  - `video_mode=1` 与 `video_mode=0` 的 seam 重算帧都能保存对应 snapshot。
+  - 用 KITTI 0002 的 `fixed/keyframe/trigger` 重新验证，确认 keyframe/trigger run 的 seam 事件图已生成。
+- 替代方案与不选原因：
+  - 方案：只在文档里解释，不改输出和 snapshot 机制。
+  - 不选原因：仅靠文档不足以支撑后续调试，缺少事件图会继续影响 seam 校准。
+- 实际修改文件：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/video_stitcher.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `--seam_snapshot_on_recompute {0,1}`。
+  - 在 `metrics_preview.json / debug.json` 中新增：
+    - `jitter_scope`
+    - `seam_snapshot_count`
+    - `seam_snapshot_on_recompute`
+  - `video_mode=1 / fixed_geometry` 下，当 seam 重算时额外保存：
+    - `snapshots/seam_event_<frame>_*`
+  - `video_mode=0/1` 两条路径都会在 seam 重算帧保存对应 `frame_<frame>_stitched.png`，不再依赖 `snapshot_every` 命中。
+- 验证方式：
+  - `python3 -m py_compile scripts/run_baseline_video.py src/stitching/video_stitcher.py`
+  - `python3 scripts/run_baseline_video.py --help`
+  - 使用 `.venv-methodb/bin/python` 运行：
+    - `phase2_kitti0002_fixedgeom_fixed_snap`
+    - `phase2_kitti0002_fixedgeom_keyframe_snap`
+    - `phase2_kitti0002_fixedgeom_trigger_snap`
+  - 核对：
+    - `metrics_preview.json`
+    - `debug.json`
+    - `outputs/runs/.../snapshots/`
+- 运行结果与验证结果：
+  - pair：
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - `max_frames=80`
+    - `fps=10`
+    - `snapshot_every=1000`
+  - `fixed`
+    - `jitter_scope=geometry_only`
+    - `seam_recompute_count=1`
+    - `seam_snapshot_count=0`
+    - 无 `seam_event_*`，符合“只有初始化、没有后续 seam 重算”的预期
+  - `keyframe`
+    - `jitter_scope=geometry_only`
+    - `seam_recompute_count=8`
+    - `seam_snapshot_count=7`
+    - 生成 56 个 `seam_event_*` 文件
+    - 首个 seam 事件图对应 `frame_idx=10`
+    - 对应 stitched 图 `frame_000010_stitched.png` 已生成
+  - `trigger`
+    - `jitter_scope=geometry_only`
+    - `seam_recompute_count=11`
+    - `seam_snapshot_count=10`
+    - 生成 80 个 `seam_event_*` 文件
+    - 首个 seam 事件图对应 `frame_idx=21`
+    - 对应 stitched 图 `frame_000021_stitched.png` 已生成
+  - 结论：
+    - `keyframe/trigger` 下 `jitter=0` 的根因是 geometry 固定，不是 seam 没更新
+    - seam 重算证据图现在已经能稳定生成
+- 遇到的问题与处理：
+  - 之前 `video_mode=1` 路径只保存 `frame0_*` 初始化图，后续 seam 重算没有独立低分辨率 seam debug 图。
+  - 已通过 `VideoStitcher.stitch_frame(..., save_seam_event_snapshots=True)` 补齐。
+- 与原计划相比的偏差：
+  - 本步没有引入新的 temporal 指标，只是把 `jitter` 的解释写得更明确，并补齐 seam 事件 snapshot。
+- 下一步建议：
+  - 继续 Phase 2，优先做 trigger 参数校准表。
+  - 然后做 foreground / object-aware penalty。
+
+## IMP-20260320-10
+- 状态：done
+- 标题：Phase 2 子任务 4：最小版 adaptive_update 落地为 seam 驱动的 geometry refresh
+- 本步目标：
+  - 评估并实现“几何随 seam 变化而变化”的最小可行方案。
+  - 不额外发明新的语义分叉开关，而是把现有保留模式 `adaptive_update` 落成最小版。
+  - 将其定义为：
+    - 仍走 cached reuse 路径
+    - 但当 seam policy 命中 keyframe/trigger 重算时，可在同一帧触发 geometry refresh
+    - geometry refresh 后重新初始化当前 frame 的 compose 状态
+- 关联上一步结论：
+  - `DEC-20260320-08`：`geometry_mode` 与 `seam_policy` 已从配置层正交化。
+  - `DEC-20260320-09`：`fixed_geometry` 下 `jitter` 只解释 geometry，不解释 seam。
+  - `IMP-20260320-09`：seam 重算证据图已补齐，可用于验证 geometry 是否真的跟随 seam 变化。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `src/stitching/video_stitcher.py`
+- 准备修改文件：
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前 cached path 已经具备按需重估 geometry 并 re-init 的链路，可直接复用。
+  - 用户希望 geometry 可以随 seam 变化，这与文档中保留但未实现的 `adaptive_update` 高度一致。
+  - 需要先做一个最小闭环，再决定是否继续扩到更复杂的 adaptive trigger / cooldown 设计。
+- 风险点：
+  - 若 geometry 在每次 seam event 都刷新，可能增加 runtime 并产生抖动。
+  - seam event 与 geometry refresh 之间存在耦合，若不记录清楚，后续实验会难解释。
+  - 不能把它包装成“完整 adaptive_update”，必须明确它只是最小版 seam-driven geometry refresh。
+- 验收标准：
+  - `geometry_mode=adaptive_update` 不再 fail-fast。
+  - 在 cached path 中，当 `seam_policy=keyframe/trigger` 命中时，可触发 geometry refresh。
+  - bundle 能导出 geometry refresh 次数与原因。
+  - 在代表性 pair 上验证：
+    - geometry refresh 确实发生
+    - `jitter` 不再系统性为 0
+    - stitched / seam event snapshots 仍可正常生成
+- 替代方案与不选原因：
+  - 方案：增加一个新的布尔开关 `geometry_update_on_seam_recompute`，但保持 `adaptive_update` 继续未实现。
+  - 不选原因：会进一步分裂配置语义，且与当前已保留的 `adaptive_update` 含义重复。
+- 实际修改文件：
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `run_baseline_video.py` 中的 `--geometry_mode=adaptive_update` 不再只是占位。
+  - 当前实现采用最小版 `seam_driven_geometry_refresh`：
+    - 先按 seam policy 判断当前帧是否发生 seam event
+    - 若命中且 `geometry_mode=adaptive_update`，则对当前帧重估 geometry
+    - 然后用新的 `H` 调用 `VideoStitcher.initialize_from_first_frame()` 重建当前帧 compose 状态
+  - 新增 bundle 字段：
+    - `metrics_preview.json::geometry_update_count`
+    - `metrics_preview.json::adaptive_update_strategy`
+    - `debug.json::geometry_update_events`
+    - `transforms.csv::geometry_recomputed`
+    - `transforms.csv::geometry_update_reason`
+  - 将 `adaptive_update` 的 temporal 解释固定为：
+    - `jitter_scope=geometry_stream`
+    - `temporal_primary_metric=mean_jitter_sm`
+- 验证方式：
+  - `python3 -m py_compile scripts/run_baseline_video.py`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 --max_frames 80 --fps 10 --snapshot_every 1000 --geometry_mode adaptive_update --seam_policy keyframe --seam_keyframe_every 10 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase2_kitti0002_adaptive_keyframe`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 --max_frames 80 --fps 10 --snapshot_every 1000 --geometry_mode adaptive_update --seam_policy trigger --seam_trigger_diff_threshold 21.0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --force_cpu --run_id phase2_kitti0002_adaptive_trigger`
+- 运行结果与验证结果：
+  - `phase2_kitti0002_adaptive_keyframe`
+    - `processed_frames=77`
+    - `geometry_update_count=7`
+    - `seam_recompute_count=8`
+    - `mean_jitter_sm=0.6423`
+    - `transforms.csv` 已在 `frame_idx=10/20/30/...` 标出 `geometry_recomputed=1`
+  - `phase2_kitti0002_adaptive_trigger`
+    - `processed_frames=77`
+    - `geometry_update_count=2`
+    - `seam_recompute_count=3`
+    - `mean_jitter_sm=0.3334`
+    - `transforms.csv` 已在 `frame_idx=21/25` 标出 `geometry_recomputed=1`
+  - 2 条 run 均 `success_frames=77`、`fallback_frames=0`
+  - `debug.json::geometry_update_events` 已记录每次更新的原因、内点数、内点率和 reprojection error
+- 与原计划相比的偏差：
+  - 当前 `adaptive_update` 仍只是在 seam event 上触发 geometry refresh，没有加入 cooldown / hysteresis。
+  - seam event debug 图仍主要体现 seam 重算帧；`adaptive_update` 的新几何结果目前主要通过 `frame_<idx>_stitched.png`、`geometry_update_events` 与 `transforms.csv` 证明。
+- 下一步建议：
+  - 继续 Phase 2，优先做 `trigger seam` 与 `adaptive_update` 的阈值 / cadence 校准表。
+  - 然后再补 foreground / object-aware penalty。
+  - seam temporal smoothing 放在 object-aware penalty 之后。

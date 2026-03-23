@@ -109,7 +109,7 @@
 - 对进入 Phase 1 所必需的最小冻结已完成：
   - 当前 baseline video pipeline 的 as-built 行为已对齐到文档。
   - `run_baseline_video.py` 已显式导出 `geometry_mode` 与 `jitter_meaningful`。
-  - `fixed_geometry / keyframe_update / adaptive_update` 的语义边界已固定，且当前实现不会误导性导出 `adaptive_update`。
+  - `fixed_geometry / keyframe_update / adaptive_update` 的语义边界已固定。
   - `scripts/ablate_temporal.py` 与 `scripts/ablate_seam.py` 已降级为 legacy exploratory helpers，不再作为当前 Phase 0 闭环前提。
 - 暂未完成但不阻塞 Phase 1：
   - 显式 `config.json` 导出
@@ -236,6 +236,57 @@
 ### 风险与规避
 - 风险：OpenCV seam finder 无法直接表达 object-centered cost。
   - 规避：先做兼容式 MVP，再单独做新 seam backend。
+
+### 当前 Phase 2 进度（2026-03-20）
+- 已完成第一批最小落地：
+  - 新增 `src/stitching/seam_policy.py`
+  - 在 `run_baseline_video.py` 中接入：
+    - `fixed seam`
+    - `keyframe seam`
+    - `trigger seam`
+    - `auto`
+  - 在 `video_mode=0/1` 两条路径中统一 seam 更新决策壳层
+  - 在 `VideoStitcher.stitch_frame()` 与 video loop 中导出：
+    - `overlap_diff_before`
+    - `overlap_diff_after`
+    - `seam_recomputed`
+    - `seam_trigger_reason`
+    - `seam_mask_change_ratio`
+    - `stitched_delta_mean`
+  - meaningful temporal evaluation 的最小恢复：
+    - `fixed_geometry` 主指标切到 `mean_overlap_diff_after`
+    - `keyframe_update` 主指标保持 `mean_jitter_sm`
+  - 已完成第二批最小落地：
+    - `adaptive_update` 作为 seam-driven geometry refresh MVP 接入
+    - 新增 `geometry_update_count`
+    - 新增 `geometry_update_events`
+    - `transforms.csv` 新增 `geometry_recomputed / geometry_update_reason`
+- 已验证的 smoke run：
+  - `outputs/runs/phase2_seam_fixed_smoke`
+  - `outputs/runs/phase2_seam_keyframe_smoke`
+  - `outputs/runs/phase2_seam_trigger_smoke_v2`
+  - `outputs/runs/phase2_temporal_keyframeupdate_smoke`
+  - `outputs/runs/phase2_kitti0002_adaptive_keyframe`
+  - `outputs/runs/phase2_kitti0002_adaptive_trigger`
+- 当前尚未完成：
+  - object-aware penalty / foreground mask
+  - seam temporal smoothing
+  - `adaptive_update` 的 cooldown / 更强 trigger 设计
+  - 新 seam backend
+- 本轮进一步收敛的配置结论：
+  - `geometry_mode` 现在应视为正式用户入口。
+  - `video_mode` 仅保留为 legacy 兼容别名。
+  - `keyframe_every` 只控制 geometry keyframe。
+  - `seam_keyframe_every` 只控制 seam keyframe。
+  - `fixed_geometry` 下 `jitter` 只跟 geometry 相关，不跟 seam 更新相关。
+  - `adaptive_update` 当前只表示 seam event 触发的 geometry refresh，不表示完整自适应几何系统。
+  - 后续调试 dynamic seam 时应优先查看：
+    - `jitter_scope`
+    - `seam_recompute_count`
+    - `seam_snapshot_count`
+    - `mean_overlap_diff_after`
+    - `geometry_update_count`
+    - `geometry_update_events`
 
 ## Phase 3
 ### 目标

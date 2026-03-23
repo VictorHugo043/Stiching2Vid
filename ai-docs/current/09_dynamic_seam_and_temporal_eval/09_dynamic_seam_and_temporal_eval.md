@@ -102,6 +102,7 @@
 ## 如何恢复 meaningful temporal evaluation
 ### 当前应避免的误用
 - 不应在 `fixed_geometry` 模式下把 `jitter` 写成主要稳定性指标。
+- 不应把 `fixed_geometry + seam_policy=keyframe/trigger` 下的 `jitter=0` 误判为 seam 没有更新。
 
 ### 建议增加的 temporal 指标
 - seam visibility over time
@@ -125,6 +126,36 @@
 - `foreground_mode`
 - `foreground_mask_source`
 
+## geometry mode 与 seam policy 的关系（2026-03-20 更新）
+- `geometry_mode`
+  - 决定几何更新路径：
+    - `fixed_geometry`
+    - `keyframe_update`
+    - `adaptive_update`（MVP 已实现为 seam-driven geometry refresh）
+- `seam_policy`
+  - 决定 seam 更新路径：
+    - `fixed`
+    - `keyframe`
+    - `trigger`
+- 两者是正交关系，不应再混为一个 `video_mode` 概念。
+- 当前推荐理解方式：
+  - `geometry_mode=fixed_geometry + seam_policy=fixed`
+    - 固定几何、固定 seam
+  - `geometry_mode=fixed_geometry + seam_policy=keyframe`
+    - 固定几何、按 cadence 更新 seam
+  - `geometry_mode=fixed_geometry + seam_policy=trigger`
+    - 固定几何、按触发器更新 seam
+  - `geometry_mode=keyframe_update + seam_policy=keyframe`
+    - 几何与 seam 都可按各自 cadence 更新
+  - `geometry_mode=adaptive_update + seam_policy=keyframe/trigger`
+    - 仍走 cached reuse
+    - 但当 seam event 命中时，同帧刷新 geometry 并重建 compose 状态
+- keyframe 的职责拆分：
+  - `keyframe_every`
+    - geometry keyframe cadence
+  - `seam_keyframe_every`
+    - seam keyframe cadence
+
 ## 验收标准(DoD)
 - 文档和实现层都能清楚区分：
   - `fixed_geometry`
@@ -135,6 +166,120 @@
   - `keyframe seam`
   - `trigger seam`
 - temporal evaluation 不再把 0-jitter 误解释为稳定性提升。
+
+## 当前 MVP 实现状态（2026-03-20）
+### 已落地的最小控制面
+- 新增 `src/stitching/seam_policy.py`
+  - `resolve_seam_policy()`
+  - `resolve_seam_keyframe_every()`
+  - `decide_seam_update()`
+- `scripts/run_baseline_video.py` 已新增 CLI：
+  - `--seam_policy=auto|fixed|keyframe|trigger`
+  - `--seam_keyframe_every`
+  - `--seam_trigger_overlap_ratio`
+  - `--seam_trigger_diff_threshold`
+- `src/stitching/video_stitcher.py` 仍复用 OpenCV seam backend，只在外层新增：
+  - 是否重算 seam
+  - 重算原因
+  - 重算前后 overlap diff 统计
+  - seam mask 变化比例
+
+### meaningful temporal evaluation 的当前实现
+- `src/stitching/temporal.py` 已补：
+  - `compute_mask_change_ratio()`
+  - `compute_frame_absdiff_mean()`
+- `run_baseline_video.py` 当前会导出：
+  - `mean_overlap_diff_before`
+  - `mean_overlap_diff_after`
+  - `mean_seam_mask_change_ratio`
+  - `mean_stitched_delta`
+  - `temporal_primary_metric`
+  - `temporal_primary_value`
+  - `jitter_scope`
+  - `geometry_update_count`
+  - `geometry_update_events`
+- 当前主指标解释规则：
+  - `fixed_geometry` -> `mean_overlap_diff_after`
+  - `keyframe_update` -> `mean_jitter_sm`
+  - `adaptive_update` -> `mean_jitter_sm`
+- 当前 `jitter_scope` 解释规则：
+  - `fixed_geometry` -> `geometry_only`
+  - `keyframe_update` -> `geometry_stream`
+  - `adaptive_update` -> `geometry_stream`
+
+### 当前验证结果
+- `phase2_seam_fixed_smoke`
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=fixed`
+  - `seam_recompute_count=1`
+  - `temporal_primary_metric=mean_overlap_diff_after`
+- `phase2_seam_keyframe_smoke`
+  - `seam_policy=keyframe`
+  - `seam_keyframe_every_effective=5`
+  - `seam_recompute_count=4`
+- `phase2_seam_trigger_smoke_v2`
+  - `seam_policy=trigger`
+  - `seam_recompute_count=8`
+  - 已验证 `trigger_diff>=6.300` 可以触发多次 seam 重算
+- `phase2_temporal_keyframeupdate_smoke`
+  - `geometry_mode=keyframe_update`
+  - `jitter_meaningful=1`
+  - `temporal_primary_metric=mean_jitter_sm`
+- `phase2_kitti0002_fixedgeom_fixed`
+  - `geometry_mode=fixed_geometry`
+  - `geometry_keyframe_every_effective=0`
+  - `seam_policy=fixed`
+  - `seam_recompute_count=1`
+- `phase2_kitti0002_fixedgeom_keyframe`
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=keyframe`
+  - `seam_keyframe_every_effective=10`
+  - `seam_recompute_count=8`
+- `phase2_kitti0002_fixedgeom_trigger`
+  - `geometry_mode=fixed_geometry`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=21.0`
+  - `seam_recompute_count=11`
+- `phase2_kitti0002_adaptive_keyframe`
+  - `geometry_mode=adaptive_update`
+  - `seam_policy=keyframe`
+  - `seam_recompute_count=8`
+  - `geometry_update_count=7`
+  - `mean_jitter_sm=0.6423`
+- `phase2_kitti0002_adaptive_trigger`
+  - `geometry_mode=adaptive_update`
+  - `seam_policy=trigger`
+  - `seam_trigger_diff_threshold=21.0`
+  - `seam_recompute_count=3`
+  - `geometry_update_count=2`
+  - `mean_jitter_sm=0.3334`
+
+### seam 重算事件图
+- 新增开关：
+  - `--seam_snapshot_on_recompute`
+- 目的：
+  - 当 seam 发生 keyframe/trigger 重算时，为对应帧留下证据图，不再只依赖 `snapshot_every`。
+- 当前保存内容：
+  - stitched frame snapshot
+  - seam event low-res mask / overlay / overlap diff 图
+- 在 `phase2_kitti0002_fixedgeom_keyframe_snap` 上：
+  - `seam_recompute_count=8`
+  - `seam_snapshot_count=7`
+  - 首个 `seam_event_*` 文件对应 `frame_idx=10`
+- 在 `phase2_kitti0002_fixedgeom_trigger_snap` 上：
+  - `seam_recompute_count=11`
+  - `seam_snapshot_count=10`
+  - 首个 `seam_event_*` 文件对应 `frame_idx=21`
+
+### 当前边界
+- 本批实现只做 seam policy 外壳，不重写 `compute_seam_masks_opencv()`。
+- `adaptive_update` 当前只是最小版：
+  - seam event 驱动 geometry refresh
+  - 不是完整的自适应 geometry controller
+  - 还没有 cooldown / hysteresis / 多 trigger 融合
+- 还没有 object-aware penalty。
+- 还没有 seam temporal smoothing。
+- `trigger seam` 当前对阈值较敏感，需要在代表性 pair 上继续校准。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

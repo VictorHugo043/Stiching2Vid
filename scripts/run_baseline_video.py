@@ -36,7 +36,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--keyframe_every",
         type=int,
         default=5,
-        help="Re-estimate homography every N frames",
+        help="Geometry re-estimate cadence when --geometry_mode=keyframe_update",
+    )
+    parser.add_argument(
+        "--geometry_mode",
+        default=None,
+        choices=["fixed_geometry", "keyframe_update", "adaptive_update"],
+        help=(
+            "User-facing geometry update mode. "
+            "fixed_geometry maps to legacy video_mode=1, "
+            "keyframe_update maps to legacy video_mode=0, "
+            "adaptive_update keeps cached execution but refreshes geometry on seam events."
+        ),
     )
     parser.add_argument("--feature", default="orb", help="Feature type: orb or sift")
     parser.add_argument(
@@ -159,6 +170,40 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Dilate iterations for seam mask before resizing to full compose mask",
     )
+    parser.add_argument(
+        "--seam_policy",
+        default="auto",
+        choices=["auto", "fixed", "keyframe", "trigger"],
+        help="Seam update policy shell; does not change OpenCV seam backend itself",
+    )
+    parser.add_argument(
+        "--seam_keyframe_every",
+        type=int,
+        default=0,
+        help=(
+            "Seam refresh cadence for seam_policy=keyframe "
+            "(0 -> derive from geometry mode / keyframe_every)"
+        ),
+    )
+    parser.add_argument(
+        "--seam_trigger_overlap_ratio",
+        type=float,
+        default=0.0,
+        help="Trigger seam refresh when current overlap ratio drops below this value (0 disables)",
+    )
+    parser.add_argument(
+        "--seam_trigger_diff_threshold",
+        type=float,
+        default=20.0,
+        help="Trigger seam refresh when overlap diff before seam exceeds this threshold",
+    )
+    parser.add_argument(
+        "--seam_snapshot_on_recompute",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Save seam/mask and stitched snapshots when seam is recomputed",
+    )
     crop_group = parser.add_mutually_exclusive_group()
     crop_group.add_argument(
         "--crop",
@@ -196,11 +241,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--video_mode",
         type=int,
-        default=1,
+        default=None,
         choices=[0, 1],
         help=(
-            "Legacy video mode toggle: 1=current fixed_geometry-style cached path, "
-            "0=current keyframe_update baseline path"
+            "Legacy internal geometry-path selector kept for compatibility only: "
+            "1=fixed_geometry cached path, 0=keyframe_update path. "
+            "Prefer --geometry_mode for new runs."
         ),
     )
     parser.add_argument(
@@ -421,18 +467,80 @@ def _resolve_geometry_mode(video_mode: int) -> str:
     return "fixed_geometry" if int(video_mode) == 1 else "keyframe_update"
 
 
+def _geometry_mode_to_video_mode(geometry_mode: str) -> int:
+    normalized = str(geometry_mode).strip().lower()
+    if normalized == "fixed_geometry":
+        return 1
+    if normalized == "keyframe_update":
+        return 0
+    if normalized == "adaptive_update":
+        return 1
+    raise ValueError(f"Unsupported geometry mode: {geometry_mode}")
+
+
+def _resolve_execution_mode(
+    requested_geometry_mode: Optional[str],
+    requested_video_mode: Optional[int],
+) -> Tuple[int, str, str, Optional[str]]:
+    geometry_mode_raw = (requested_geometry_mode or "").strip().lower()
+    if geometry_mode_raw:
+        effective_video_mode = _geometry_mode_to_video_mode(geometry_mode_raw)
+        warning = None
+        if requested_video_mode is not None:
+            requested_from_legacy = _resolve_geometry_mode(int(requested_video_mode))
+            if requested_from_legacy != geometry_mode_raw:
+                warning = (
+                    "Conflicting mode request detected: "
+                    f"--geometry_mode={geometry_mode_raw} overrides "
+                    f"--video_mode={int(requested_video_mode)} ({requested_from_legacy})"
+                )
+        return effective_video_mode, geometry_mode_raw, "geometry_mode", warning
+
+    effective_video_mode = 1 if requested_video_mode is None else int(requested_video_mode)
+    return (
+        effective_video_mode,
+        _resolve_geometry_mode(effective_video_mode),
+        "legacy_video_mode",
+        None,
+    )
+
+
+def _effective_geometry_keyframe_every(geometry_mode: str, keyframe_every: int) -> int:
+    return max(1, int(keyframe_every)) if geometry_mode == "keyframe_update" else 0
+
+
 def _jitter_meaningful_for_geometry_mode(geometry_mode: str) -> int:
     return 0 if geometry_mode == "fixed_geometry" else 1
 
 
-def _describe_mode_semantics(video_mode: int, reuse_mode: str) -> Dict[str, object]:
-    geometry_mode = _resolve_geometry_mode(video_mode)
+def _jitter_scope_for_geometry_mode(geometry_mode: str) -> str:
+    return "geometry_only" if geometry_mode == "fixed_geometry" else "geometry_stream"
+
+
+def _primary_temporal_metric_for_geometry_mode(geometry_mode: str) -> str:
+    return "mean_jitter_sm" if _jitter_meaningful_for_geometry_mode(geometry_mode) else "mean_overlap_diff_after"
+
+
+def _describe_mode_semantics(
+    geometry_mode: str,
+    video_mode: int,
+    reuse_mode: str,
+    geometry_mode_source: str,
+) -> Dict[str, object]:
     return {
         "geometry_mode": geometry_mode,
+        "geometry_mode_source": geometry_mode_source,
         "jitter_meaningful": bool(_jitter_meaningful_for_geometry_mode(geometry_mode)),
-        "adaptive_update_available": False,
+        "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
+        "adaptive_update_available": True,
+        "adaptive_update_strategy": (
+            "seam_driven_geometry_refresh" if geometry_mode == "adaptive_update" else "disabled"
+        ),
         "legacy_video_mode": int(video_mode),
         "legacy_reuse_mode": reuse_mode,
+        "geometry_keyframe_control": "keyframe_every (only when geometry_mode=keyframe_update)",
+        "seam_keyframe_control": "seam_policy + seam_keyframe_every",
+        "adaptive_geometry_control": "seam_policy event -> geometry refresh (only when geometry_mode=adaptive_update)",
     }
 
 
@@ -756,8 +864,16 @@ def _build_transform_columns() -> List[str]:
             "reuse_mode",
             "geometry_mode",
             "jitter_meaningful",
+            "geometry_recomputed",
+            "geometry_update_reason",
             "H_delta_norm",
             "overlap_area_current",
+            "seam_policy",
+            "seam_recomputed",
+            "overlap_diff_before",
+            "overlap_diff_after",
+            "stitched_delta_mean",
+            "seam_mask_change_ratio",
             "crop_applied",
             "crop_method",
             "crop_lir_x",
@@ -775,7 +891,19 @@ def _build_transform_columns() -> List[str]:
 
 def main() -> int:
     args = _build_parser().parse_args()
-    mode_semantics = _describe_mode_semantics(args.video_mode, args.reuse_mode)
+    try:
+        video_mode_effective, geometry_mode, geometry_mode_source, mode_override_warning = _resolve_execution_mode(
+            args.geometry_mode,
+            args.video_mode,
+        )
+    except (NotImplementedError, ValueError) as exc:
+        raise SystemExit(str(exc))
+    mode_semantics = _describe_mode_semantics(
+        geometry_mode,
+        video_mode_effective,
+        args.reuse_mode,
+        geometry_mode_source,
+    )
     geometry_mode = str(mode_semantics["geometry_mode"])
     jitter_meaningful = int(mode_semantics["jitter_meaningful"])
 
@@ -798,13 +926,20 @@ def main() -> int:
         resolve_matcher_backend,
         resolve_optional_backend,
     )
+    from stitching.seam_policy import (  # noqa: E402
+        decide_seam_update,
+        resolve_seam_keyframe_every,
+        resolve_seam_policy,
+    )
     from stitching.geometry import (  # noqa: E402
         compute_canvas_and_transform,
         warp_pair,
     )
     from stitching.temporal import (  # noqa: E402
         HomographySmoother,
+        compute_frame_absdiff_mean,
         compute_jitter,
+        compute_mask_change_ratio,
         transform_corners,
     )
     from stitching.seam_opencv import (  # noqa: E402
@@ -826,8 +961,17 @@ def main() -> int:
     start_time = time.perf_counter()
 
     keyframe_every = max(1, int(args.keyframe_every))
+    geometry_keyframe_every_effective = _effective_geometry_keyframe_every(geometry_mode, keyframe_every)
     stride = max(1, int(args.stride))
     snapshot_every = max(1, int(args.snapshot_every))
+    seam_policy_effective = resolve_seam_policy(args.seam_policy, video_mode_effective, args.reuse_mode)
+    seam_keyframe_every_effective = resolve_seam_keyframe_every(
+        args.seam_policy,
+        int(args.seam_keyframe_every),
+        keyframe_every,
+        int(video_mode_effective),
+        args.reuse_mode,
+    )
     feature_backend = resolve_feature_backend(args.feature, args.feature_backend)
     matcher_backend = resolve_matcher_backend(args.matcher_backend)
     geometry_backend = resolve_geometry_backend(args.geometry_backend)
@@ -857,6 +1001,10 @@ def main() -> int:
             "max_frames": args.max_frames,
             "stride": stride,
             "keyframe_every": keyframe_every,
+            "geometry_keyframe_every_effective": int(geometry_keyframe_every_effective),
+            "geometry_mode_requested": args.geometry_mode,
+            "geometry_mode_source": geometry_mode_source,
+            "adaptive_update_strategy": mode_semantics.get("adaptive_update_strategy"),
             "feature": args.feature,
             "feature_backend": feature_backend,
             "matcher_backend": matcher_backend,
@@ -880,11 +1028,19 @@ def main() -> int:
             "seam": args.seam,
             "seam_megapix": args.seam_megapix,
             "seam_dilate": args.seam_dilate,
+            "seam_policy": args.seam_policy,
+            "seam_policy_effective": seam_policy_effective,
+            "seam_keyframe_every": int(args.seam_keyframe_every),
+            "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
+            "seam_trigger_overlap_ratio": float(args.seam_trigger_overlap_ratio),
+            "seam_trigger_diff_threshold": float(args.seam_trigger_diff_threshold),
+            "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
             "crop": bool(args.crop),
             "lir_method": args.lir_method,
             "lir_erode": int(args.lir_erode),
             "crop_debug": int(args.crop_debug),
-            "video_mode": int(args.video_mode),
+            "video_mode_requested": args.video_mode,
+            "video_mode": int(video_mode_effective),
             "reuse_mode": args.reuse_mode,
             "geometry_mode": geometry_mode,
             "jitter_meaningful": jitter_meaningful,
@@ -915,7 +1071,15 @@ def main() -> int:
         "seam": args.seam,
         "seam_megapix": args.seam_megapix,
         "seam_dilate": args.seam_dilate,
+        "seam_policy": seam_policy_effective,
+        "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
+        "seam_trigger_overlap_ratio": float(args.seam_trigger_overlap_ratio),
+        "seam_trigger_diff_threshold": float(args.seam_trigger_diff_threshold),
+        "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
         "seam_scale": None,
+        "seam_recompute_count": 0,
+        "seam_snapshot_count": 0,
+        "seam_policy_events": [],
         "crop_enabled": bool(args.crop),
         "lir_method": args.lir_method,
         "lir_erode": int(args.lir_erode),
@@ -923,10 +1087,17 @@ def main() -> int:
         "crop_fallback_to_no_crop": False,
         "output_crop_rect": None,
         "crop_keyframe_stats": [],
-        "video_mode": int(args.video_mode),
+        "video_mode": int(video_mode_effective),
+        "video_mode_requested": args.video_mode,
         "reuse_mode": args.reuse_mode,
         "geometry_mode": geometry_mode,
+        "geometry_mode_requested": args.geometry_mode,
+        "geometry_mode_source": geometry_mode_source,
+        "geometry_keyframe_every_effective": int(geometry_keyframe_every_effective),
         "jitter_meaningful": jitter_meaningful,
+        "adaptive_update_strategy": mode_semantics.get("adaptive_update_strategy"),
+        "geometry_update_count": 0,
+        "geometry_update_events": [],
         "mode_semantics": mode_semantics,
         "reinit_every": int(args.reinit_every),
         "reinit_on_low_overlap_ratio": float(args.reinit_on_low_overlap_ratio),
@@ -938,6 +1109,7 @@ def main() -> int:
         "time_breakdown_ms": {"init_ms": [], "per_frame_ms": []},
         "seam_keyframe_stats": [],
         "jitter_summary": {},
+        "temporal_eval_summary": {},
         "notes": [],
         "errors": [],
         "runtime_ms": None,
@@ -952,6 +1124,8 @@ def main() -> int:
         "last_matching_stage": {},
         "last_geometry_stage": {},
     }
+    if mode_override_warning:
+        _warn_and_record(debug, mode_override_warning)
 
     transforms_path = output_dir / "transforms.csv"
     metrics_path = output_dir / "metrics_preview.json"
@@ -1083,6 +1257,47 @@ def main() -> int:
             enriched["frame_idx"] = int(frame_idx)
             debug["backend_fallback_events"].append(enriched)
 
+    def _estimate_geometry_for_current_frame(frame_idx: int, left, right):
+        matches_img = None
+        pair_result = estimate_frame_pair_geometry(
+            left,
+            right,
+            feature=args.feature,
+            feature_backend=feature_backend,
+            matcher_backend=matcher_backend,
+            geometry_backend=geometry_backend,
+            nfeatures=args.nfeatures,
+            ratio=args.ratio,
+            min_matches=args.min_matches,
+            ransac_thresh=args.ransac_thresh,
+            device=args.device,
+            force_cpu=args.force_cpu,
+            weights_dir=args.weights_dir,
+            max_keypoints=args.max_keypoints,
+            resize_long_edge=args.resize_long_edge,
+            depth_confidence=args.depth_confidence,
+            width_confidence=args.width_confidence,
+            filter_threshold=args.filter_threshold,
+            feature_fallback_backend=feature_fallback_backend,
+            matcher_fallback_backend=matcher_fallback_backend,
+        )
+        _update_last_stats_from_pair_result(pair_result)
+        _record_pair_result_debug(pair_result, frame_idx)
+        matches_img = pair_result.matches_img
+        if not pair_result.ok:
+            raise RuntimeError(pair_result.message or pair_result.status)
+        _save_keyframe_debug(
+            output_dir,
+            frame_idx,
+            pair_result.matches_img,
+            pair_result.inliers_img,
+        )
+        inlier_count = int(pair_result.geometry_result.inlier_count)
+        inlier_ratio = float(pair_result.geometry_result.inlier_ratio)
+        inliers_ok.append(inlier_count)
+        inlier_ratios_ok.append(inlier_ratio)
+        return pair_result, pair_result.geometry_result.H, matches_img
+
     smoother = HomographySmoother(
         method=args.smooth_h,
         alpha=args.smooth_alpha,
@@ -1096,8 +1311,13 @@ def main() -> int:
     jitter_raw_values: List[float] = []
     jitter_sm_values: List[float] = []
     seam_keyframe_ms: List[float] = []
+    overlap_diff_before_values: List[float] = []
+    overlap_diff_after_values: List[float] = []
+    seam_mask_change_values: List[float] = []
+    stitched_delta_values: List[float] = []
     prev_raw_corners = None
     prev_sm_corners = None
+    prev_stitched_written = None
     seam_cache: Optional[Dict[str, object]] = None
     video_stitcher = VideoStitcher(
         seam_method=_seam_cli_to_method(args.seam),
@@ -1154,8 +1374,10 @@ def main() -> int:
                 )
                 status = "OK"
                 note_parts: List[str] = []
+                geometry_recomputed = False
+                geometry_update_reason = "reuse"
 
-                if int(args.video_mode) == 1:
+                if int(video_mode_effective) == 1:
                     need_init = False
                     reinit_reason = ""
                     overlap_init = int(video_stitcher.state.metadata.get("overlap_area_init", 0) or 0)
@@ -1187,44 +1409,11 @@ def main() -> int:
                         matches_img = None
                         H_seed = None
                         try:
-                            pair_result = estimate_frame_pair_geometry(
+                            pair_result, H_seed, matches_img = _estimate_geometry_for_current_frame(
+                                source_idx,
                                 left,
                                 right,
-                                feature=args.feature,
-                                feature_backend=feature_backend,
-                                matcher_backend=matcher_backend,
-                                geometry_backend=geometry_backend,
-                                nfeatures=args.nfeatures,
-                                ratio=args.ratio,
-                                min_matches=args.min_matches,
-                                ransac_thresh=args.ransac_thresh,
-                                device=args.device,
-                                force_cpu=args.force_cpu,
-                                weights_dir=args.weights_dir,
-                                max_keypoints=args.max_keypoints,
-                                resize_long_edge=args.resize_long_edge,
-                                depth_confidence=args.depth_confidence,
-                                width_confidence=args.width_confidence,
-                                filter_threshold=args.filter_threshold,
-                                feature_fallback_backend=feature_fallback_backend,
-                                matcher_fallback_backend=matcher_fallback_backend,
                             )
-                            _update_last_stats_from_pair_result(pair_result)
-                            _record_pair_result_debug(pair_result, source_idx)
-                            matches_img = pair_result.matches_img
-                            if not pair_result.ok:
-                                raise RuntimeError(pair_result.message or pair_result.status)
-                            inlier_count = int(pair_result.geometry_result.inlier_count)
-                            inlier_ratio = float(pair_result.geometry_result.inlier_ratio)
-                            _save_keyframe_debug(
-                                output_dir,
-                                source_idx,
-                                pair_result.matches_img,
-                                pair_result.inliers_img,
-                            )
-                            inliers_ok.append(inlier_count)
-                            inlier_ratios_ok.append(inlier_ratio)
-                            H_seed = pair_result.geometry_result.H
                         except Exception as init_exc:
                             if matches_img is not None:
                                 _save_keyframe_debug(output_dir, source_idx, matches_img, None)
@@ -1281,7 +1470,10 @@ def main() -> int:
                         )
                         debug["time_breakdown_ms"]["init_ms"].append(float(init_out.get("init_ms", 0.0)))
                         debug["notes"].append(f"video_init frame={source_idx} reason={reinit_reason}")
+                        debug["seam_recompute_count"] = int(debug.get("seam_recompute_count", 0)) + 1
                         frames_since_video_init = 0
+                        geometry_recomputed = True
+                        geometry_update_reason = reinit_reason
 
                     if not video_stitcher.state.initialized:
                         raise RuntimeError("video_mode enabled but stitcher state is not initialized")
@@ -1292,7 +1484,11 @@ def main() -> int:
                             H_video,
                             image_size=(right.shape[1], right.shape[0]),
                         )
-                    recompute_seam = args.reuse_mode == "frame0_geom"
+                    seam_keyframe_due = bool(
+                        seam_keyframe_every_effective > 0
+                        and processed_idx > 0
+                        and processed_idx % seam_keyframe_every_effective == 0
+                    )
                     stitch_out = video_stitcher.stitch_frame(
                         left,
                         right,
@@ -1300,16 +1496,176 @@ def main() -> int:
                         T,
                         canvas_size,
                         source_idx,
-                        recompute_seam=recompute_seam,
+                        recompute_seam=False,
+                        seam_policy=seam_policy_effective,
+                        seam_keyframe=seam_keyframe_due,
+                        seam_trigger_overlap_ratio=args.seam_trigger_overlap_ratio,
+                        seam_trigger_diff_threshold=args.seam_trigger_diff_threshold,
+                        save_seam_event_snapshots=bool(int(args.seam_snapshot_on_recompute)),
                     )
                     stitched = stitch_out["stitched"]
                     stitched_written = stitched
                     overlap_current = int(stitch_out.get("overlap_area", 0))
+                    overlap_diff_before = float(stitch_out.get("overlap_diff_before", 0.0))
+                    overlap_diff_after = float(stitch_out.get("overlap_diff_after", 0.0))
+                    seam_recomputed = bool(stitch_out.get("seam_recomputed", False))
+                    seam_trigger_reason = str(stitch_out.get("seam_trigger_reason", "none"))
+                    seam_mask_change_ratio = float(stitch_out.get("seam_mask_change_ratio", 0.0))
+                    seam_policy_used = str(stitch_out.get("seam_policy", seam_policy_effective))
+                    proposed_output_bbox = stitch_out.get("output_bbox")
+
+                    if geometry_mode == "adaptive_update" and seam_recomputed:
+                        adaptive_reason = seam_trigger_reason
+                        previous_final_masks = list(video_stitcher.state.seam_masks_final or [])
+                        try:
+                            pair_result, H_seed, _ = _estimate_geometry_for_current_frame(
+                                source_idx,
+                                left,
+                                right,
+                            )
+                            if args.reuse_mode == "emaH":
+                                H_use_update = smoother.update(
+                                    H_seed,
+                                    image_size=(right.shape[1], right.shape[0]),
+                                )
+                            else:
+                                H_use_update = H_seed
+                                smoother.reset()
+
+                            valid_H_raw = H_use_update
+                            if video_stitcher.state.initialized:
+                                debug["reinit_count"] = int(debug.get("reinit_count", 0)) + 1
+                            init_out = video_stitcher.initialize_from_first_frame(
+                                left,
+                                right,
+                                H_use_update,
+                                T,
+                                canvas_size,
+                                source_idx,
+                            )
+                            debug["time_breakdown_ms"]["init_ms"].append(
+                                float(init_out.get("init_ms", 0.0))
+                            )
+                            debug["geometry_update_count"] = int(debug.get("geometry_update_count", 0)) + 1
+                            debug["geometry_update_events"].append(
+                                {
+                                    "frame_idx": int(source_idx),
+                                    "reason": adaptive_reason,
+                                    "strategy": "seam_driven_geometry_refresh",
+                                    "seam_policy": seam_policy_used,
+                                    "status": "updated",
+                                    "init_ms": float(init_out.get("init_ms", 0.0)),
+                                    "inlier_count": int(pair_result.geometry_result.inlier_count),
+                                    "inlier_ratio": float(pair_result.geometry_result.inlier_ratio),
+                                    "reprojection_error": (
+                                        float(pair_result.geometry_result.reprojection_error)
+                                        if pair_result.geometry_result.reprojection_error is not None
+                                        else None
+                                    ),
+                                }
+                            )
+                            debug["notes"].append(
+                                f"adaptive_geometry_update frame={source_idx} reason={adaptive_reason}"
+                            )
+                            debug["init_frame_index"] = int(source_idx)
+                            debug["overlap_area_init"] = int(
+                                video_stitcher.state.metadata.get("overlap_area_init", 0)
+                            )
+                            debug["seam_scale"] = float(
+                                video_stitcher.state.metadata.get("seam_scale", 0.0)
+                            )
+                            frames_since_video_init = 0
+                            is_keyframe = 1
+                            geometry_recomputed = True
+                            geometry_update_reason = f"adaptive:{adaptive_reason}"
+                            H_video = video_stitcher.state.H_or_cameras
+                            stitched = init_out["stitched"]
+                            stitched_written = stitched
+                            overlap_current = int(init_out.get("overlap_area", overlap_current))
+                            overlap_diff_before = float(
+                                init_out.get("overlap_diff_before", overlap_diff_before)
+                            )
+                            overlap_diff_after = float(
+                                init_out.get("overlap_diff_after", overlap_diff_after)
+                            )
+                            proposed_output_bbox = init_out.get("output_bbox")
+                            current_final_masks = list(video_stitcher.state.seam_masks_final or [])
+                            if len(previous_final_masks) == 2 and len(current_final_masks) == 2:
+                                mask_changes = [
+                                    compute_mask_change_ratio(
+                                        previous_final_masks[0],
+                                        current_final_masks[0],
+                                    ),
+                                    compute_mask_change_ratio(
+                                        previous_final_masks[1],
+                                        current_final_masks[1],
+                                    ),
+                                ]
+                                valid_mask_changes = [
+                                    float(value) for value in mask_changes if value is not None
+                                ]
+                                if valid_mask_changes:
+                                    seam_mask_change_ratio = float(
+                                        sum(valid_mask_changes) / len(valid_mask_changes)
+                                    )
+                            seam_trigger_reason = f"{adaptive_reason}->adaptive_geometry_refresh"
+                        except Exception as adaptive_exc:
+                            _warn_and_record(
+                                debug,
+                                f"adaptive_geometry_update_fallback frame={source_idx}: {adaptive_exc}",
+                            )
+                            debug["geometry_update_events"].append(
+                                {
+                                    "frame_idx": int(source_idx),
+                                    "reason": adaptive_reason,
+                                    "strategy": "seam_driven_geometry_refresh",
+                                    "seam_policy": seam_policy_used,
+                                    "status": "fallback",
+                                    "error": str(adaptive_exc),
+                                }
+                            )
+                            if status == "OK":
+                                status = "FALLBACK"
+                            geometry_recomputed = False
+                            geometry_update_reason = f"adaptive_fallback:{adaptive_reason}"
+
+                    overlap_diff_before_values.append(overlap_diff_before)
+                    overlap_diff_after_values.append(overlap_diff_after)
+                    seam_mask_change_values.append(seam_mask_change_ratio)
                     debug["overlap_area_current"] = int(overlap_current)
                     debug["overlap_area_samples"].append(
                         {"frame_idx": int(source_idx), "overlap_area_current": overlap_current}
                     )
-                    proposed_output_bbox = stitch_out.get("output_bbox")
+                    if seam_recomputed:
+                        debug["seam_recompute_count"] = int(debug.get("seam_recompute_count", 0)) + 1
+                        debug["seam_policy_events"].append(
+                            {
+                                "frame_idx": int(source_idx),
+                                "policy": seam_policy_used,
+                                "reason": seam_trigger_reason,
+                                "overlap_area_current": int(overlap_current),
+                                "overlap_diff_before": overlap_diff_before,
+                                "overlap_diff_after": overlap_diff_after,
+                                "geometry_recomputed": bool(geometry_recomputed),
+                                "geometry_update_reason": geometry_update_reason,
+                            }
+                        )
+                        seam_keyframe_ms.append(float(stitch_out.get("seam_compute_ms", 0.0)))
+                        debug["seam_keyframe_stats"].append(
+                            {
+                                "frame_idx": int(source_idx),
+                                "method": _seam_cli_to_method(args.seam),
+                                "policy": seam_policy_used,
+                                "trigger_reason": seam_trigger_reason,
+                                "overlap_area_px": int(overlap_current),
+                                "overlap_diff_mean_before": overlap_diff_before,
+                                "overlap_diff_mean_after": overlap_diff_after,
+                                "runtime_ms_seam_keyframe": float(stitch_out.get("seam_compute_ms", 0.0)),
+                                "crop_applied": bool(stitch_out.get("crop_applied")),
+                                "geometry_recomputed": bool(geometry_recomputed),
+                                "geometry_update_reason": geometry_update_reason,
+                            }
+                        )
                     if (
                         bool(args.crop)
                         and output_crop_rect is None
@@ -1324,6 +1680,10 @@ def main() -> int:
                         }
                     if bool(args.crop) and output_crop_rect is not None:
                         stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
+                    stitched_delta_mean = compute_frame_absdiff_mean(prev_stitched_written, stitched_written)
+                    prev_stitched_written = stitched_written
+                    if stitched_delta_mean is not None:
+                        stitched_delta_values.append(float(stitched_delta_mean))
 
                     if writer is None:
                         out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
@@ -1366,7 +1726,11 @@ def main() -> int:
                         }
                     )
 
-                    if processed_idx % snapshot_every == 0:
+                    should_save_frame_snapshot = (
+                        processed_idx % snapshot_every == 0
+                        or (bool(int(args.seam_snapshot_on_recompute)) and bool(seam_recomputed))
+                    )
+                    if should_save_frame_snapshot:
                         # Skip expensive debug overlays on non-snapshot frames.
                         left_warped_v, right_warped_v = warp_pair(left, right, H_video, canvas_size, T)
                         overlay_raw = overlay_images(left_warped_v, right_warped_v, alpha=0.5)
@@ -1382,6 +1746,8 @@ def main() -> int:
                             overlay_raw,
                             overlay_sm,
                         )
+                        if bool(seam_recomputed) and bool(int(args.seam_snapshot_on_recompute)):
+                            debug["seam_snapshot_count"] = int(debug.get("seam_snapshot_count", 0)) + 1
 
                     runtime_ms = (time.perf_counter() - frame_start) * 1000.0
                     frame_runtimes.append(runtime_ms)
@@ -1391,12 +1757,19 @@ def main() -> int:
                     if status == "FALLBACK":
                         debug["fallback_frames"] += 1
 
-                    note_parts.append("video_mode=1")
+                    note_parts.append(f"video_mode={int(video_mode_effective)}")
                     note_parts.append(f"reuse_mode={args.reuse_mode}")
                     note_parts.append(f"geometry_mode={geometry_mode}")
+                    note_parts.append(f"geometry_keyframe_every={geometry_keyframe_every_effective}")
                     note_parts.append(f"jitter_meaningful={jitter_meaningful}")
+                    note_parts.append(f"geometry_recomputed={int(geometry_recomputed)}")
+                    note_parts.append(f"geometry_update_reason={geometry_update_reason}")
                     note_parts.append(f"H_delta_norm={h_delta:.6f}")
                     note_parts.append(f"overlap_area={overlap_current}")
+                    note_parts.append(f"seam_policy={seam_policy_used}")
+                    note_parts.append(f"seam_recomputed={int(seam_recomputed)}")
+                    note_parts.append(f"seam_reason={seam_trigger_reason}")
+                    note_parts.append(f"overlap_diff={overlap_diff_before:.2f}->{overlap_diff_after:.2f}")
 
                     row = {
                         "frame_idx": source_idx,
@@ -1412,12 +1785,20 @@ def main() -> int:
                         "jitter_raw_max": jitter_raw_stats.max,
                         "jitter_sm": jitter_sm_stats.mean,
                         "jitter_sm_max": jitter_sm_stats.max,
-                        "video_mode": 1,
+                        "video_mode": int(video_mode_effective),
                         "reuse_mode": args.reuse_mode,
                         "geometry_mode": geometry_mode,
                         "jitter_meaningful": jitter_meaningful,
+                        "geometry_recomputed": int(geometry_recomputed),
+                        "geometry_update_reason": geometry_update_reason,
                         "H_delta_norm": float(h_delta),
                         "overlap_area_current": int(overlap_current),
+                        "seam_policy": seam_policy_used,
+                        "seam_recomputed": int(seam_recomputed),
+                        "overlap_diff_before": float(overlap_diff_before),
+                        "overlap_diff_after": float(overlap_diff_after),
+                        "stitched_delta_mean": stitched_delta_mean,
+                        "seam_mask_change_ratio": float(seam_mask_change_ratio),
                         "crop_applied": int(1 if stitch_out.get("crop_applied") else 0),
                         "crop_method": stitch_out.get("crop_method", "none"),
                         "crop_lir_x": (
@@ -1462,6 +1843,8 @@ def main() -> int:
 
                 H_raw = valid_H_raw
                 keyframe_failed = False
+                geometry_recomputed = bool(is_keyframe)
+                geometry_update_reason = "keyframe" if is_keyframe else "reuse"
 
                 if not is_keyframe:
                     note_parts.append("reuse_last_H")
@@ -1569,6 +1952,9 @@ def main() -> int:
                 overlap_diff_before = 0.0
                 overlap_diff_after = 0.0
                 overlap_area_current = 0
+                seam_recomputed = False
+                seam_trigger_reason = "none"
+                seam_mask_change_ratio = 0.0
                 crop_applied = 0
                 crop_method_used = "none"
                 crop_lir_rect = None
@@ -1618,7 +2004,35 @@ def main() -> int:
                             summarize_overlap(left_mask_full, right_mask_full).get("overlap_area", 0)
                         )
 
-                        if is_keyframe or seam_cache is None:
+                        seam_keyframe_due = bool(
+                            seam_keyframe_every_effective > 0
+                            and processed_idx > 0
+                            and processed_idx % seam_keyframe_every_effective == 0
+                        )
+                        seam_decision = decide_seam_update(
+                            policy=seam_policy_effective,
+                            seam_cache_available=seam_cache is not None,
+                            is_seam_keyframe=seam_keyframe_due,
+                            seam_age_frames=(
+                                max(0, int(source_idx) - int(seam_cache.get("last_seam_frame_index", source_idx)))
+                                if seam_cache is not None
+                                else 0
+                            ),
+                            overlap_area_current=int(overlap_area_current),
+                            overlap_area_reference=(
+                                int(debug.get("overlap_area_init", 0) or 0)
+                                if int(debug.get("overlap_area_init", 0) or 0) > 0
+                                else int(overlap_area_current)
+                            ),
+                            overlap_diff_before=float(overlap_diff_before),
+                            trigger_overlap_ratio=float(args.seam_trigger_overlap_ratio),
+                            trigger_diff_threshold=float(args.seam_trigger_diff_threshold),
+                            force_recompute=False,
+                        )
+                        seam_recomputed = bool(seam_decision.recompute)
+                        seam_trigger_reason = str(seam_decision.reason)
+
+                        if seam_decision.recompute:
                             seam_t0 = time.perf_counter()
                             seam_scale = compute_seam_scale(
                                 args.seam_megapix,
@@ -1949,10 +2363,13 @@ def main() -> int:
                                 "seam_scale": seam_scale,
                                 "left_mask_low": seam_masks_low[0],
                                 "right_mask_low": seam_masks_low[1],
+                                "left_mask_final": None,
+                                "right_mask_final": None,
                                 "crop_applied": bool(crop_applied),
                                 "cropper": cropper if crop_applied else None,
                                 "crop_aspect": float(crop_aspect),
                                 "crop_method": crop_method_used,
+                                "last_seam_frame_index": int(source_idx),
                                 "crop_lir_rect": (
                                     (
                                         int(crop_lir_rect.x),
@@ -1967,6 +2384,16 @@ def main() -> int:
 
                             seam_compute_ms = (time.perf_counter() - seam_t0) * 1000.0
                             seam_keyframe_ms.append(seam_compute_ms)
+                            debug["seam_recompute_count"] = int(debug.get("seam_recompute_count", 0)) + 1
+                            debug["seam_policy_events"].append(
+                                {
+                                    "frame_idx": int(source_idx),
+                                    "policy": seam_policy_effective,
+                                    "reason": seam_trigger_reason,
+                                    "overlap_area_current": int(overlap_area_current),
+                                    "overlap_diff_before": float(overlap_diff_before),
+                                }
+                            )
 
                             # Debug: project low-res seam/masks to one low-res canvas.
                             canvas_low_size = (
@@ -2026,18 +2453,19 @@ def main() -> int:
                                 right_low_full_mask,
                             )
 
-                            _save_seam_debug(
-                                output_dir=output_dir,
-                                frame_idx=source_idx,
-                                left_low=left_low_canvas,
-                                right_low=right_low_canvas,
-                                left_mask_low=left_low_full_mask,
-                                right_mask_low=right_low_full_mask,
-                                seam_left_low=seam_left_low_full,
-                                seam_right_low=seam_right_low_full,
-                                seam_overlay_low=seam_overlay_low,
-                                overlap_diff_low=overlap_diff_low,
-                            )
+                            if bool(int(args.seam_snapshot_on_recompute)):
+                                _save_seam_debug(
+                                    output_dir=output_dir,
+                                    frame_idx=source_idx,
+                                    left_low=left_low_canvas,
+                                    right_low=right_low_canvas,
+                                    left_mask_low=left_low_full_mask,
+                                    right_mask_low=right_low_full_mask,
+                                    seam_left_low=seam_left_low_full,
+                                    seam_right_low=seam_right_low_full,
+                                    seam_overlay_low=seam_overlay_low,
+                                    overlap_diff_low=overlap_diff_low,
+                                )
 
                         if seam_cache is None:
                             raise RuntimeError("seam_cache is unavailable while seam mode is enabled")
@@ -2115,6 +2543,21 @@ def main() -> int:
                             seam_right_full,
                             limit_mask_full=crop_limit_full,
                         )
+                        prev_final_left = seam_cache.get("left_mask_final")
+                        prev_final_right = seam_cache.get("right_mask_final")
+                        mask_changes = [
+                            compute_mask_change_ratio(prev_final_left, final_left_mask),
+                            compute_mask_change_ratio(prev_final_right, final_right_mask),
+                        ]
+                        valid_mask_changes = [value for value in mask_changes if value is not None]
+                        if valid_mask_changes:
+                            seam_mask_change_ratio = float(
+                                sum(valid_mask_changes) / len(valid_mask_changes)
+                            )
+                            seam_mask_change_values.append(seam_mask_change_ratio)
+                        seam_cache["left_mask_final"] = final_left_mask
+                        seam_cache["right_mask_final"] = final_right_mask
+                        seam_cache["last_seam_frame_index"] = int(source_idx)
                         output_bbox_current = _mask_union_bbox(final_left_mask, final_right_mask)
 
                         overlap_diff_after = _mean_overlap_diff(
@@ -2123,13 +2566,17 @@ def main() -> int:
                             final_left_mask,
                             final_right_mask,
                         )
+                        overlap_diff_before_values.append(float(overlap_diff_before))
+                        overlap_diff_after_values.append(float(overlap_diff_after))
 
-                        if is_keyframe:
+                        if seam_recomputed:
                             overlap_stats = summarize_overlap(left_mask_full, right_mask_full)
                             debug["seam_keyframe_stats"].append(
                                 {
                                     "frame_idx": int(source_idx),
                                     "method": seam_method,
+                                    "policy": seam_policy_effective,
+                                    "trigger_reason": seam_trigger_reason,
                                     "seam_scale": float(seam_cache["seam_scale"]),
                                     "overlap_area_px": int(overlap_stats["overlap_area"]),
                                     "seam_mask_nonzero_ratio_left": _mask_ratio(final_left_mask),
@@ -2164,6 +2611,10 @@ def main() -> int:
                     }
                 if bool(args.crop) and output_crop_rect is not None:
                     stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
+                stitched_delta_mean = compute_frame_absdiff_mean(prev_stitched_written, stitched_written)
+                prev_stitched_written = stitched_written
+                if stitched_delta_mean is not None:
+                    stitched_delta_values.append(float(stitched_delta_mean))
 
                 if writer is None:
                     out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
@@ -2202,7 +2653,11 @@ def main() -> int:
                     }
                 )
 
-                if processed_idx % snapshot_every == 0:
+                should_save_frame_snapshot = (
+                    processed_idx % snapshot_every == 0
+                    or (bool(int(args.seam_snapshot_on_recompute)) and bool(seam_recomputed))
+                )
+                if should_save_frame_snapshot:
                     _save_snapshot(
                         output_dir,
                         source_idx,
@@ -2213,6 +2668,8 @@ def main() -> int:
                         overlay_raw,
                         overlay_sm,
                     )
+                    if bool(seam_recomputed) and bool(int(args.seam_snapshot_on_recompute)):
+                        debug["seam_snapshot_count"] = int(debug.get("seam_snapshot_count", 0)) + 1
 
                 runtime_ms = (time.perf_counter() - frame_start) * 1000.0
                 frame_runtimes.append(runtime_ms)
@@ -2224,6 +2681,14 @@ def main() -> int:
                 h_delta = _h_delta_norm(H_active, video_prev_H)
                 video_prev_H = H_active
                 if seam_method != "none":
+                    note_parts.append(f"video_mode={int(video_mode_effective)}")
+                    note_parts.append(f"geometry_mode={geometry_mode}")
+                    note_parts.append(f"geometry_keyframe_every={geometry_keyframe_every_effective}")
+                    note_parts.append(f"geometry_recomputed={int(geometry_recomputed)}")
+                    note_parts.append(f"geometry_update_reason={geometry_update_reason}")
+                    note_parts.append(f"seam_policy={seam_policy_effective}")
+                    note_parts.append(f"seam_recomputed={int(seam_recomputed)}")
+                    note_parts.append(f"seam_reason={seam_trigger_reason}")
                     note_parts.append(f"seam={seam_method}")
                     if seam_compute_ms > 0:
                         note_parts.append(f"seam_ms={seam_compute_ms:.2f}")
@@ -2249,12 +2714,20 @@ def main() -> int:
                     "jitter_raw_max": jitter_raw_stats.max,
                     "jitter_sm": jitter_sm_stats.mean,
                     "jitter_sm_max": jitter_sm_stats.max,
-                    "video_mode": 0,
+                    "video_mode": int(video_mode_effective),
                     "reuse_mode": "baseline",
                     "geometry_mode": geometry_mode,
                     "jitter_meaningful": jitter_meaningful,
+                    "geometry_recomputed": int(geometry_recomputed),
+                    "geometry_update_reason": geometry_update_reason,
                     "H_delta_norm": float(h_delta),
                     "overlap_area_current": int(overlap_area_current),
+                    "seam_policy": seam_policy_effective,
+                    "seam_recomputed": int(seam_recomputed),
+                    "overlap_diff_before": float(overlap_diff_before),
+                    "overlap_diff_after": float(overlap_diff_after),
+                    "stitched_delta_mean": stitched_delta_mean,
+                    "seam_mask_change_ratio": float(seam_mask_change_ratio),
                     "crop_applied": int(crop_applied),
                     "crop_method": crop_method_used,
                     "crop_lir_x": int(crop_lir_rect.x) if crop_lir_rect is not None else None,
@@ -2322,6 +2795,30 @@ def main() -> int:
     )
     jitter_raw_p95 = _quantile95(jitter_raw_values)
     jitter_sm_p95 = _quantile95(jitter_sm_values)
+    overlap_diff_before_mean = (
+        float(sum(overlap_diff_before_values) / len(overlap_diff_before_values))
+        if overlap_diff_before_values
+        else 0.0
+    )
+    overlap_diff_after_mean = (
+        float(sum(overlap_diff_after_values) / len(overlap_diff_after_values))
+        if overlap_diff_after_values
+        else 0.0
+    )
+    seam_mask_change_mean = (
+        float(sum(seam_mask_change_values) / len(seam_mask_change_values))
+        if seam_mask_change_values
+        else 0.0
+    )
+    stitched_delta_mean = (
+        float(sum(stitched_delta_values) / len(stitched_delta_values))
+        if stitched_delta_values
+        else 0.0
+    )
+    temporal_primary_metric = _primary_temporal_metric_for_geometry_mode(geometry_mode)
+    temporal_primary_value = (
+        jitter_sm_mean if temporal_primary_metric == "mean_jitter_sm" else overlap_diff_after_mean
+    )
 
     debug["jitter_summary"] = {
         "mean_raw": jitter_raw_mean,
@@ -2329,6 +2826,21 @@ def main() -> int:
         "mean_sm": jitter_sm_mean,
         "p95_sm": jitter_sm_p95,
         "meaningful_under_current_geometry_mode": bool(jitter_meaningful),
+        "scope": _jitter_scope_for_geometry_mode(geometry_mode),
+    }
+    debug["temporal_eval_summary"] = {
+        "primary_metric": temporal_primary_metric,
+        "primary_value": float(temporal_primary_value),
+        "mean_overlap_diff_before": float(overlap_diff_before_mean),
+        "mean_overlap_diff_after": float(overlap_diff_after_mean),
+        "mean_seam_mask_change_ratio": float(seam_mask_change_mean),
+        "mean_stitched_delta": float(stitched_delta_mean),
+        "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
+        "meaningful_under_current_geometry_mode": {
+            "jitter": bool(jitter_meaningful),
+            "seam_visibility": True,
+            "visual_delta": True,
+        },
     }
 
     seam_stats = debug.get("seam_keyframe_stats", [])
@@ -2371,7 +2883,7 @@ def main() -> int:
             "black_border_ratio_low_mean": float(sum(border_vals) / len(border_vals)),
         }
 
-    if int(args.video_mode) == 1:
+    if int(video_mode_effective) == 1:
         init_vals = [float(v) for v in debug.get("time_breakdown_ms", {}).get("init_ms", [])]
         frame_vals = [float(v) for v in debug.get("time_breakdown_ms", {}).get("per_frame_ms", [])]
         debug["time_breakdown_summary"] = {
@@ -2395,18 +2907,37 @@ def main() -> int:
         "mean_jitter_sm": jitter_sm_mean,
         "p95_jitter_raw": jitter_raw_p95,
         "p95_jitter_sm": jitter_sm_p95,
+        "mean_overlap_diff_before": overlap_diff_before_mean,
+        "mean_overlap_diff_after": overlap_diff_after_mean,
+        "mean_seam_mask_change_ratio": seam_mask_change_mean,
+        "mean_stitched_delta": stitched_delta_mean,
+        "temporal_primary_metric": temporal_primary_metric,
+        "temporal_primary_value": float(temporal_primary_value),
+        "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
         "seam_keyframe_count": len(debug.get("seam_keyframe_stats", [])),
         "seam_runtime_ms_mean": float(sum(seam_keyframe_ms) / len(seam_keyframe_ms))
         if seam_keyframe_ms
         else 0.0,
+        "seam_policy": seam_policy_effective,
+        "seam_keyframe_every_effective": int(seam_keyframe_every_effective),
+        "seam_recompute_count": int(debug.get("seam_recompute_count", 0)),
+        "seam_snapshot_count": int(debug.get("seam_snapshot_count", 0)),
+        "seam_snapshot_on_recompute": int(args.seam_snapshot_on_recompute),
+        "geometry_keyframe_every_effective": int(geometry_keyframe_every_effective),
+        "geometry_update_count": int(debug.get("geometry_update_count", 0)),
+        "adaptive_update_strategy": mode_semantics.get("adaptive_update_strategy"),
         "crop_keyframe_count": len(debug.get("crop_keyframe_stats", [])),
         "crop_black_border_ratio_low_mean": float(
             debug.get("crop_summary", {}).get("black_border_ratio_low_mean", 0.0)
         ),
-        "video_mode": int(args.video_mode),
-        "reuse_mode": args.reuse_mode if int(args.video_mode) == 1 else "baseline",
+        "video_mode": int(video_mode_effective),
+        "video_mode_requested": args.video_mode,
+        "reuse_mode": args.reuse_mode if int(video_mode_effective) == 1 else "baseline",
         "geometry_mode": geometry_mode,
+        "geometry_mode_requested": args.geometry_mode,
+        "geometry_mode_source": geometry_mode_source,
         "jitter_meaningful": jitter_meaningful,
+        "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
         "reinit_count": int(debug.get("reinit_count", 0)),
         "init_ms_mean": float(debug.get("time_breakdown_summary", {}).get("init_ms_mean", 0.0)),
         "reuse_per_frame_ms_mean": float(

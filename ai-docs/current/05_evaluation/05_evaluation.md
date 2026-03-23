@@ -40,6 +40,13 @@
   - `geometry_mode`
   - `jitter_meaningful`
   - `reuse_mode`（在 `metrics_preview.json` 中显式写出）
+  - `seam_policy`
+  - `seam_keyframe_every_effective`
+  - `seam_recompute_count`
+  - `geometry_update_count`
+  - `adaptive_update_strategy`
+  - `transforms.csv::geometry_recomputed`
+  - `transforms.csv::geometry_update_reason`
 
 ### 现有可复用指标
 - runtime / FPS
@@ -54,12 +61,19 @@
   - `overlap_area_current`
   - `overlap_diff_mean_before`
   - `overlap_diff_mean_after`
+  - `mean_overlap_diff_before`
+  - `mean_overlap_diff_after`
 - 时序项
   - `jitter_raw`
   - `jitter_sm`
   - `p95_jitter_raw`
   - `p95_jitter_sm`
   - `jitter_meaningful`
+  - `jitter_scope`
+  - `seam_mask_change_ratio`
+  - `stitched_delta_mean`
+  - `temporal_primary_metric`
+  - `temporal_primary_value`
 
 ## 必须新增的指标
 ### 几何质量
@@ -88,6 +102,13 @@
 - `jitter`
   - 仅用于 `keyframe_update`、`adaptive_update`
   - 不作为 `fixed_geometry` 的主指标
+- `temporal_primary_metric`
+  - `fixed_geometry` 当前默认为 `mean_overlap_diff_after`
+  - `keyframe_update` 当前默认为 `mean_jitter_sm`
+  - `adaptive_update` 当前也默认为 `mean_jitter_sm`
+- `jitter_scope`
+  - `geometry_only` 表示当前 `jitter` 只反映 geometry 变化，不反映 seam 更新
+  - `geometry_stream` 表示当前 `jitter` 反映几何流本身，适用于 `keyframe_update / adaptive_update`
 - seam visibility / flicker / temporal coherence
   - 在所有 seam 模式下都可比较
 - object artefacts
@@ -101,6 +122,7 @@
   - crop on/off
   - blend mode
   - `keyframe_every`
+  - `geometry_mode`
   - hardware / device
   - Method B 的 keypoint 上限和 robust estimator 参数
 - 只允许单轴变化：
@@ -131,6 +153,18 @@
   - `fixed seam vs keyframe seam vs trigger seam`
   - `no smoothing vs EMA vs window`
   - `fixed_geometry vs keyframe_update vs adaptive_update`
+- 当前最小验证已完成：
+  - `phase2_seam_fixed_smoke`
+  - `phase2_seam_keyframe_smoke`
+  - `phase2_seam_trigger_smoke_v2`
+  - `phase2_temporal_keyframeupdate_smoke`
+- 当前已验证的最小结论：
+  - `fixed seam` 只在初始化时重算 seam
+  - `keyframe seam` 可按 cadence 重算
+  - `trigger seam` 可按 `overlap_diff_before` 阈值触发
+  - `fixed_geometry` 下可用 `mean_overlap_diff_after` 代替退化 `jitter` 作为主 temporal 指标
+  - `fixed_geometry + seam_policy=keyframe/trigger` 下即使 `jitter=0` 也不代表 seam 没更新，应结合 `jitter_scope / seam_recompute_count / seam_snapshot_count` 解读
+  - `adaptive_update` 当前已最小落地为 seam-driven geometry refresh，应结合 `geometry_update_count / geometry_update_events / transforms.csv::geometry_recomputed` 解读
 
 ### Phase 3
 - 在代表性 pair 上做系统矩阵：
@@ -163,6 +197,21 @@
   - 统一 experiment driver
   - 独立 metrics 模块
   - summary CSV / plots 生成脚本
+
+## 运行参数解释约束（2026-03-20 更新）
+- 新实验应优先使用：
+  - `--geometry_mode`
+  - `--seam_policy`
+- `--video_mode`
+  - 仅保留为 legacy 兼容入口，不再建议作为新实验的主配置项。
+- `--keyframe_every`
+  - 只表示 geometry keyframe cadence。
+- `--seam_keyframe_every`
+  - 只表示 seam keyframe cadence。
+- 因此：
+  - `geometry_mode=fixed_geometry + seam_policy=keyframe`
+    - 是合法且有意义的组合
+    - 表示固定几何，但按 cadence 刷新 seam
 
 ## 当前 Phase 1 正式 compare 产物（2026-03-20）
 - compare driver：

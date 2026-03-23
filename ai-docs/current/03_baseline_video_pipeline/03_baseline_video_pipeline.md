@@ -31,6 +31,36 @@
   - 首帧未初始化
   - `reinit_every > 0`
   - `reinit_on_low_overlap_ratio > 0`
+- 当显式使用 `geometry_mode=adaptive_update` 时：
+  - 仍走 cached reuse 主路径
+  - 但如果 `seam_policy=keyframe/trigger` 命中 seam event，会在同一帧追加一次 geometry refresh
+  - 然后用新 `H` 调用 `VideoStitcher.initialize_from_first_frame()` 重建当前帧 compose 状态
+
+## 当前推荐的用户入口（2026-03-20 更新）
+- `geometry_mode` 现在是推荐使用的显式配置层：
+  - `fixed_geometry`
+  - `keyframe_update`
+  - `adaptive_update`（最小版已实现为 seam-driven geometry refresh）
+- `video_mode` 现在只保留为 legacy 兼容别名：
+  - `video_mode=1` <-> `geometry_mode=fixed_geometry`
+  - `video_mode=0` <-> `geometry_mode=keyframe_update`
+- 当前最佳实践：
+  - 新 run 优先传 `--geometry_mode`
+  - 只有兼容旧脚本或历史命令时才继续显式传 `--video_mode`
+
+## geometry keyframe 与 seam keyframe 的职责边界
+- `geometry_mode`
+  - 决定几何更新路径。
+- `keyframe_every`
+  - 只控制 geometry keyframe cadence。
+  - 仅当 `geometry_mode=keyframe_update` 时有效。
+  - 当 `geometry_mode=fixed_geometry` 时，`geometry_keyframe_every_effective=0`。
+- `seam_policy`
+  - 决定 seam 是固定复用、按 cadence 更新，还是按 trigger 更新。
+- `seam_keyframe_every`
+  - 只控制 seam 的 keyframe cadence。
+  - 与 geometry keyframe 解耦。
+  - 即使 `geometry_mode=fixed_geometry`，也可以使用 `seam_policy=keyframe`。
 
 ## 关键校正：`reuse_mode` 的真实语义
 - `frame0_all`
@@ -59,6 +89,15 @@
   - 时序项：`jitter_raw`、`jitter_sm`、`H_delta_norm`
   - 运行模式：`video_mode`、`reuse_mode`
   - seam/crop 相关：`overlap_area_current`、`crop_applied`、`crop_method`
+  - Phase 2 MVP 新增：
+    - `seam_policy`
+    - `seam_recomputed`
+    - `geometry_recomputed`
+    - `geometry_update_reason`
+    - `overlap_diff_before`
+    - `overlap_diff_after`
+    - `stitched_delta_mean`
+    - `seam_mask_change_ratio`
 
 ## 已确认的关键限制与耦合点
 - `scripts/run_baseline_video.py` 目前是大脚本，混合了：
@@ -118,10 +157,13 @@
 - 当前 `scripts/run_baseline_video.py` 已显式导出：
   - `geometry_mode`
   - `jitter_meaningful`
-- 当前实现实际只会导出：
+- 当前实现已可导出：
   - `fixed_geometry`
   - `keyframe_update`
-- `adaptive_update` 目前仍是文档保留模式，不代表已经在代码中实现。
+  - `adaptive_update`
+- 但要注意：
+  - `adaptive_update` 当前仅表示“seam 事件驱动的 geometry refresh”
+  - 还不是完整的自适应几何控制器
 - 在文档层先引入三类运行模式：
   - `fixed_geometry`
   - `keyframe_update`
@@ -131,6 +173,93 @@
 - 视差和动态目标仍会导致 ghosting、cropping、duplication 等 artefacts。
 - `video_mode=1` 下的时序指标存在解释风险。
 - 当前没有 GUI，也没有统一 experiments driver。
+
+## Phase 2 MVP 新增状态（2026-03-20）
+- 当前没有重写 `src/stitching/seam_opencv.py` backend。
+- 只新增了 seam 更新控制壳层：
+  - `src/stitching/seam_policy.py`
+  - `--seam_policy=auto|fixed|keyframe|trigger`
+  - `--seam_keyframe_every`
+  - `--seam_trigger_overlap_ratio`
+  - `--seam_trigger_diff_threshold`
+- `video_mode=0` 与 `video_mode=1` 现在都能显式导出：
+  - seam 是否重算
+  - 重算原因
+  - seam mask 变化比例
+  - overlap diff 的 before/after
+- 当前 `metrics_preview.json` 已新增：
+  - `mean_overlap_diff_before`
+  - `mean_overlap_diff_after`
+  - `mean_seam_mask_change_ratio`
+  - `mean_stitched_delta`
+  - `temporal_primary_metric`
+  - `temporal_primary_value`
+  - `jitter_scope`
+  - `seam_policy`
+  - `seam_keyframe_every_effective`
+  - `seam_recompute_count`
+  - `seam_snapshot_count`
+  - `geometry_update_count`
+  - `adaptive_update_strategy`
+- 当前解释约束：
+  - `fixed_geometry` 下主 temporal 指标改为 `mean_overlap_diff_after`
+  - `keyframe_update` 下主 temporal 指标仍为 `mean_jitter_sm`
+  - `adaptive_update` 下主 temporal 指标当前也为 `mean_jitter_sm`
+  - `fixed_geometry` 下 `jitter_scope=geometry_only`
+    - seam 的重算不会改变 `jitter`
+    - 应结合 `seam_recompute_count / seam_mask_change_ratio / overlap_diff_after` 解读
+  - `adaptive_update` 下 `jitter_scope=geometry_stream`
+    - 应结合 `geometry_update_count / geometry_update_events / transforms.csv::geometry_recomputed` 解读
+
+## Phase 2 模式语义验证（KITTI 0002, 80 frames, fps=10）
+- pair：
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+- 统一运行前提：
+  - `geometry_mode=fixed_geometry`
+  - Method B：`superpoint + lightglue + opencv_usac_magsac`
+- 验证结果：
+  - `seam_policy=fixed`
+    - `video_mode=1`
+    - `geometry_keyframe_every_effective=0`
+    - `seam_recompute_count=1`
+  - `seam_policy=keyframe`
+    - `seam_keyframe_every_effective=10`
+    - `seam_recompute_count=8`
+    - 首个 keyframe seam event 出现在 `frame_idx=10`
+  - `seam_policy=trigger`
+    - `seam_trigger_diff_threshold=21.0`
+    - `seam_recompute_count=11`
+    - 首个 trigger 事件出现在 `frame_idx=21`
+  - `geometry_mode=adaptive_update + seam_policy=keyframe`
+    - `seam_recompute_count=8`
+    - `geometry_update_count=7`
+    - `mean_jitter_sm=0.6423`
+  - `geometry_mode=adaptive_update + seam_policy=trigger`
+    - `seam_recompute_count=3`
+    - `geometry_update_count=2`
+    - `mean_jitter_sm=0.3334`
+- 结论：
+  - 当前代码已经能清楚证明：
+    - `geometry_mode` 决定几何路径
+    - `seam_policy` 决定 seam 更新路径
+    - 两者已从配置语义上正交化
+    - `fixed_geometry` 下 `keyframe/trigger` 的 `jitter=0` 并不表示 seam 没有更新，只表示几何没有更新
+    - `adaptive_update` 已能把 seam event 转成同帧 geometry refresh，但当前仍属于 MVP
+
+## seam 事件 snapshot（2026-03-20 更新）
+- 新增开关：
+  - `--seam_snapshot_on_recompute {0,1}`
+- 当前行为：
+  - 当 seam 重算时，保存对应帧 stitched snapshot：
+    - `frame_<idx>_stitched.png`
+  - 在 `video_mode=1 / fixed_geometry` 路径上，额外保存：
+    - `seam_event_<idx>_mask_left_roi.png`
+    - `seam_event_<idx>_mask_right_roi.png`
+    - `seam_event_<idx>_seam_mask_left.png`
+    - `seam_event_<idx>_seam_mask_right.png`
+    - `seam_event_<idx>_seam_overlay.png`
+    - `seam_event_<idx>_overlap_diff.png`
+- 这套图与 `snapshot_every` 解耦，不再依赖碰巧命中定时 snapshot。
 
 ## 下一步
 - 总路线见 `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`。

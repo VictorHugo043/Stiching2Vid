@@ -1,4 +1,4 @@
-"""Temporal utilities for homography stabilization and jitter diagnostics."""
+"""Temporal utilities for homography stabilization and temporal diagnostics."""
 
 from __future__ import annotations
 
@@ -70,6 +70,42 @@ def compute_jitter(prev_corners, curr_corners) -> JitterStats:
     diff = curr_corners - prev_corners
     dists = np.linalg.norm(diff, axis=1)
     return JitterStats(mean=float(np.mean(dists)), max=float(np.max(dists)))
+
+
+def compute_mask_change_ratio(prev_mask, curr_mask) -> Optional[float]:
+    """Compute mask XOR / union ratio between consecutive seam masks."""
+
+    import numpy as np  # type: ignore
+
+    if prev_mask is None or curr_mask is None:
+        return None
+    prev_arr = np.asarray(prev_mask) > 0
+    curr_arr = np.asarray(curr_mask) > 0
+    if prev_arr.shape != curr_arr.shape:
+        return None
+    union = prev_arr | curr_arr
+    if not union.any():
+        return 0.0
+    changed = prev_arr ^ curr_arr
+    return float(changed.sum()) / float(max(1, union.sum()))
+
+
+def compute_frame_absdiff_mean(prev_frame, curr_frame) -> Optional[float]:
+    """Compute mean absolute image difference between consecutive stitched frames."""
+
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    if prev_frame is None or curr_frame is None:
+        return None
+    prev_arr = np.asarray(prev_frame)
+    curr_arr = np.asarray(curr_frame)
+    if prev_arr.shape != curr_arr.shape:
+        return None
+    diff = cv2.absdiff(prev_arr, curr_arr)
+    if diff.ndim == 3:
+        diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    return float(diff.mean())
 
 
 class HomographySmoother:

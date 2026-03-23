@@ -94,6 +94,18 @@ def _mask_union_bbox(mask_a, mask_b) -> Optional[Tuple[int, int, int, int]]:
     return x0, y0, int(x1 - x0 + 1), int(y1 - y0 + 1)
 
 
+def _mean_overlap_diff(left_img, right_img, left_mask, right_mask) -> float:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    overlap = (np.asarray(left_mask) > 0) & (np.asarray(right_mask) > 0)
+    if not overlap.any():
+        return 0.0
+    diff = cv2.absdiff(left_img, right_img)
+    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    return float(gray[overlap].mean())
+
+
 def _compose_limit_mask(canvas_masks, roi_masks, corners):
     import numpy as np  # type: ignore
 
@@ -406,6 +418,12 @@ class VideoStitcher:
         init_t0 = time.perf_counter()
         low_data = self._compute_low(left_frame, right_frame, H, T)
         final_data = self._compute_final_rois(left_frame, right_frame, H, T, canvas_size)
+        overlap_diff_before = _mean_overlap_diff(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_data["canvas_masks"][0],
+            final_data["canvas_masks"][1],
+        )
         low_data, final_data, crop_out = self._maybe_crop(low_data, final_data, frame_idx)
 
         seam_low = self._compute_seam_masks_low(low_data["imgs"], low_data["corners"], low_data["masks"])
@@ -420,6 +438,12 @@ class VideoStitcher:
             seam_low,
             final_data,
             limit_mask_full=crop_limit_mask,
+        )
+        overlap_diff_after = _mean_overlap_diff(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_left_mask,
+            final_right_mask,
         )
         output_bbox = _mask_union_bbox(final_left_mask, final_right_mask)
         stitched = self._blend(
@@ -481,6 +505,7 @@ class VideoStitcher:
         self.state.H_or_cameras = H
         self.state.cropper_state = crop_out.get("cropper")
         self.state.seam_masks_low = [seam_low[0], seam_low[1]]
+        self.state.seam_masks_final = [final_left_mask, final_right_mask]
         self.state.corners_low = list(low_data["corners"])
         self.state.sizes_low = list(low_data["sizes"])
         self.state.corners_final = list(final_data["corners"])
@@ -510,6 +535,12 @@ class VideoStitcher:
             ),
             "overlap_area_init": int(final_data["overlap_area"]),
             "overlap_area_current": int(final_data["overlap_area"]),
+            "overlap_diff_before": float(overlap_diff_before),
+            "overlap_diff_after": float(overlap_diff_after),
+            "last_seam_frame_index": int(frame_idx),
+            "last_seam_policy": "init",
+            "last_seam_reason": "init",
+            "seam_recompute_count": 1,
             "mask_area_before": int(crop_out.get("mask_area_before", 0)),
             "mask_area_after": int(crop_out.get("mask_area_after", 0)),
             "mask_bbox_before": int(crop_out.get("mask_bbox_before", 0)),
@@ -530,11 +561,17 @@ class VideoStitcher:
             "stitched": stitched,
             "overlap_area": int(final_data["overlap_area"]),
             "init_ms": float(self.state.metadata["init_ms"]),
+            "overlap_diff_before": float(overlap_diff_before),
+            "overlap_diff_after": float(overlap_diff_after),
             "crop_applied": bool(crop_out.get("crop_applied", False)),
             "crop_method": str(crop_out.get("crop_method", "none")),
             "crop_rect": self.state.metadata.get("crop_rect"),
             "output_bbox": output_bbox,
             "seam_compute_ms": 0.0,
+            "seam_recomputed": True,
+            "seam_policy": "init",
+            "seam_trigger_reason": "init",
+            "seam_mask_change_ratio": 0.0,
         }
 
     def stitch_frame(
@@ -546,13 +583,27 @@ class VideoStitcher:
         canvas_size,
         frame_idx: int,
         recompute_seam: bool = False,
+        seam_policy: str = "fixed",
+        seam_keyframe: bool = False,
+        seam_trigger_overlap_ratio: float = 0.0,
+        seam_trigger_diff_threshold: float = 0.0,
+        save_seam_event_snapshots: bool = False,
     ) -> Dict[str, object]:
         """Stitch one frame using cached state with optional seam refresh."""
 
         if not self.state.initialized:
             raise RuntimeError("VideoStitcher state is not initialized")
 
+        from stitching.seam_policy import decide_seam_update
+        from stitching.temporal import compute_mask_change_ratio
+
         final_data = self._compute_final_rois(left_frame, right_frame, H, T, canvas_size)
+        overlap_diff_before = _mean_overlap_diff(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_data["canvas_masks"][0],
+            final_data["canvas_masks"][1],
+        )
         crop_applied = False
         crop_method = "none"
         crop_rect = self.state.metadata.get("crop_rect")
@@ -578,8 +629,26 @@ class VideoStitcher:
                 crop_applied = False
                 crop_method = "fallback_no_crop"
 
+        overlap_area_reference = int(self.state.metadata.get("overlap_area_init", final_data["overlap_area"]) or 0)
+        last_seam_frame_index = int(
+            self.state.metadata.get("last_seam_frame_index", self.state.frame0_index or frame_idx)
+        )
+        seam_age_frames = max(0, int(frame_idx) - int(last_seam_frame_index))
+        seam_decision = decide_seam_update(
+            policy=seam_policy,
+            seam_cache_available=self.state.seam_masks_low is not None,
+            is_seam_keyframe=bool(seam_keyframe),
+            seam_age_frames=seam_age_frames,
+            overlap_area_current=int(final_data["overlap_area"]),
+            overlap_area_reference=overlap_area_reference,
+            overlap_diff_before=float(overlap_diff_before),
+            trigger_overlap_ratio=float(seam_trigger_overlap_ratio),
+            trigger_diff_threshold=float(seam_trigger_diff_threshold),
+            force_recompute=bool(recompute_seam),
+        )
+
         seam_t0 = time.perf_counter()
-        if recompute_seam or self.state.seam_masks_low is None:
+        if seam_decision.recompute:
             # In default frame0 reuse mode we should not be here. When seam refresh is
             # requested, low-res warp/crop is recomputed explicitly for this frame.
             low_data = self._compute_low(left_frame, right_frame, H, T)
@@ -593,8 +662,7 @@ class VideoStitcher:
                 )
             seam_low = self._compute_seam_masks_low(low_data["imgs"], low_data["corners"], low_data["masks"])
             seam_compute_ms = (time.perf_counter() - seam_t0) * 1000.0
-            if self.reuse_mode in {"frame0_all", "frame0_seam"}:
-                self.state.seam_masks_low = [seam_low[0], seam_low[1]]
+            self.state.seam_masks_low = [seam_low[0], seam_low[1]]
         else:
             seam_low = self.state.seam_masks_low
             seam_compute_ms = 0.0
@@ -611,6 +679,20 @@ class VideoStitcher:
             final_data,
             limit_mask_full=crop_limit_mask,
         )
+        overlap_diff_after = _mean_overlap_diff(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_left_mask,
+            final_right_mask,
+        )
+        prev_final_masks = self.state.seam_masks_final
+        seam_mask_change_ratio = 0.0
+        if prev_final_masks is not None and len(prev_final_masks) == 2:
+            change_left = compute_mask_change_ratio(prev_final_masks[0], final_left_mask)
+            change_right = compute_mask_change_ratio(prev_final_masks[1], final_right_mask)
+            valid_changes = [value for value in [change_left, change_right] if value is not None]
+            if valid_changes:
+                seam_mask_change_ratio = float(sum(valid_changes) / len(valid_changes))
         output_bbox = _mask_union_bbox(final_left_mask, final_right_mask)
         stitched = self._blend(
             final_data["canvas_imgs"][0],
@@ -618,11 +700,84 @@ class VideoStitcher:
             final_left_mask,
             final_right_mask,
         )
+        if seam_decision.recompute and bool(save_seam_event_snapshots) and low_data is not None:
+            import numpy as np  # type: ignore
+
+            from stitching.seam_opencv import overlap_absdiff_preview, place_mask_on_canvas, seam_overlay_preview
+            from stitching.viz import save_image
+
+            snapshots_dir = self.output_dir / "snapshots"
+            snapshots_dir.mkdir(parents=True, exist_ok=True)
+            canvas_low_size = (
+                max(
+                    1,
+                    max(int(c[0]) + int(s[0]) for c, s in zip(low_data["corners"], low_data["sizes"])),
+                ),
+                max(
+                    1,
+                    max(int(c[1]) + int(s[1]) for c, s in zip(low_data["corners"], low_data["sizes"])),
+                ),
+            )
+            left_low_canvas, left_low_full_mask = _compose_single_roi_on_canvas(
+                canvas_low_size,
+                low_data["imgs"][0],
+                low_data["masks"][0],
+                low_data["corners"][0],
+            )
+            right_low_canvas, right_low_full_mask = _compose_single_roi_on_canvas(
+                canvas_low_size,
+                low_data["imgs"][1],
+                low_data["masks"][1],
+                low_data["corners"][1],
+            )
+            seam_left_low_full = np.zeros_like(left_low_full_mask, dtype=np.uint8)
+            seam_right_low_full = np.zeros_like(right_low_full_mask, dtype=np.uint8)
+            place_mask_on_canvas(seam_left_low_full, seam_low[0], low_data["corners"][0])
+            place_mask_on_canvas(seam_right_low_full, seam_low[1], low_data["corners"][1])
+            seam_overlay = seam_overlay_preview(
+                left_low_canvas,
+                right_low_canvas,
+                left_low_full_mask,
+                right_low_full_mask,
+                seam_left_low_full,
+                seam_right_low_full,
+            )
+            overlap_diff_low = overlap_absdiff_preview(
+                left_low_canvas,
+                right_low_canvas,
+                left_low_full_mask,
+                right_low_full_mask,
+            )
+            frame_tag = f"seam_event_{int(frame_idx):06d}"
+            save_image(snapshots_dir / f"{frame_tag}_warp_left_roi.png", left_low_canvas)
+            save_image(snapshots_dir / f"{frame_tag}_warp_right_roi.png", right_low_canvas)
+            save_image(snapshots_dir / f"{frame_tag}_mask_left_roi.png", left_low_full_mask)
+            save_image(snapshots_dir / f"{frame_tag}_mask_right_roi.png", right_low_full_mask)
+            save_image(snapshots_dir / f"{frame_tag}_seam_mask_left.png", seam_left_low_full)
+            save_image(snapshots_dir / f"{frame_tag}_seam_mask_right.png", seam_right_low_full)
+            save_image(snapshots_dir / f"{frame_tag}_seam_overlay.png", seam_overlay)
+            save_image(snapshots_dir / f"{frame_tag}_overlap_diff.png", overlap_diff_low)
+        self.state.seam_masks_final = [final_left_mask, final_right_mask]
         self.state.metadata["overlap_area_current"] = int(final_data["overlap_area"])
+        self.state.metadata["overlap_diff_before"] = float(overlap_diff_before)
+        self.state.metadata["overlap_diff_after"] = float(overlap_diff_after)
+        self.state.metadata["last_seam_policy"] = seam_decision.policy
+        self.state.metadata["last_seam_reason"] = seam_decision.reason
+        if seam_decision.recompute:
+            self.state.metadata["last_seam_frame_index"] = int(frame_idx)
+            self.state.metadata["seam_recompute_count"] = int(
+                self.state.metadata.get("seam_recompute_count", 0)
+            ) + 1
         return {
             "stitched": stitched,
             "overlap_area": int(final_data["overlap_area"]),
+            "overlap_diff_before": float(overlap_diff_before),
+            "overlap_diff_after": float(overlap_diff_after),
             "seam_compute_ms": float(seam_compute_ms),
+            "seam_recomputed": bool(seam_decision.recompute),
+            "seam_policy": seam_decision.policy,
+            "seam_trigger_reason": seam_decision.reason,
+            "seam_mask_change_ratio": float(seam_mask_change_ratio),
             "crop_applied": bool(crop_applied),
             "crop_method": crop_method,
             "crop_rect": crop_rect,
