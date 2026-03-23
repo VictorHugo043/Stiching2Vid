@@ -2341,3 +2341,335 @@
     - Phase 2 dynamic seam matrix
     - smoothing supplemental table
     - final report 图表与结论。
+
+## IMP-20260323-04
+- 状态：done
+- 标题：Phase 3 启动：KITTI color stereo 全帧方法对比入口、统计表与正式素材汇总
+- 本步目标：
+  - 进入 Phase 3，并为 `kitti_raw_data_2011_09_xx_drive_0xxx_image_02_image_03` 这类彩色双目 pair 建立正式视频级 compare 入口。
+  - 复用已有 `Phase 1` 的方法对比和 `Phase 2` 的 dynamic seam compare 逻辑，避免另起一套不兼容的实验脚本。
+  - 用多条 KITTI `image_02_image_03` pair 做尽量全帧的正式回归，并固定 `fps=10`。
+  - 产出可直接用于 final report 的汇总表与代表性可视化索引。
+- 关联上一步结论：
+  - `DEC-20260320-06`：Phase 1 正式视频级 compare 入口固定为 `scripts/run_video_compare_suite.py`，并保留 `method_a_orb / method_a_sift / method_b` 三条预设。
+  - `DEC-20260323-05`：Phase 2 正式 dynamic seam compare matrix 已固定为正式收尾入口。
+  - `DEC-20260323-06`：Phase 2 可视为完成，Phase 3 应围绕正式实验表与 final report 素材整理展开。
+  - `ISSUE-20260319-06`：旧 ablation 脚本仍为 legacy helper，不应作为本步入口。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/build_phase2_visual_summary.py`
+  - `scripts/run_baseline_video.py`
+  - `data/manifests/pairs.yaml`
+- 准备修改文件：
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 需要一个 Phase 3 正式入口，把方法对比和 dynamic seam compare 放到同一套 KITTI color stereo 评测上下文里。
+  - 需要正式汇总表和图像清单，避免后续继续手工翻 `outputs/runs/*`。
+  - ai-docs 需要明确 Phase 3 的 pair 选择、fps 假设、正式 suite 边界和剩余风险。
+- 风险点：
+  - 若直接新写大而全的 experiment framework，会与现有 Phase 1 / Phase 2 suite 重复。
+  - KITTI 某些 pair 的 manifest 中未显式写 `fps`，若不强制传 `--fps 10`，会导致 bundle 中 fps 来源不一致。
+  - 若一次性纳入过多 pair 和 preset，full-length 回归耗时会显著上升。
+- 验收标准：
+  - 新增正式 Phase 3 KITTI compare 入口，并明确只使用 `image_02_image_03` pair。
+  - suite 默认显式传 `--fps 10`，并使用 `--max_frames 6000` 以遍历全帧。
+  - 至少覆盖多条 KITTI color stereo pair，产出 `summary.csv / pair_compare.csv / method_summary.csv / preset_summary.csv` 或等效正式表格。
+  - ai-docs 明确：
+    - Phase 3 当前正式 pair 列表
+    - Phase 3 方法对比与 dynamic seam 的默认分析入口
+    - 当前未解决但不阻塞的事项
+- 替代方案与不选原因：
+  - 方案：直接沿用 Phase 1/Phase 2 脚本，手工多次运行并手动拼表。
+  - 不选原因：无法形成统一 Phase 3 正式入口，也不利于 final report 追溯。
+  - 方案：一开始就把 DynamicStereo、mine_source 和 KITTI 全混进一个巨型 suite。
+  - 不选原因：当前用户明确偏向先在 KITTI `image_02_image_03` 上做全帧、10fps 的正式 Phase 3，对统一巨型 suite 没有必要。
+- 实际修改文件：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 为现有 compare suite 补充 `--fps` 透传：
+    - `scripts/run_video_compare_suite.py`
+    - `scripts/run_phase2_dynamic_compare_suite.py`
+  - 为 dynamic suite 补充 `--presets` 过滤，使 Phase 3 能只保留正式 preset 子集。
+  - 新增正式 Phase 3 KITTI wrapper：
+    - `scripts/run_phase3_kitti_compare_suite.py`
+    - 统一编排：
+      - Phase 1 方法对比子 suite
+      - Phase 2 dynamic seam 子 suite
+      - dynamic visual summary
+      - Phase 3 汇总表
+  - 新增 Phase 3 汇总脚本：
+    - `scripts/build_phase3_kitti_summary.py`
+    - 产出：
+      - `method_summary.csv`
+      - `method_pair_compare.csv`
+      - `dynamic_preset_summary.csv`
+      - `dynamic_pair_compare.csv`
+      - `pair_coverage.csv`
+      - `phase3_kitti_summary.md`
+  - 正式 Phase 3 KITTI suite：
+    - `outputs/phase3/phase3_kitti_full_v1`
+    - 方法子 suite：
+      - `outputs/video_compare/phase3_kitti_full_v1__methods`
+    - dynamic 子 suite：
+      - `outputs/video_compare/phase3_kitti_full_v1__dynamic`
+- 验证方式：
+  - `python3 -m py_compile scripts/run_video_compare_suite.py scripts/run_phase2_dynamic_compare_suite.py scripts/run_phase3_kitti_compare_suite.py scripts/build_phase3_kitti_summary.py`
+  - `python3 scripts/run_phase3_kitti_compare_suite.py --help`
+  - `python3 scripts/build_phase3_kitti_summary.py --help`
+  - `python3 scripts/run_phase3_kitti_compare_suite.py --python_bin .venv-methodb/bin/python --force_cpu --max_frames 6000 --fps 10 --snapshot_every 1000 --dynamic_snapshot_every 1000 --suite_id phase3_kitti_full_v1`
+- 运行结果与验证结果：
+  - Phase 3 wrapper 成功完成：
+    - `outputs/phase3/phase3_kitti_full_v1`
+  - 正式 KITTI pairs 共 6 条，全部 full-length 跑完：
+    - `0001=108`
+    - `0002=77`
+    - `0005=154`
+    - `0019=481`
+    - `0016=186`
+    - `0021=209`
+  - `pair_coverage.csv` 中所有 pair 的：
+    - `method_processed_frames_mean == dynamic_processed_frames_mean == 实际帧数`
+    - `fps=10`
+  - 方法对比聚合结果：
+    - `method_a_orb`
+      - `mean_inliers ≈ 435.17`
+      - `mean_inlier_ratio ≈ 0.610`
+      - `approx_fps ≈ 24.32`
+    - `method_a_sift`
+      - `mean_inliers ≈ 529.17`
+      - `mean_inlier_ratio ≈ 0.487`
+      - `approx_fps ≈ 27.43`
+    - `method_b`
+      - `mean_inliers ≈ 345.50`
+      - `mean_inlier_ratio ≈ 0.389`
+      - `approx_fps ≈ 18.82`
+  - dynamic seam 聚合结果：
+    - `baseline_fixed`
+      - `mean_overlap_diff_after ≈ 4.690`
+      - `approx_fps ≈ 19.99`
+    - `keyframe_seam10`
+      - `mean_overlap_diff_after ≈ 4.476`
+      - `approx_fps ≈ 15.09`
+    - `trigger_fused_d18_fg008`
+      - `mean_overlap_diff_after ≈ 1.150`
+      - `approx_fps ≈ 13.57`
+  - 当前实验结论：
+    - 在这组 KITTI color stereo fixed-geometry full-length compare 上，Method B 没有整体优于 Method A。
+    - `trigger_fused_d18_fg008` 仍是当前推荐 dynamic seam preset，但在 KITTI 上收益呈 pair-dependent。
+- 与原计划相比的偏差：
+  - 本步没有把 `adaptive_trigger_fused_d18_fg008` 放进 Phase 3 正式默认矩阵，只保留 `baseline / keyframe / trigger_fused` 三个 preset。
+  - 本步没有新做 plot 脚本，只先形成正式 CSV / markdown summary。
+- 下一步建议：
+  - 将 DynamicStereo / `mine_source` 的正式结果并入统一 Phase 3 总表。
+  - 或直接开始 Phase 4 的 GUI thin wrapper，同时把当前 Phase 1/2/3 正式 suite 作为后端事实来源。
+
+## IMP-20260323-05
+- 状态：done
+- 标题：Phase 3 扩展：DynamicStereo 与 mine_source full-length 正式 suite 并入统一总表
+- 本步目标：
+  - 将 DynamicStereo 和 `mine_source` 的正式结果并入当前 Phase 3 总表。
+  - 尽量按全量、全帧方式运行当前工作区可用的 pair。
+  - 为多数据域 Phase 3 增加统一总表与 overview 文档，便于 final report 直接引用。
+- 关联上一步结论：
+  - `DEC-20260323-07`：Phase 3 的第一个正式实验块已经固定为 KITTI color stereo full-length suite。
+  - `ISSUE-20260323-03`：KITTI 上 Method B 与 dynamic seam 的结论具有明显数据域依赖，不能直接外推到所有数据集。
+  - `05_evaluation` 已固定：
+    - 方法对比沿用 `method_a_orb / method_a_sift / method_b`
+    - dynamic seam 正式默认 preset 为 `baseline_fixed / keyframe_seam10 / trigger_fused_d18_fg008`
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `data/manifests/pairs.yaml`
+  - `src/stitching/io.py`
+- 准备修改文件：
+  - `scripts/build_phase3_overall_summary.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 需要一个正式的 Phase 3 总表聚合入口，把 KITTI、DynamicStereo 和 `mine_source` 汇成统一视角。
+  - ai-docs 需要明确：
+    - 当前工作区可实际运行的 full-length pair 范围
+
+## IMP-20260323-06
+- 状态：done
+- 标题：Method B 复盘与优化：回到 `SuperPoint / LightGlue / MAGSAC` 层定位性能劣化原因
+- 本步目标：
+  - 解释当前 Phase 3 中 Method B 在三数据域上显著弱于 Method A 的可能原因。
+  - 回到 `features.py / matching.py / method_b_runtime.py / geometry.py` 以及 `external/LightGlue` 的期望接口，复查实现和默认参数是否偏离官方建议。
+  - 仅做最小、可验证的 Method B 优化，不碰 seam backend，不引入无关重构。
+  - 用代表性 pair 重新验证优化前后的 Method B 单帧或短视频表现，并评估是否值得推广为默认 preset。
+- 关联上一步结论：
+  - `IMP-20260323-05`：三数据域 full-length 总表已完成，当前 `method_b` 的 `mean_inliers / inlier_ratio / fps` 均整体落后于 `method_a_orb / method_a_sift`。
+  - `DEC-20260319-03`：Method B 固定为预训练 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 路线。
+  - `DEC-20260323-08`：当前实验结论应以跨数据域实际结果为准，因此需要先复查 Method B 是否存在工程接入或默认参数问题。
+- 本步回读文档：
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+  - `external/LightGlue/*`
+  - `outputs/phase3/phase3_overall_full_v1/*`
+- 准备修改文件：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/geometry.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - Method B 的问题更可能出在前端特征/匹配/鲁棒估计的接入细节和默认参数，而不是 seam/crop/video cache。
+  - 需要在不扰动现有 Phase 2/3 结论的前提下，先把 Method B 的实现质量和默认 preset 提升到合理水平。
+- 风险点：
+  - 只看 aggregate 结果可能误判，需要选差案例与好案例同时复盘。
+  - 过度调参可能只对单一数据域有效，反而破坏当前跨数据域结果的一致性。
+  - 修改默认值后必须重新核对 Method B 旧结果与新结果的可比性。
+- 验收标准：
+  - 能明确列出当前 Method B 弱于 Method A 的主要工程原因，而不只是“结果差”。
+  - 至少完成一轮代表性 pair 的优化前后验证，并在 `debug/summary` 中体现参数与效果变化。
+  - 若优化有效，则形成新的推荐 Method B preset；若无效，则明确记录为限制项。
+- 当前不选的替代方案：
+  - 直接重跑整套 Phase 3 full-length 实验而不先定位问题，未采用。
+  - 改 seam backend 或大改视频路径，未采用。
+  - 引入训练/finetune 新模型，未采用。
+- 实际修改文件：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_baseline_video.py`
+  - `outputs/analysis/methodb_recheck_video_summary.json`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - Method B 前端复盘得到两个关键结论：
+    - 旧 Phase 3 compare 实际依赖的是偏速度的 LightGlue implicit preset，而不是官方 accuracy 路线。
+    - 旧 `resize_long_edge` 没有真正控制 `SuperPoint.extract()` 的 preprocess resize，因此 Method B 在高分辨率样例上被系统性低估。
+  - `features.py`
+    - 修复 `SuperPoint` 的 preprocess resize 语义：
+      - `None` -> package default `1024`
+      - `>0` -> 传给 `extract(..., resize=...)`
+      - `<=0` -> 禁用 auto-resize
+    - `max_keypoints<=0` 现在表示无上限
+    - 新增 `FeatureResult.meta` 字段：
+      - `superpoint_preprocess_resize`
+      - `payload_image_size`
+  - `matching.py`
+    - 新增 `LightGlue` 运行时诊断：
+      - `stop_layer`
+      - `prune0_mean / prune0_max`
+      - `prune1_mean / prune1_max`
+  - CLI help 已对齐到新的 Method B 语义：
+    - `--max_keypoints <= 0`
+    - `--resize_long_edge <= 0`
+  - 形成当前推荐 Method B accuracy preset：
+    - `max_keypoints=4096`
+    - `resize_long_edge=1536`
+    - `depth_confidence=-1`
+    - `width_confidence=-1`
+    - `filter_threshold=0.1`
+- 验证方式：
+  - `python3 -m py_compile src/stitching/features.py src/stitching/matching.py scripts/run_baseline_frame.py scripts/run_baseline_video.py`
+  - `.venv-methodb/bin/python scripts/run_baseline_frame.py --help`
+  - `.venv-methodb/bin/python scripts/run_baseline_video.py --help`
+  - 单帧代表性复查：
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+    - `mine_source_walking_left_right`
+  - 短视频代表性复查：
+    - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 --geometry_mode fixed_geometry --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --force_cpu --max_frames 80 --fps 10 --snapshot_every 1000 --run_id methodb_recheck_kitti0002_current`
+    - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 --geometry_mode fixed_geometry --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --force_cpu --max_frames 80 --fps 10 --snapshot_every 1000 --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --run_id methodb_recheck_kitti0002_accuracy1536`
+    - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_walking_left_right --geometry_mode fixed_geometry --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --force_cpu --max_frames 120 --fps 30 --snapshot_every 1000 --run_id methodb_recheck_walking_current`
+    - `.venv-methodb/bin/python scripts/run_baseline_video.py --pair mine_source_walking_left_right --geometry_mode fixed_geometry --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --force_cpu --max_frames 120 --fps 30 --snapshot_every 1000 --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --run_id methodb_recheck_walking_accuracy1536`
+- 运行结果与验证结果：
+  - 单帧代表性复查：
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+      - 旧：`1187 kp / 874 matches / 365 inliers`
+      - 新：`2134 kp / 1566 matches / 647 inliers`
+    - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+      - 旧：`1756 kp / 1016 matches / 415 inliers`
+      - 新：`3108 kp / 1566 matches / 685 inliers`
+    - `mine_source_walking_left_right`
+      - 旧：`2048 kp / 821 matches / 148 inliers`
+      - 新：`4096 kp / 1596 matches / 432 inliers`
+  - 短视频复查：
+    - `outputs/analysis/methodb_recheck_video_summary.json`
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+      - 旧：`mean_inliers=365`, `mean_inlier_ratio=0.418`, `approx_fps=4.06`
+      - 新：`mean_inliers=647`, `mean_inlier_ratio=0.413`, `approx_fps=3.41`
+    - `mine_source_walking_left_right`
+      - 旧：`mean_inliers=148`, `mean_inlier_ratio=0.180`, `approx_fps=3.70`
+      - 新：`mean_inliers=432`, `mean_inlier_ratio=0.271`, `approx_fps=2.54`
+  - 当前实验结论：
+    - 旧 Phase 3 Method B 弱势至少部分来自 preset 和前端接入问题，不应直接解释为 Method B 本身不如 Method A。
+    - 当前推荐 accuracy preset 会明显降低 fps，但能显著抬高匹配数和内点数，尤其在 `DynamicStereo / mine_source` 这类更复杂或更高分辨率场景中更明显。
+- 与原计划相比的偏差：
+  - 本步没有直接重跑整套 Phase 3 full-length compare。
+  - 本步优先做了代表性差案例的复盘与短视频验证，避免在问题未定位前盲目重跑大矩阵。
+- 下一步建议：
+  - 使用显式 Method B accuracy preset 重跑 Phase 3 正式方法 compare。
+  - 刷新 `phase3_kitti_full_v1 / phase3_dynamicstereo_full_v1 / phase3_minesource_full_v1` 的方法总表后，再决定 final report 的 Method B 结论。

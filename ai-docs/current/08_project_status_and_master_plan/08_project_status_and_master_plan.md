@@ -351,6 +351,109 @@
 - 风险：实验矩阵过大。
   - 规避：先筛选最佳方法，再局部展开。
 
+### 当前 Phase 3 进度（2026-03-23）
+- 已完成第一个正式 Phase 3 block：
+  - 新增 Phase 3 KITTI color stereo full-length 正式入口：
+    - `scripts/run_phase3_kitti_compare_suite.py`
+    - `scripts/build_phase3_kitti_summary.py`
+  - 当前正式 suite：
+    - `outputs/phase3/phase3_kitti_full_v1`
+  - 当前正式 KITTI pairs：
+    - `kitti_raw_data_2011_09_26_drive_0001_image_02_image_03`
+    - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+    - `kitti_raw_data_2011_09_26_drive_0019_image_02_image_03`
+    - `kitti_raw_data_2011_09_28_drive_0016_image_02_image_03`
+    - `kitti_raw_data_2011_09_28_drive_0021_image_02_image_03`
+  - 当前正式固定条件：
+    - `fps=10`
+    - `max_frames=6000`
+    - 方法对比保持 `fixed_geometry`
+    - dynamic seam 采用 `baseline_fixed / keyframe_seam10 / trigger_fused_d18_fg008`
+- 当前结果摘要：
+  - 方法对比聚合：
+    - `method_a_orb`
+      - `mean_inliers ≈ 435.17`
+      - `mean_inlier_ratio ≈ 0.610`
+      - `approx_fps ≈ 24.32`
+    - `method_a_sift`
+      - `mean_inliers ≈ 529.17`
+      - `mean_inlier_ratio ≈ 0.487`
+      - `approx_fps ≈ 27.43`
+    - `method_b`
+      - `mean_inliers ≈ 345.50`
+      - `mean_inlier_ratio ≈ 0.389`
+      - `approx_fps ≈ 18.82`
+  - dynamic seam 聚合：
+    - `baseline_fixed`
+      - `mean_overlap_diff_after ≈ 4.690`
+      - `approx_fps ≈ 19.99`
+    - `keyframe_seam10`
+      - `mean_overlap_diff_after ≈ 4.476`
+      - `approx_fps ≈ 15.09`
+    - `trigger_fused_d18_fg008`
+      - `mean_overlap_diff_after ≈ 1.150`
+      - `approx_fps ≈ 13.57`
+- 当前 Phase 3 结论：
+  - 正式 KITTI full-length suite 已经可复跑，正式表格和 summary 已形成。
+  - 在这组 KITTI color stereo full-length fixed-geometry compare 上：
+    - Method B 没有在匹配质量或速度上整体超过 Method A
+    - 这应作为实验结论记录，而不是接入 bug
+  - `trigger_fused_d18_fg008` 仍是当前推荐 dynamic seam preset，但其收益在 KITTI 上是 pair-dependent 的。
+- 当前未完成但不阻塞：
+  - 将 DynamicStereo / `mine_source` 的正式结果与 KITTI 一并并入最终 report 表格
+  - 统一 final report 的 plot/export 脚本
+
+### 当前 Phase 3 进度补充（2026-03-23，多数据域 full-length）
+- 已完成第二个正式 Phase 3 block：
+  - DynamicStereo full-length suite：
+    - `outputs/phase3/phase3_dynamicstereo_full_v1`
+    - 3 个 pair
+    - 合计 `281` 帧 / 子 suite
+  - `mine_source` full-length suite：
+    - `outputs/phase3/phase3_minesource_full_v1`
+    - 17 个当前可运行 pair
+    - 合计 `5873` 帧 / 子 suite
+  - 统一总表：
+    - `outputs/phase3/phase3_overall_full_v1`
+    - 26 个可运行 pair
+    - 156 条 full-length run
+- 当前多数据域结论：
+  - `trigger_fused_d18_fg008` 在 KITTI / DynamicStereo / `mine_source` 三个数据域上都保持当前最优 `mean_overlap_diff_after`。
+  - Method B 已稳定接通并完成大规模 full-length 回归，但在当前三数据域 fixed-geometry compare 上都没有整体超过 Method A。
+- 当前剩余问题：
+  - `mine_source_leaves_left_right` 本地源缺失，未能纳入正式 suite。
+  - DynamicStereo 的当前可访问帧数与 manifest 元数据存在偏差，应按实际 `pair_coverage.csv` 解释。
+  - final report 的 plot/export pipeline 仍待补齐。
+
+### 当前 Phase 3 进度补充（2026-03-23，Method B 复盘）
+- 已完成一次针对 `SuperPoint / LightGlue / MAGSAC` 层的复盘与最小修复。
+- 当前确认的关键问题：
+  - 旧 Phase 3 compare 使用的是偏速度的 Method B implicit preset，而不是显式 accuracy preset。
+  - 旧 `resize_long_edge` 并没有真正控制 `SuperPoint.extract()` 的 preprocess resize，导致高分辨率样例上的 Method B 能力被压低。
+- 本次已完成的修复：
+  - Method B 的 `resize_long_edge` 现已按官方 `SuperPoint.extract(..., resize=...)` 语义生效。
+  - `max_keypoints <= 0` 现表示“不设上限”。
+  - `matching.py` 现额外记录 `LightGlue stop_layer / prune stats`，便于后续解释性能与匹配质量。
+- 当前代表性复查结果：
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - 77 帧 fixed-geometry 短视频回归：
+      - 旧：`mean_inliers=365`, `approx_fps=4.06`
+      - 新：`mean_inliers=647`, `approx_fps=3.41`
+  - `mine_source_walking_left_right`
+    - 120 帧 fixed-geometry 短视频回归：
+      - 旧：`mean_inliers=148`, `mean_inlier_ratio=0.180`, `approx_fps=3.70`
+      - 新：`mean_inliers=432`, `mean_inlier_ratio=0.271`, `approx_fps=2.54`
+- 当前含义：
+  - 旧 Phase 3 方法对比中的 “Method B 整体弱于 Method A” 结论现在应视为“旧 preset 下的实验事实”。
+  - 在写 final report 之前，应使用显式 Method B accuracy preset 重跑正式方法 compare。
+- 当前推荐 Method B accuracy preset：
+  - `max_keypoints=4096`
+  - `resize_long_edge=1536`
+  - `depth_confidence=-1`
+  - `width_confidence=-1`
+  - `filter_threshold=0.1`
+
 ## Phase 4
 ### 目标
 - 做 GUI thin wrapper。

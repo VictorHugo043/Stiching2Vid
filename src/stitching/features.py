@@ -33,6 +33,7 @@ class FeatureResult:
 
 
 _SUPERPOINT_CACHE: Dict[Tuple[object, ...], object] = {}
+_USE_SUPERPOINT_DEFAULT_RESIZE = object()
 
 
 def _normalize_feature_backend(feature: str = "orb", feature_backend: Optional[str] = None) -> str:
@@ -44,27 +45,6 @@ def _normalize_feature_backend(feature: str = "orb", feature_backend: Optional[s
     if feature_name == "sift":
         return "opencv_sift"
     return feature_name
-
-
-def _resize_for_long_edge(image_bgr, resize_long_edge: Optional[int]):
-    import cv2  # type: ignore
-
-    h, w = image_bgr.shape[:2]
-    if resize_long_edge is None or int(resize_long_edge) <= 0:
-        return image_bgr, 1.0
-
-    target = int(resize_long_edge)
-    longest = max(h, w)
-    if longest <= target:
-        return image_bgr, 1.0
-
-    scale = float(target) / float(longest)
-    resized = cv2.resize(
-        image_bgr,
-        (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
-        interpolation=cv2.INTER_AREA,
-    )
-    return resized, scale
 
 
 def _to_numpy_2d(tensor_like):
@@ -97,12 +77,27 @@ def _resolve_superpoint_weights(weights_dir: Optional[str]) -> Dict[str, object]
     )
 
 
-def _instantiate_superpoint(max_keypoints: int):
+def _normalize_superpoint_max_keypoints(max_keypoints: Optional[int]) -> Optional[int]:
+    if max_keypoints is None:
+        return None
+    value = int(max_keypoints)
+    return None if value <= 0 else value
+
+
+def _resolve_superpoint_resize(resize_long_edge: Optional[int]):
+    if resize_long_edge is None:
+        return _USE_SUPERPOINT_DEFAULT_RESIZE
+    value = int(resize_long_edge)
+    return None if value <= 0 else value
+
+
+def _instantiate_superpoint(max_keypoints: Optional[int]):
     from lightglue import SuperPoint  # type: ignore
 
+    normalized_max_keypoints = _normalize_superpoint_max_keypoints(max_keypoints)
     init_candidates = (
-        {"max_num_keypoints": int(max_keypoints)},
-        {"max_keypoints": int(max_keypoints)},
+        {"max_num_keypoints": normalized_max_keypoints},
+        {"max_keypoints": normalized_max_keypoints},
         {},
     )
     last_error = None
@@ -113,7 +108,7 @@ def _instantiate_superpoint(max_keypoints: int):
             last_error = exc
     raise MethodBBackendError(
         "Unable to instantiate SuperPoint with the supported constructor variants.",
-        diagnostics={"last_error": str(last_error), "max_keypoints": int(max_keypoints)},
+        diagnostics={"last_error": str(last_error), "max_keypoints": normalized_max_keypoints},
     )
 
 
@@ -137,15 +132,16 @@ def _load_superpoint_extractor(
         )
 
     weights_info = _resolve_superpoint_weights(weights_dir)
+    normalized_max_keypoints = _normalize_superpoint_max_keypoints(max_keypoints)
     cache_key = (
         str(device_info["resolved_device"]),
-        int(max_keypoints),
+        normalized_max_keypoints,
         weights_info.get("weights_path"),
     )
     if cache_key in _SUPERPOINT_CACHE:
         return _SUPERPOINT_CACHE[cache_key], device_info, weights_info, dependency_status
 
-    extractor, init_kwargs = _instantiate_superpoint(int(max_keypoints))
+    extractor, init_kwargs = _instantiate_superpoint(normalized_max_keypoints)
     load_info = maybe_load_state_dict(extractor, weights_info.get("weights_path"))
 
     extractor = extractor.eval().to(str(device_info["resolved_device"]))
@@ -167,14 +163,17 @@ def _extract_superpoint_features(
     import numpy as np  # type: ignore
     import torch  # type: ignore
 
-    resized_bgr, resize_scale = _resize_for_long_edge(image_bgr, resize_long_edge)
-    rgb = cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
+    rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     tensor = torch.from_numpy(rgb.astype(np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
     tensor = tensor.to(str(resolved_device))
+    preprocess_resize = _resolve_superpoint_resize(resize_long_edge)
+    extract_kwargs = {}
+    if preprocess_resize is not _USE_SUPERPOINT_DEFAULT_RESIZE:
+        extract_kwargs["resize"] = preprocess_resize
 
     with torch.inference_mode():
         if hasattr(extractor, "extract"):
-            pred = extractor.extract(tensor)
+            pred = extractor.extract(tensor, **extract_kwargs)
         else:
             pred = extractor({"image": tensor})
 
@@ -191,20 +190,19 @@ def _extract_superpoint_features(
     else:
         scores = _to_numpy_2d(score_tensor).astype(np.float32).reshape(-1)
 
-    h_orig, w_orig = image_bgr.shape[:2]
-    h_res, w_res = resized_bgr.shape[:2]
-    scale_x = float(w_orig) / float(w_res)
-    scale_y = float(h_orig) / float(h_res)
-    keypoints[:, 0] *= scale_x
-    keypoints[:, 1] *= scale_y
-
     feature_payload = dict(pred)
     return {
         "keypoints_xy": [(float(x), float(y)) for x, y in keypoints.tolist()],
         "descriptors": descriptors,
         "scores": [float(v) for v in scores.tolist()],
-        "resize_scale": float(resize_scale),
-        "resized_image_size": (int(w_res), int(h_res)),
+        "preprocess_resize": (
+            "package_default_1024"
+            if preprocess_resize is _USE_SUPERPOINT_DEFAULT_RESIZE
+            else preprocess_resize
+        ),
+        "payload_image_size": tuple(int(v) for v in pred["image_size"].reshape(-1).tolist())
+        if "image_size" in pred
+        else None,
         "payload": feature_payload,
     }
 
@@ -295,7 +293,7 @@ def detect_and_describe_result(
                 "device": device,
                 "force_cpu": bool(force_cpu),
                 "weights_dir": weights_dir,
-                "max_keypoints": int(max_keypoints),
+                "max_keypoints": _normalize_superpoint_max_keypoints(max_keypoints),
                 "resize_long_edge": resize_long_edge,
             },
         ) from exc
@@ -314,9 +312,10 @@ def detect_and_describe_result(
             "dependency_status": dependency_status,
             "device_info": device_info,
             "weights_info": weights_info,
-            "max_keypoints": int(max_keypoints),
+            "max_keypoints": _normalize_superpoint_max_keypoints(max_keypoints),
             "resize_long_edge": resize_long_edge,
-            "resized_image_size": extracted["resized_image_size"],
+            "superpoint_preprocess_resize": extracted["preprocess_resize"],
+            "payload_image_size": extracted["payload_image_size"],
             "payload_format": "lightglue_superpoint_v1",
         },
         cv_keypoints=cv_keypoints,

@@ -44,9 +44,50 @@
 - `outputs/runs/<run_id>/snapshots/`
 - `outputs/video_compare/<suite_id>/summary.csv`
 - `outputs/video_compare/<suite_id>/pair_compare.csv`
+- `outputs/phase3/<suite_id>/method_summary.csv`
+- `outputs/phase3/<suite_id>/dynamic_preset_summary.csv`
+- `outputs/phase3/<suite_id>/pair_coverage.csv`
 - `outputs/ablations/<pair_id>/seam/`
 - `outputs/ablations/<pair_id>/...`
 - 后续统一 summary CSV / plot 脚本
+
+## 当前正式推荐素材（2026-03-23）
+- Phase 1 方法对比正式入口：
+  - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
+  - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
+- Phase 2 dynamic seam 正式入口：
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/pair_compare.csv`
+  - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
+- Phase 3 KITTI full-length 正式入口：
+  - `outputs/phase3/phase3_kitti_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/method_pair_compare.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/dynamic_pair_compare.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/pair_coverage.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/phase3_kitti_summary.md`
+  - `outputs/phase3/phase3_dynamicstereo_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_dynamicstereo_full_v1/dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_dynamicstereo_full_v1/pair_coverage.csv`
+  - `outputs/phase3/phase3_minesource_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_minesource_full_v1/dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_minesource_full_v1/pair_coverage.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_overall_full_v1/phase3_overall_summary.md`
+- 当前 final report 最值得保留的 KITTI 图表：
+  - 方法总表：
+    - `method_summary.csv`
+  - 方法 pair 级对比：
+    - `method_pair_compare.csv`
+  - dynamic seam preset 总表：
+    - `dynamic_preset_summary.csv`
+  - dynamic seam pair 级对比：
+    - `dynamic_pair_compare.csv`
+  - dynamic seam 代表性截图：
+    - `outputs/video_compare/phase3_kitti_full_v1__dynamic/visual_summary.md`
+    - `outputs/video_compare/phase3_dynamicstereo_full_v1__dynamic/visual_summary.md`
+    - `outputs/video_compare/phase3_minesource_full_v1__dynamic/visual_summary.md`
 
 ## 结果组织建议
 - 所有正式图表必须能追溯到具体 `run_id`。

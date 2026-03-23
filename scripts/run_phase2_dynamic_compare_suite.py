@@ -97,6 +97,7 @@ PRESETS: List[Dict[str, object]] = [
         "seam_smooth_window": 5,
     },
 ]
+PRESET_BY_ID: Dict[str, Dict[str, object]] = {str(preset["preset_id"]): preset for preset in PRESETS}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -111,6 +112,13 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="*",
         default=None,
         help="Optional pair ids or aliases; default uses the formal Phase 2 pairs",
+    )
+    parser.add_argument(
+        "--presets",
+        nargs="*",
+        default=None,
+        choices=sorted(PRESET_BY_ID),
+        help="Optional preset ids; default uses the formal Phase 2 preset set",
     )
     parser.add_argument(
         "--manifest",
@@ -158,6 +166,12 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[0, 1],
         help="Whether to save seam event snapshots",
     )
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help="Optional fps override passed through to run_baseline_video.py; useful for frames datasets with missing manifest fps",
+    )
     parser.add_argument("--device", default=None, help="Optional Method B device override")
     parser.add_argument("--force_cpu", action="store_true", help="Force Method B to use CPU")
     parser.add_argument("--weights_dir", default=None, help="Optional Method B weights dir")
@@ -170,6 +184,12 @@ def _resolve_pairs(requested_pairs: Sequence[str] | None) -> List[str]:
     if not requested_pairs:
         return list(DEFAULT_PAIRS)
     return [PAIR_ALIASES.get(raw_name, raw_name) for raw_name in requested_pairs]
+
+
+def _resolve_presets(requested_presets: Sequence[str] | None) -> List[Dict[str, object]]:
+    if not requested_presets:
+        return list(PRESETS)
+    return [dict(PRESET_BY_ID[preset_id]) for preset_id in requested_presets]
 
 
 def _load_json(path: Path) -> Dict:
@@ -243,6 +263,8 @@ def _build_case_command(
         "--run_id",
         run_id,
     ]
+    if args.fps is not None:
+        cmd.extend(["--fps", str(args.fps)])
     if args.device:
         cmd.extend(["--device", str(args.device)])
     if args.force_cpu:
@@ -274,6 +296,8 @@ def _extract_result_row(
         "preset_id": str(preset["preset_id"]),
         "run_id": run_id,
         "run_dir": str(run_dir.relative_to(repo_root)) if run_dir.exists() else str(run_dir),
+        "fps": debug.get("fps"),
+        "fps_source": debug.get("fps_source"),
         "geometry_mode": metrics.get("geometry_mode"),
         "seam_policy": metrics.get("seam_policy"),
         "seam_keyframe_every_effective": metrics.get("seam_keyframe_every_effective"),
@@ -443,6 +467,7 @@ def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parents[1]
     pairs = _resolve_pairs(args.pairs)
+    presets = _resolve_presets(args.presets)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     suite_id = args.suite_id or f"{timestamp}_phase2_dynamic_compare"
     suite_dir = repo_root / "outputs" / "video_compare" / suite_id
@@ -452,7 +477,7 @@ def main() -> int:
     overall_rc = 0
 
     for pair_index, pair_id in enumerate(pairs, start=1):
-        for preset_index, preset in enumerate(PRESETS, start=1):
+        for preset_index, preset in enumerate(presets, start=1):
             safe_pair = pair_id.replace("/", "_").replace(" ", "_")
             run_id = (
                 f"{suite_id}__{pair_index:02d}_{preset_index:02d}__"
@@ -512,7 +537,18 @@ def main() -> int:
     _write_csv(suite_dir / "preset_summary.csv", preset_summary)
     _write_csv(suite_dir / "pair_compare.csv", pair_compare)
     (suite_dir / "summary.json").write_text(
-        json.dumps(results, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "suite_id": suite_id,
+                "pairs": pairs,
+                "presets": [str(preset["preset_id"]) for preset in presets],
+                "max_frames": args.max_frames,
+                "fps": args.fps,
+                "results": results,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (suite_dir / "preset_summary.json").write_text(

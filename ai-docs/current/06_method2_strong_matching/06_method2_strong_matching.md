@@ -305,6 +305,95 @@
       - `geometry_backend_effective=opencv_usac_magsac`
       - `fallback_frames=0`
 
+## 2026-03-23 复盘：为什么当前 Method B 会显得偏弱
+### 复盘结论
+- 当前 Phase 3 中 `method_b` 的整体偏弱，不应直接解释为 `SuperPoint + LightGlue` 本身不适合项目。
+- 本次复查确认了两个更像工程接入 / preset 选择的问题：
+  - 旧正式 compare 实际跑在偏速度的 LightGlue 默认配置上，而不是官方 README 中偏准确率的配置。
+  - 旧 `resize_long_edge` 对 Method B 没有真正按官方方式作用到 `SuperPoint.extract()` 的 preprocess，导致想要提高 SuperPoint 输入分辨率时，实际仍常常停留在 package default `1024`。
+
+### 具体问题 1：旧 Method B compare 使用的是 speed-oriented implicit preset
+- 旧默认配置实质上接近：
+  - `max_keypoints=2048`
+  - `SuperPoint.extract()` 默认 resize `1024`
+  - `LightGlue depth_confidence=0.95`
+  - `LightGlue width_confidence=0.99`
+  - `filter_threshold=0.1`
+- 这更接近官方 README 所说的 “good trade-off between speed and accuracy”，而不是 accuracy mode。
+- LightGlue 官方给出的 accuracy 建议是：
+  - 更多 keypoints
+  - `depth_confidence=-1`
+  - `width_confidence=-1`
+- 因此旧 compare 更像 “balanced/speed preset 对比”，不适合作为最终 Method B 能力上限。
+
+### 具体问题 2：旧 `resize_long_edge` 语义对 Method B 不正确
+- 旧实现先在外层把图像 resize，再调用 `SuperPoint.extract(tensor)`。
+- 但官方 `Extractor.extract()` 自身还会按 preprocess conf 再做一次内部 resize。
+- 结果是：
+  - `resize_long_edge` 无法真正把 SuperPoint 提升到更高输入分辨率
+  - 对于高分辨率 `mine_source` 这类视频，Method B 的 keypoints 和匹配上限被压低
+- 本次修复后，Method B 的 `resize_long_edge` 语义改为：
+  - `None`：沿用 package default `1024`
+  - `> 0`：显式传给 `SuperPoint.extract(..., resize=...)`
+  - `<= 0`：禁用 auto-resize
+
+### 本次模块级修复
+- `src/stitching/features.py`
+  - 修复 Method B 的 `resize_long_edge` 语义，使其真正作用到 `SuperPoint.extract()`
+  - `max_keypoints <= 0` 现在表示 “不设上限”
+  - 在 `FeatureResult.meta` 中新增：
+    - `superpoint_preprocess_resize`
+    - `payload_image_size`
+- `src/stitching/matching.py`
+  - 在 `MatchResult.meta` 中新增 LightGlue 运行细节：
+    - `stop_layer`
+    - `prune0/prune1` 统计
+- `scripts/run_baseline_frame.py`
+  - CLI help 更新为新的 Method B 语义
+- `scripts/run_baseline_video.py`
+  - CLI help 更新为新的 Method B 语义
+
+### 当前推荐 Method B accuracy preset
+- 用于后续正式 compare 的推荐参数：
+  - `feature_backend=superpoint`
+  - `matcher_backend=lightglue`
+  - `geometry_backend=opencv_usac_magsac`
+  - `max_keypoints=4096`
+  - `resize_long_edge=1536`
+  - `depth_confidence=-1`
+  - `width_confidence=-1`
+  - `filter_threshold=0.1`
+- 选择理由：
+  - 相比“完全不限制 keypoints + 完全不 resize”，该 preset 更适合当前 CPU 环境
+  - 相比旧 implicit preset，它能明显抬高 Method B 的匹配数量和内点数
+
+### 本次代表性验证
+- 单帧复查（frame 0）：
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - 旧：`1187 kp / 874 matches / 365 inliers`
+    - 新：`2134 kp / 1566 matches / 647 inliers`
+  - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+    - 旧：`1756 kp / 1016 matches / 415 inliers`
+    - 新：`3108 kp / 1566 matches / 685 inliers`
+  - `mine_source_walking_left_right`
+    - 旧：`2048 kp / 821 matches / 148 inliers`
+    - 新：`4096 kp / 1596 matches / 432 inliers`
+- 短视频复查：
+  - `outputs/analysis/methodb_recheck_video_summary.json`
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+    - 旧：`mean_inliers=365`, `approx_fps=4.06`
+    - 新：`mean_inliers=647`, `approx_fps=3.41`
+  - `mine_source_walking_left_right`
+    - 旧：`mean_inliers=148`, `mean_inlier_ratio=0.180`, `approx_fps=3.70`
+    - 新：`mean_inliers=432`, `mean_inlier_ratio=0.271`, `approx_fps=2.54`
+
+### 当前结论
+- Method B 之前“显得很差”，至少部分是 preset 和 SuperPoint preprocess 接入问题，而不是纯算法结论。
+- 本次修复后，Method B 的匹配和 inlier 质量已经明显改善。
+- 但 Phase 3 旧正式 compare 结果仍然是基于旧 implicit preset 跑出来的，因此：
+  - 当前不能直接拿旧总表写 final report 的最终 Method B 结论
+  - 需要用显式 Method B accuracy preset 重新刷新正式方法对比
+
 ## 建议配置项
 - `feature_backend`
 - `matcher_backend`

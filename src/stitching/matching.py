@@ -191,6 +191,31 @@ def _extract_lightglue_pairs(prediction):
     return pairs_out, scores_out
 
 
+def _extract_lightglue_meta(prediction) -> Dict[str, object]:
+    meta: Dict[str, object] = {}
+    stop = prediction.get("stop")
+    if stop is not None:
+        stop_np = _tensor_to_numpy(stop)
+        try:
+            meta["stop_layer"] = int(stop_np.reshape(-1)[0])
+        except Exception:
+            meta["stop_layer"] = stop
+
+    for key in ("prune0", "prune1"):
+        value = prediction.get(key)
+        if value is None:
+            continue
+        value_np = _tensor_to_numpy(value)
+        try:
+            flat = value_np.astype("float32").reshape(-1)
+            if flat.size:
+                meta[f"{key}_mean"] = float(flat.mean())
+                meta[f"{key}_max"] = float(flat.max())
+        except Exception:
+            meta[f"{key}_available"] = True
+    return meta
+
+
 def _build_cv_matches(matches_lr: List[Tuple[int, int]], match_scores: List[float]):
     import cv2  # type: ignore
 
@@ -269,6 +294,7 @@ def match_feature_results(
                     {"image0": feature_left.backend_payload, "image1": feature_right.backend_payload}
                 )
             matches_lr, match_scores = _extract_lightglue_pairs(prediction)
+            prediction_meta = _extract_lightglue_meta(prediction)
         except MethodBBackendError:
             raise
         except Exception as exc:
@@ -306,6 +332,7 @@ def match_feature_results(
                 "width_confidence": width_confidence,
                 "filter_threshold": filter_threshold,
                 "tentative_count_semantics": "filtered_lightglue_matches",
+                "prediction_meta": prediction_meta,
             },
             cv_matches=_build_cv_matches(matches_lr, match_scores),
         )

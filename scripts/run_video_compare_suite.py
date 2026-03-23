@@ -116,6 +116,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional Method B device override",
     )
     parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help="Optional fps override passed through to run_baseline_video.py; useful for frames datasets with missing manifest fps",
+    )
+    parser.add_argument(
         "--force_cpu",
         action="store_true",
         help="Force Method B backends to use CPU",
@@ -197,6 +203,8 @@ def _build_case_command(
                 "opencv_ransac",
             ]
         )
+        if args.fps is not None:
+            cmd.extend(["--fps", str(args.fps)])
         return cmd
 
     cmd.extend(
@@ -211,6 +219,8 @@ def _build_case_command(
     )
     if args.device:
         cmd.extend(["--device", str(args.device)])
+    if args.fps is not None:
+        cmd.extend(["--fps", str(args.fps)])
     if args.force_cpu:
         cmd.append("--force_cpu")
     if args.weights_dir:

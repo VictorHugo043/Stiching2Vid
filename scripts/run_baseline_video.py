@@ -90,13 +90,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max_keypoints",
         type=int,
         default=2048,
-        help="Maximum keypoints for SuperPoint backend",
+        help="Maximum keypoints for SuperPoint backend (<=0 means no cap)",
     )
     parser.add_argument(
         "--resize_long_edge",
         type=int,
         default=None,
-        help="Optional long-edge resize before SuperPoint extraction",
+        help=(
+            "Optional SuperPoint preprocess resize. "
+            "None uses package default (1024), <=0 disables auto-resize."
+        ),
     )
     parser.add_argument(
         "--depth_confidence",

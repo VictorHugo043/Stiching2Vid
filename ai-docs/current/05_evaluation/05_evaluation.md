@@ -127,6 +127,7 @@
   - `geometry_mode`
   - hardware / device
   - Method B 的 keypoint 上限和 robust estimator 参数
+  - Method B 的 `SuperPoint / LightGlue` preset
 - 只允许单轴变化：
   - 方法变化时，其余 seam / temporal / geometry mode 固定
   - seam 变化时，方法和 geometry mode 固定
@@ -146,9 +147,23 @@
     - `reuse_mode=frame0_all`
     - `max_frames=6000`
     - 不依赖 keyframe 更新
+  - Method B 当前推荐 accuracy preset（2026-03-23 复盘后）：
+    - `feature_backend=superpoint`
+    - `matcher_backend=lightglue`
+    - `geometry_backend=opencv_usac_magsac`
+    - `max_keypoints=4096`
+    - `resize_long_edge=1536`
+    - `depth_confidence=-1`
+    - `width_confidence=-1`
+    - `filter_threshold=0.1`
   - 解读边界：
     - 这是 Phase 1 的 fixed-geometry compare preset，用于验证 Method B 已完整接到视频质量链路
     - `jitter` 在这一 preset 下不作为主比较指标
+    - 2026-03-23 之前的 Phase 3 Method B 结果使用的是旧 implicit preset：
+      - `max_keypoints=2048`
+      - `SuperPoint` package default resize `1024`
+      - `LightGlue` adaptive defaults（`depth_confidence=0.95`, `width_confidence=0.99`）
+    - 因此旧 Phase 3 方法表目前只能作为“旧 preset 下的实验事实”，不能再直接当 final report 的最终 Method B 结论
 
 ### Phase 2
 - 在最佳方法下比较：
@@ -261,6 +276,219 @@
   - DynamicStereo 动态样例
   - `mine_source` 真实视频
   - 至少 1 组较稳定的静态样例
+
+### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）
+- 正式入口：
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+- 当前正式 suite：
+  - `outputs/phase3/phase3_kitti_full_v1/phase3_kitti_summary.md`
+  - `outputs/phase3/phase3_kitti_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/method_pair_compare.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/dynamic_pair_compare.csv`
+  - `outputs/phase3/phase3_kitti_full_v1/pair_coverage.csv`
+- 固定配置：
+  - pair 只使用 `kitti_raw_data_2011_09_xx_drive_0xxx_image_02_image_03`
+  - `fps=10`
+  - `max_frames=6000`
+  - 方法对比仍沿用：
+    - `video_mode=1`
+    - `reuse_mode=frame0_all`
+  - dynamic seam 对比当前只纳入正式 preset：
+    - `baseline_fixed`
+    - `keyframe_seam10`
+    - `trigger_fused_d18_fg008`
+- 当前正式 KITTI pairs：
+  - `kitti_raw_data_2011_09_26_drive_0001_image_02_image_03`
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+  - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
+  - `kitti_raw_data_2011_09_26_drive_0019_image_02_image_03`
+  - `kitti_raw_data_2011_09_28_drive_0016_image_02_image_03`
+  - `kitti_raw_data_2011_09_28_drive_0021_image_02_image_03`
+- full-length 覆盖结果：
+  - 6 个 pair 全部跑到结尾
+  - `pair_coverage.csv` 中 `method_processed_frames_mean == dynamic_processed_frames_mean == 实际总帧数`
+  - `0001=108`
+  - `0002=77`
+  - `0005=154`
+  - `0019=481`
+  - `0016=186`
+  - `0021=209`
+  - 总计 `1215` 帧 / 子 suite
+- 方法对比聚合结果：
+  - `method_a_orb`
+    - `mean_inliers ≈ 435.17`
+    - `mean_inlier_ratio ≈ 0.610`
+    - `approx_fps ≈ 24.32`
+  - `method_a_sift`
+    - `mean_inliers ≈ 529.17`
+    - `mean_inlier_ratio ≈ 0.487`
+    - `approx_fps ≈ 27.43`
+  - `method_b`
+    - `mean_inliers ≈ 345.50`
+    - `mean_inlier_ratio ≈ 0.389`
+    - `approx_fps ≈ 18.82`
+- 当前 KITTI 方法结论：
+  - 在这组 full-length KITTI color stereo fixed-geometry compare 上，`Method B` 没有在匹配内点或速度上胜过 `Method A`。
+  - 这应解释为当前数据域与 preset 下的实验结论，而不是 Method B 接入失败。
+  - 因此 final report 中不能默认宣称 “Method B 一定优于 Method A”，而应写成：
+    - Method B 在部分数据域和更强动态场景有价值
+    - 但在当前 KITTI color stereo full-length fixed-geometry compare 上，ORB/SIFT 仍保持竞争力
+- KITTI dynamic seam 聚合结果：
+  - `baseline_fixed`
+    - `mean_overlap_diff_after ≈ 4.690`
+    - `mean_stitched_delta ≈ 16.510`
+    - `approx_fps ≈ 19.99`
+  - `keyframe_seam10`
+    - `mean_overlap_diff_after ≈ 4.476`
+    - `mean_stitched_delta ≈ 16.515`
+    - `approx_fps ≈ 15.09`
+  - `trigger_fused_d18_fg008`
+    - `mean_overlap_diff_after ≈ 1.150`
+    - `mean_stitched_delta ≈ 16.520`
+    - `approx_fps ≈ 13.57`
+- 当前 KITTI dynamic seam 结论：
+  - `trigger_fused_d18_fg008` 仍是当前正式推荐 preset。
+  - 但它在 KITTI 上的收益并不均匀：
+    - `0001 / 0002` 上改善显著
+    - `0005 / 0019 / 0016 / 0021` 上与 baseline 的 `overlap_diff_after` 差异接近 0
+  - 因此 final report 应同时展示：
+    - preset 级平均值
+    - pair 级 `dynamic_pair_compare.csv`
+
+### Phase 3 DynamicStereo full-length suite（2026-03-23）
+- 正式 suite：
+  - `outputs/phase3/phase3_dynamicstereo_full_v1`
+- 正式 pairs：
+  - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+  - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+  - `dynamicstereo_real_000_teddy_static_test_frames_rect_left_right`
+- 固定配置：
+  - `fps=10`
+  - `max_frames=6000`
+  - 方法对比：
+    - `method_a_orb / method_a_sift / method_b`
+  - dynamic seam preset：
+    - `baseline_fixed / keyframe_seam10 / trigger_fused_d18_fg008`
+- full-length 覆盖结果：
+  - `ignacio=99`
+  - `nikita=83`
+  - `teddy=99`
+  - 合计 `281` 帧 / 子 suite
+- 方法对比聚合结果：
+  - `method_a_orb`
+    - `mean_inliers ≈ 532.67`
+    - `mean_inlier_ratio ≈ 0.628`
+    - `approx_fps ≈ 11.27`
+  - `method_a_sift`
+    - `mean_inliers ≈ 257.00`
+    - `mean_inlier_ratio ≈ 0.482`
+    - `approx_fps ≈ 10.72`
+  - `method_b`
+    - `mean_inliers ≈ 306.33`
+    - `mean_inlier_ratio ≈ 0.384`
+    - `approx_fps ≈ 6.44`
+- dynamic seam 聚合结果：
+  - `baseline_fixed`
+    - `mean_overlap_diff_after ≈ 6.530`
+    - `approx_fps ≈ 5.85`
+  - `keyframe_seam10`
+    - `mean_overlap_diff_after ≈ 6.169`
+    - `approx_fps ≈ 4.94`
+  - `trigger_fused_d18_fg008`
+    - `mean_overlap_diff_after ≈ 2.439`
+    - `approx_fps ≈ 4.87`
+- 当前 DynamicStereo 结论：
+  - `trigger_fused_d18_fg008` 继续显著优于 `baseline_fixed / keyframe_seam10`。
+  - 在这组更强动态样例上，Method B 仍未整体超过 ORB，但其结论与 KITTI 不同，不应只用单一数据域下定论。
+
+### Phase 3 mine_source full-length suite（2026-03-23）
+- 正式 suite：
+  - `outputs/phase3/phase3_minesource_full_v1`
+- 当前工作区可运行的正式 pairs：
+  - `mine_source_bow1_left_right`
+  - `mine_source_bow2_left_right`
+  - `mine_source_lake_left_right`
+  - `mine_source_robot_left_right`
+  - `mine_source_church_left_right`
+  - `mine_source_park1_left_right`
+  - `mine_source_pujiang1_left_right`
+  - `mine_source_pujiang2_left_right`
+  - `mine_source_pujiang3_left_right`
+  - `mine_source_indoor_left_right`
+  - `mine_source_indoor2_left_right`
+  - `mine_source_mcd1_left_right`
+  - `mine_source_mcd2_left_right`
+  - `mine_source_square_left_right`
+  - `mine_source_traffic1_left_right`
+  - `mine_source_traffic2_left_right`
+  - `mine_source_walking_left_right`
+- 未纳入：
+  - `mine_source_leaves_left_right`
+    - 当前本地源文件缺失，无法打开
+- 固定配置：
+  - 调用层按 `fps=30` 运行本套件
+  - 但 run bundle 中对视频输入仍记录 `video_source` 的原始 fps
+  - 因此大多数 pair 为约 `30fps`，`bow1 / bow2` 仍显示为 `25fps`
+  - `max_frames=6000`
+- full-length 覆盖结果：
+  - 17 个可用 pair 全部跑完
+  - 合计 `5873` 帧 / 子 suite
+- 方法对比聚合结果：
+  - `method_a_orb`
+    - `mean_inliers ≈ 468.76`
+    - `mean_inlier_ratio ≈ 0.847`
+    - `approx_fps ≈ 11.61`
+  - `method_a_sift`
+    - `mean_inliers ≈ 754.35`
+    - `mean_inlier_ratio ≈ 0.788`
+    - `approx_fps ≈ 10.32`
+  - `method_b`
+    - `mean_inliers ≈ 424.41`
+    - `mean_inlier_ratio ≈ 0.601`
+    - `approx_fps ≈ 9.47`
+- dynamic seam 聚合结果：
+  - `baseline_fixed`
+    - `mean_overlap_diff_after ≈ 6.439`
+    - `approx_fps ≈ 11.39`
+  - `keyframe_seam10`
+    - `mean_overlap_diff_after ≈ 5.591`
+    - `approx_fps ≈ 8.34`
+  - `trigger_fused_d18_fg008`
+    - `mean_overlap_diff_after ≈ 2.887`
+    - `approx_fps ≈ 7.64`
+- 当前 mine_source 结论：
+  - `trigger_fused_d18_fg008` 在自采视频上继续显著优于 `baseline_fixed / keyframe_seam10`。
+  - Method A 仍强于当前 Method B preset，尤其在自采视频的固定几何 compare 上更明显。
+
+### Phase 3 统一总表（2026-03-23）
+- 总表入口：
+  - `scripts/build_phase3_overall_summary.py`
+- 当前正式总表：
+  - `outputs/phase3/phase3_overall_full_v1/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_preset_summary.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_method_by_dataset.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_by_dataset.csv`
+  - `outputs/phase3/phase3_overall_full_v1/overall_pair_coverage.csv`
+  - `outputs/phase3/phase3_overall_full_v1/phase3_overall_summary.md`
+- 当前整体覆盖：
+  - `26` 个可运行 pair
+  - `78` 条方法 compare run
+  - `78` 条 dynamic seam run
+  - 共 `156` 条 full-length run
+  - 共覆盖 `7369` 帧 / 子 suite 维度
+- 当前 overall 结论：
+  - 方法主轴：
+    - `method_a_sift` 当前总体 `mean_inliers` 最高
+    - `method_a_orb` 当前总体 `mean_inlier_ratio` 最高
+    - `method_b` 当前总体速度和匹配质量都未超过 Method A
+  - dynamic seam 主轴：
+    - `trigger_fused_d18_fg008` 当前总体 `mean_overlap_diff_after` 最优
+    - 但相较 `baseline_fixed` 会带来明显速度下降
+  - 因此 final report 中当前最稳的表述应是：
+    - `trigger_fused_d18_fg008` 是当前 OpenCV seam backend 路线下最有效的 dynamic seam preset
+    - `Method B` 已完整接入并可稳定运行，但在当前三数据域的 fixed-geometry compare 上没有整体超过 Method A
 
 ## 可视化与 final report 保留项
 - 必保留图：
