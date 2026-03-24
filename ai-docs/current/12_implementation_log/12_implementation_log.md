@@ -3394,3 +3394,176 @@
 - 下一步建议：
   - 若继续优化 Method B，应探索新的安全候选，而不是直接沿用 `kp3072_v1` 替换正式默认。
   - 若实验部分先收尾，可继续围绕 `phase3_overall_methods_rich_v3` 与 `phase3_methodb_accuracy_vs_kp3072_v1` 撰写 final report 方法讨论。
+
+## IMP-20260324-07
+- 状态：done
+- 标题：Phase 4 GUI thin wrapper 落地
+- 本步目标：
+  - 实现一个非 Web 的 GUI thin wrapper，复用现有 CLI 与 outputs bundle，不改核心 stitching pipeline。
+  - 支持选择已有 pair、注册新的左右视频 pair、设置最小必要参数并启动 `run_baseline_video.py`。
+  - 在 GUI 内展示运行日志、run 目录和关键 artefact 路径。
+- 关联上一步结论：
+  - `DEC-20260319-06`：GUI 只做 thin wrapper，不重写核心 pipeline。
+  - 当前正式实验路径与脚本框架已经稳定，适合在此基础上补 GUI 包装层。
+  - 用户明确要求“直接进入 Phase 4，开始 GUI thin wrapper，不用 webui”。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_baseline_video.py`
+  - `src/stitching/io.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `src/stitching/method_b_presets.py`
+  - `README.md`
+  - `docs/environment.md`
+- 准备修改文件：
+  - `scripts/run_stitching_gui.py`
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 需要新增 GUI 启动入口和最小实现模块。
+  - README / 环境文档和 ai-docs 必须同步说明 GUI 的边界、用法和安全约束。
+  - 决策 / 实施 / issue 文档需要记录 Phase 4 的落地范围。
+- 风险点：
+  - GUI 若直接重写算法逻辑，会破坏 thin wrapper 边界。
+  - pair 注册若直接写绝对路径或写出 repo 外，会破坏 manifest 可复现性。
+  - Tkinter subprocess 日志读取若设计不当，可能阻塞 UI。
+- 验收标准：
+  - GUI 能列出已有 pair，并能启动一次 `run_baseline_video.py`。
+  - GUI 能安全复制用户选中的左右视频到 repo 内，再追加到 `pairs.yaml`。
+  - 输出路径被限制在 `outputs/runs/<run_id>`。
+  - GUI 能展示日志、run 目录和关键 artefact 路径。
+- 替代方案与不选原因：
+  - 方案：做一个 Web UI。
+  - 不选原因：用户明确表示不需要 webui；本项目更适合先做标准库 Tkinter thin wrapper。
+- 实际修改文件：
+  - `scripts/run_stitching_gui.py`
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `scripts/run_stitching_gui.py`，作为桌面 GUI 启动入口。
+  - 新增 `src/stitching/gui_thin_wrapper.py`，用 `tkinter` 实现最小 GUI：
+    - 选择已有 pair
+    - 注册新的左右视频 pair
+    - 配置最小必要参数
+    - 启动 `scripts/run_baseline_video.py`
+    - 流式展示日志
+    - 汇总 run 目录与关键 artefact
+  - GUI 复用：
+    - `stitching.io.load_pairs`
+    - `scripts.preprocess.split_sbs_stereo.probe_video`
+    - `scripts.preprocess.split_sbs_stereo.path_relative_to_repo`
+    - `scripts.preprocess.split_sbs_stereo.append_manifest_entries`
+    - `stitching.method_b_presets.get_method_b_preset`
+  - 新 pair 注册时：
+    - 先复制左右视频到 `data/raw/Videos/gui_uploads/<pair_id>/`
+    - 再以 repo-relative 路径写入 `pairs.yaml`
+    - 维持 manifest 备份逻辑
+  - GUI 运行时：
+    - 统一把输出限制到 `outputs/runs/<run_id>/`
+    - 在 run 目录写 `gui_request.json`
+    - 默认暴露 `method_a_orb / method_a_sift / method_b_accuracy_v1 / method_b_kp3072_v1`
+  - README 与环境文档已同步补充 GUI 启动方式和边界说明。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+  - 非交互导入检查：`from stitching.gui_thin_wrapper import launch_gui`
+  - 本机 `tkinter` 可导入性检查
+- 运行结果与验证结果：
+  - GUI launcher 语法检查通过。
+  - `scripts/run_stitching_gui.py --help` 正常输出。
+  - `launch_gui` 可正常导入。
+  - 当前环境中 `tkinter` 可用，满足桌面 GUI MVP 启动前提。
+- 偏差：
+  - 本步未在自动化环境中实际弹出 GUI 窗口做交互式人工点击验证。
+  - 当前上传注册只覆盖“左右视频文件”场景，不覆盖 frame directory 注册。
+  - GUI 当前只封装单 run，不承担 compare suite / plot export。
+- 下一步建议：
+  - 如需继续推进 GUI，只做 polish：
+    - 更细的参数联动
+    - 更完整的 artefact 预览
+    - 更清晰的错误提示
+  - 若不再扩 GUI，可把当前 MVP 直接作为 Phase 4 完成状态写入最终说明。
+
+## IMP-20260324-08
+- 状态：done
+- 标题：Phase 4 GUI 回归修复：Tkinter 布局管理器冲突
+- 本步目标：
+  - 修复 `scripts/run_stitching_gui.py` 启动后因 `pack/grid` 混用导致的 GUI 初始化崩溃。
+  - 保持 Phase 4 thin wrapper 范围不变，只做最小布局修复与验证。
+- 关联上一步结论：
+  - `IMP-20260324-07`：GUI MVP 已落地，但未做真实窗口构建级别的交互 smoke。
+  - 用户实际运行暴露：`_tkinter.TclError: cannot use geometry manager pack inside ... which already has slaves managed by grid`
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_stitching_gui.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 真正的崩溃点在 `gui_thin_wrapper.py` 的 `Run Config` 布局 helper。
+  - 决策 / 实施 / 变更 / issue 文档需要记录这次 GUI 回归与修复边界。
+- 风险点：
+  - 若顺手大改 GUI 布局，容易越过“最小修复”边界。
+  - 若只修当前报错点但不做 root/build smoke，可能仍遗漏其他初始化错误。
+- 验收标准：
+  - `python scripts/run_stitching_gui.py` 不再在 GUI 初始化阶段因布局管理器冲突崩溃。
+  - `python3 -m py_compile ...`、`--help`、以及一次真实 `Tk()` + `StitchingGuiApp(...)` 构建 smoke 通过。
+- 替代方案与不选原因：
+  - 方案：重写整个 `Run Config` 区块布局。
+  - 不选原因：当前只需消除 `pack/grid` 冲突，没必要在回归修复中扩大 GUI 结构改动。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 将 `_grid_labeled_widget(...)` 改为在同一父容器 `grid` 放置 label 与 widget，不再创建内部 `container` 再对传入控件执行 `pack(...)`。
+  - 将 `Force CPU` 勾选框的 `grid` 行号改为与新双行布局对齐，避免继续和逻辑行冲突。
+  - 保持 GUI 的参数面、manifest 写入逻辑和 CLI 子进程逻辑不变，只修布局初始化回归。
+- 遇到的错误与修复：
+  - 用户实际运行报错：
+    - `_tkinter.TclError: cannot use geometry manager pack inside ... which already has slaves managed by grid`
+  - 根因：
+    - `Run Config` 区块中的控件以 `grid` 父容器创建，却在 `_grid_labeled_widget(...)` 内再尝试 `pack(...)` 到子容器，违反 Tkinter “同一父容器只使用一种 geometry manager”的规则。
+  - 修复：
+    - 改为统一 `grid` 布局，不再混用 `pack`。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+  - 尝试进行 `Tk()` + `StitchingGuiApp(...)` 构建 smoke
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 自动化环境中的真实 `Tk()` 构建 smoke 仍无法稳定返回结果，推测受当前终端/沙箱 GUI 会话限制；但基于用户 traceback 的根因已经定位并修复，且该类错误点已从代码结构上消除。
+- 偏差：
+  - 本步仍未在自动化环境中完成一次可见窗口级别的人工交互验证。
+  - 但修复范围严格限制在回归报错点，没有引入新功能或改变 GUI 边界。
+- 下一步建议：
+  - 由用户在本机直接重跑 `python scripts/run_stitching_gui.py` 做一次真实启动确认。
+  - 若 GUI 启动后再出现新的交互级错误，再按同一工作流逐个修复。

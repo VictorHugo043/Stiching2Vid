@@ -27,6 +27,7 @@ The focus is stable panorama generation from overlapping left/right streams, wit
 ├─ scripts/
 │  ├─ run_baseline_video.py      # Main video pipeline (video/frames inputs)
 │  ├─ run_baseline_frame.py      # Single-frame baseline
+│  ├─ run_stitching_gui.py       # Desktop GUI thin wrapper
 │  ├─ inspect_pair.py            # I/O sanity check for one pair + frame
 │  ├─ run_video_compare_suite.py # Formal method compare driver
 │  ├─ run_phase2_dynamic_compare_suite.py
@@ -41,6 +42,7 @@ The focus is stable panorama generation from overlapping left/right streams, wit
 │  ├─ seam_opencv.py             # Seam-scale warp, seam finders, mask resize
 │  ├─ cropper.py                 # LIR cropper and safe fallback
 │  ├─ blending.py                # none/feather/multiband blending
+│  ├─ gui_thin_wrapper.py        # Tkinter GUI wrapper around CLI runs
 │  ├─ video_state.py             # Cached state for reuse mode
 │  ├─ video_stitcher.py          # Frame0 initialize + reuse execution
 │  └─ viz.py                     # Snapshot helpers
@@ -176,6 +178,26 @@ Outputs:
 - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
 - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
 - `outputs/phase3/phase3_overall_methods_rich_v3/figures/`
+
+8) Desktop GUI thin wrapper:
+
+```bash
+source .venv-methodb/bin/activate
+python scripts/run_stitching_gui.py
+```
+
+Current GUI scope:
+- select an existing pair from `pairs.yaml`
+- register a new left/right video pair by copying files into `data/raw/Videos/gui_uploads/<pair_id>/`
+- configure a thin subset of `run_baseline_video.py` parameters
+- launch one stitching run and stream logs
+- summarize the resulting run bundle under `outputs/runs/<run_id>/`
+
+GUI safety boundary:
+- no web UI
+- no new stitching logic
+- no arbitrary output path selection
+- new uploads are copied into the repo and manifest paths stay repo-relative
 
 ## Side-by-Side Preprocess (mine_source)
 
@@ -356,6 +378,7 @@ Note:
 Formal:
 - `scripts/run_baseline_video.py`
 - `scripts/run_baseline_frame.py`
+- `scripts/run_stitching_gui.py`
 - `scripts/run_video_compare_suite.py`
 - `scripts/run_phase2_dynamic_compare_suite.py`
 - `scripts/run_phase3_full_methods_suite.py`
@@ -403,4 +426,4 @@ Alias:
 - Integrate calibration-aware preprocessing (undistortion/rectification).
 - Phase 2: dynamic seam + meaningful temporal evaluation.
 - Phase 3: richer evaluation metrics and reporting automation.
-- Phase 4: GUI thin wrapper.
+- Phase 4: desktop GUI thin wrapper MVP completed; optional polish remains.

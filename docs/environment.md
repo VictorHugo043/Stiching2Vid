@@ -162,7 +162,27 @@ source .venv-methodb/bin/activate
 python scripts/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
 ```
 
+## Desktop GUI Thin Wrapper
+Current GUI entry:
+- `scripts/run_stitching_gui.py`
+
+Launch:
+
+```bash
+source .venv-methodb/bin/activate
+python scripts/run_stitching_gui.py
+```
+
+Notes:
+- the GUI is a desktop `tkinter` wrapper, not a web UI
+- it launches `scripts/run_baseline_video.py` as a subprocess and writes a `gui_request.json` into the selected run directory
+- it is safest to launch it from the same environment you use for the target method
+- on headless shells or remote terminals without a display server, the GUI may not launch even though the script imports correctly
+- current upload path only supports registering left/right video files; uploads are copied into `data/raw/Videos/gui_uploads/` and appended to `data/manifests/pairs.yaml` with repo-relative paths
+- output remains restricted to `outputs/runs/<run_id>/`
+
 ## Which Environment Should I Use?
 - If you only need baseline video/frame stitching now, use `.venv`.
 - If you are touching `superpoint`, `lightglue`, or Method B diagnostics, use `.venv-methodb`.
+- If you want to use the desktop GUI with Method B presets, use `.venv-methodb`.
 - If you are just checking a pair quickly on this machine and do not want to recreate environments yet, system `python3` can still be used for limited Method A inspection, but it is not the documented reproducible path.
