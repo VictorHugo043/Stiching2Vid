@@ -3567,3 +3567,239 @@
 - 下一步建议：
   - 由用户在本机直接重跑 `python scripts/run_stitching_gui.py` 做一次真实启动确认。
   - 若 GUI 启动后再出现新的交互级错误，再按同一工作流逐个修复。
+
+## IMP-20260324-09
+- 状态：done
+- 标题：Phase 4 GUI polish：existing pair 首帧预览、注册弹窗与 run 目录打开入口
+- 本步目标：
+  - 在选择 existing pair 时预览 left/right 第一帧。
+  - 将当前主界面右侧的注册区域改为按钮入口，点击后打开独立注册弹窗。
+  - 在 run 完成后支持自动打开 run 目录，并提供手动“打开目录”按钮。
+- 关联上一步结论：
+  - `IMP-20260324-07`：Phase 4 GUI MVP 已完成，但只覆盖最小参数面与日志展示。
+  - `IMP-20260324-08`：GUI 启动回归已修复，当前可继续做薄层 UX polish。
+  - `ISSUE-20260324-03`：GUI 允许继续做 polish，但不能回头侵入核心 pipeline。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_stitching_gui.py`
+  - `src/stitching/io.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 现有 GUI 缺少 pair 可视化预览、注册入口也过于占位，且 run 完成后还没有“打开目录”交互。
+  - 文档和日志需要同步固化这些新增 GUI 能力与边界。
+- 风险点：
+  - 若预览读取绕开当前 `io` 层，容易重复实现视频/frames 读取逻辑。
+  - 若自动打开目录写死平台行为，可能造成跨平台兼容性问题。
+  - 若把注册弹窗做得过重，容易越过 thin wrapper 边界。
+- 验收标准：
+  - existing pair 选择后能显示 left/right 第一帧缩略图，失败时有明确提示。
+  - 主界面改为按钮触发注册弹窗；弹窗内可选择左右视频并填写 pair 信息后注册。
+  - run 完成后可自动打开对应 run 目录，且主界面保留手动打开按钮。
+  - 不新增任何核心 stitching / seam / evaluation 逻辑。
+- 替代方案与不选原因：
+  - 方案：继续维持主界面内联注册区域、不做预览。
+  - 不选原因：当前 GUI 已进入 polish 阶段，这几个交互点是最直接的可用性提升，且都能保持 thin wrapper 边界。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - existing pair 选择后会读取 left/right 第一帧，并显示缩略图预览。
+  - pair 预览实现复用 `stitching.io.open_pair(...)`，不单独重写 video/frames 读取逻辑。
+  - 主界面内联注册区域已收敛为按钮 `Register Pair...`；点击后打开独立注册弹窗。
+  - 注册弹窗内支持：
+    - 选择 left/right 视频文件
+    - 填写 `pair_id`
+    - 填写 `dataset`
+    - 将视频复制到 `data/raw/Videos/gui_uploads/<pair_id>/`
+    - 追加 manifest 并刷新 pair 列表
+  - 新增 `Open Run Folder` 按钮。
+  - 新增 `Auto-open on finish` 选项；run 完成后可自动在系统文件管理器中打开该 run 目录。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+  - 非交互 preview helper smoke：
+    - 对 `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03` 调用 `load_pair_preview_png_data(...)`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - preview helper 成功返回 left/right 两张缩略图 PNG base64 数据。
+- 偏差：
+  - 当前“注册”仍然是选择左右视频文件，而不是 frame directory；这与当前 GUI thin wrapper 边界一致。
+  - 自动打开 run 目录依赖本机系统文件管理器命令，自动化终端环境未执行该动作验证。
+- 下一步建议：
+  - 由用户本机直接启动 GUI 做一次交互确认：
+    - existing pair 预览
+    - 弹窗注册
+    - run 完成后打开目录
+  - 若后续继续做 GUI，只做更细的错误提示和 artefact 预览，不扩展为实验工作台。
+
+## IMP-20260324-10
+- 状态：done
+- 标题：Phase 4 GUI polish：条件显示 keyframe 参数、注册按钮文案与预览颜色修复
+- 本步目标：
+  - 只在对应模式生效时显示 `keyframe_every` 与 `seam_keyframe_every`。
+  - 将 `Register Pair...` 的按钮文案改得更明确，说明是上传新视频。
+  - 修复 existing pair 首帧预览的蓝偏问题，使颜色与原图一致。
+- 关联上一步结论：
+  - `IMP-20260324-09`：pair 首帧预览、注册弹窗和 run 目录打开能力已落地。
+  - 用户实际使用反馈：keyframe 参数应条件显示，注册按钮说明应更清楚，当前预览色彩有明显通道错误。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_stitching_gui.py`
+  - `src/stitching/io.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这是 GUI 层的直接可见交互问题，且都可通过最小改动修复。
+  - README、环境文档和 ai-docs 需要同步记录新的 GUI 行为边界。
+- 风险点：
+  - 条件显示若只改 UI 不改命令构建，可能留下“隐藏但仍透传”的混淆。
+  - 预览颜色修复若继续误用 OpenCV 颜色顺序，容易出现反向修坏。
+- 验收标准：
+  - `geometry_mode != keyframe_update` 时隐藏 `keyframe_every`。
+  - `seam_policy != keyframe` 时隐藏 `seam_keyframe_every`。
+  - 注册按钮文案明确说明是上传新视频。
+  - pair 首帧预览颜色不再蓝偏。
+  - 不引入新的 GUI 功能面和后端算法变更。
+- 替代方案与不选原因：
+  - 方案：只禁用 keyframe 输入框，不隐藏；或者保持当前预览实现不修颜色。
+  - 不选原因：用户明确要求“生效时再显示出来”，且颜色错误属于明显 bug，不应继续保留。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `Register Pair...` 按钮文案改为 `Register Pair... (Upload New Videos)`。
+  - `keyframe_every` 只在 `geometry_mode=keyframe_update` 时显示。
+  - `seam_keyframe_every` 只在 `seam_policy=keyframe` 时显示。
+  - `_build_command(...)` 也同步改成只在相应模式下透传这两个参数，避免“隐藏但仍生效”的混淆。
+  - 预览编码修复为直接对 BGR ndarray 执行 `cv2.imencode('.png', ...)`，不再错误做 BGR->RGB 转换。
+- 遇到的问题与修复：
+  - 首帧预览整体蓝偏。
+  - 根因是 `cv2.imencode(...)` 前错误地把 BGR 图像转成了 RGB，导致生成的 PNG 红蓝通道对调。
+  - 修复后 preview 的颜色通道与原图保持一致。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+  - 合成纯红 BGR 帧的 preview 编码/解码测试
+  - 真实 pair 的 `load_pair_preview_png_data(...)` smoke
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 合成纯红帧经 preview 编码/解码后中心像素仍为 `BGR=[0, 0, 255]`，证明蓝偏已修复。
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03` 的 pair preview helper 成功返回 left/right 缩略图数据。
+- 偏差：
+  - 条件显示逻辑与按钮文案可通过静态和 helper 层验证，但当前自动化环境仍未做真实 GUI 点击级验证。
+  - 本步仍然只做 GUI polish，不扩展 frame-directory 注册或 compare suite。
+- 下一步建议：
+  - 由用户在本机直接确认：
+    - keyframe 参数是否按预期隐藏/显示
+    - 注册按钮文案是否足够清楚
+    - 预览颜色是否恢复正常
+  - 若继续做 GUI，只补更细的 UX，不扩展核心能力边界。
+
+## IMP-20260324-11
+- 状态：done
+- 标题：Phase 4 GUI polish：Run Config 参数重排，消除 keyframe 隐藏后的视觉空洞
+- 本步目标：
+  - 调整 `Run Config` 的字段顺序与布局。
+  - 将 `trigger diff / fg ratio / snapshot / force cpu` 前置放到稳定可见区域。
+  - 将 `keyframe_every / seam_keyframe_every` 放到最后，并继续只在对应模式下显示。
+- 关联上一步结论：
+  - `IMP-20260324-10`：条件显示逻辑已经正确，但当前隐藏 keyframe 字段后会在中间留下明显空块。
+  - 用户明确要求把常用参数前置，keyframe 两项放到最后。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 问题是纯 GUI 布局层问题，真实源头只在 `gui_thin_wrapper.py`。
+  - 决策 / 实施 / 变更 / issue 需要记录这次布局收敛。
+- 风险点：
+  - 若同时改字段顺序和条件显示逻辑，可能重新引入“隐藏但仍透传”的问题。
+  - 若 force CPU 的布局方式处理不当，可能让表单视觉更乱。
+- 验收标准：
+  - keyframe 字段隐藏后，中间不再留空块。
+  - `trigger diff / fg ratio / snapshot / force cpu` 在稳定可见行。
+  - `keyframe_every / seam_keyframe_every` 位于最后一行，且继续按模式条件显示。
+  - 不改变现有 CLI 参数透传语义。
+- 替代方案与不选原因：
+  - 方案：保留原顺序，只尝试在原位置做更复杂的动态补位。
+  - 不选原因：用户已经给出更清晰的目标顺序，直接重排行为更稳定、更简单。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `Run Config` 的稳定可见参数调整为：
+    - `Trigger Diff`
+    - `FG Ratio`
+    - `Snapshot Every`
+    - `Force CPU`
+  - `Keyframe Every` 与 `Seam Keyframe Every` 被移动到最后一行。
+  - 保留现有条件显示逻辑，因此当 keyframe 字段隐藏时，中间不再留下明显空块。
+  - `Force CPU` 也被纳入统一的 field 样式，而不是单独悬空放在旧位置。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 当前布局顺序已在代码层固定，且不影响前一轮已完成的 keyframe 条件透传逻辑。
+- 偏差：
+  - 本步只做布局顺序收敛，没有新增新的 GUI 功能。
+  - 自动化环境仍未进行可见窗口级点击验证，需以用户本机体验为准。
+- 下一步建议：
+  - 由用户直接确认隐藏 keyframe 字段后是否已没有中间空洞。
+  - 若继续做 GUI，只处理更细的显示文案或 artefact 预览，不再扩展能力边界。

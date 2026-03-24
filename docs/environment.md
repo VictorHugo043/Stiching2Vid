@@ -176,10 +176,13 @@ python scripts/run_stitching_gui.py
 Notes:
 - the GUI is a desktop `tkinter` wrapper, not a web UI
 - it launches `scripts/run_baseline_video.py` as a subprocess and writes a `gui_request.json` into the selected run directory
+- it previews the first left/right frame of the selected pair by reusing the existing I/O layer
+- it keeps `keyframe_every` / `seam_keyframe_every` visible only when the selected geometry mode or seam policy actually uses them
 - it is safest to launch it from the same environment you use for the target method
 - on headless shells or remote terminals without a display server, the GUI may not launch even though the script imports correctly
 - current upload path only supports registering left/right video files; uploads are copied into `data/raw/Videos/gui_uploads/` and appended to `data/manifests/pairs.yaml` with repo-relative paths
 - output remains restricted to `outputs/runs/<run_id>/`
+- after a run finishes, the GUI can auto-open that run directory in the system file manager
 
 ## Which Environment Should I Use?
 - If you only need baseline video/frame stitching now, use `.venv`.

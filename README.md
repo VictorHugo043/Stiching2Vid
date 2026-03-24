@@ -188,10 +188,13 @@ python scripts/run_stitching_gui.py
 
 Current GUI scope:
 - select an existing pair from `pairs.yaml`
+- preview the first left/right frame for the selected pair
 - register a new left/right video pair by copying files into `data/raw/Videos/gui_uploads/<pair_id>/`
 - configure a thin subset of `run_baseline_video.py` parameters
+- show keyframe-only parameters contextually instead of always displaying them
 - launch one stitching run and stream logs
 - summarize the resulting run bundle under `outputs/runs/<run_id>/`
+- auto-open the finished run directory or open it manually from the GUI
 
 GUI safety boundary:
 - no web UI

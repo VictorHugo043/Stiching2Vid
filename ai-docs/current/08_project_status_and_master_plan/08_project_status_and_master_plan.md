@@ -615,11 +615,14 @@
     - `src/stitching/gui_thin_wrapper.py`
   - GUI 当前能力：
     - 读取 `pairs.yaml` 并选择已有 pair
+    - 预览 selected pair 的 left/right 第一帧
+    - 根据 `geometry_mode / seam_policy` 条件显示 keyframe 相关参数
     - 复制左右视频到 `data/raw/Videos/gui_uploads/<pair_id>/`
     - 通过 `append_manifest_entries(...)` 安全追加 manifest 并保留备份
     - 以 subprocess 方式启动 `scripts/run_baseline_video.py`
     - 限制输出到 `outputs/runs/<run_id>/`
     - 展示运行日志、run 目录和关键 artefact 路径
+    - 支持自动打开或手动打开完成后的 run 目录
     - 暴露最小必要参数面：
       - `method_a_orb`
       - `method_a_sift`
@@ -628,11 +631,11 @@
       - `geometry_mode`
       - `seam_policy`
       - `max_frames / fps / keyframe_every / seam trigger`
-- 当前边界：
-  - 不使用 web UI
-  - 不重写任何核心 stitching / seam / evaluation 逻辑
-  - 新 pair 注册只覆盖左右视频文件，不覆盖 frame directory 注册
-  - GUI 只做单 run wrapper，不承载批量 compare suite
+  - 当前边界：
+    - 不使用 web UI
+    - 不重写任何核心 stitching / seam / evaluation 逻辑
+    - 新 pair 注册采用独立弹窗，只覆盖左右视频文件，不覆盖 frame directory 注册
+    - GUI 只做单 run wrapper，不承载批量 compare suite
 - 完成判断：
   - Phase 4 的 MVP thin wrapper 已完成。
   - 若后续还有 GUI 工作，应归类为 polish / UX 增强，而不是主线算法阶段阻塞项。

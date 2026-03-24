@@ -42,6 +42,9 @@
 | CHG-20260324-06 | 2026-03-24 | outputs+docs | 完成 `kp3072_v1` full-length 多数据域复验，并新增 `phase3_methodb_accuracy_vs_kp3072_v1` 四方法对照结果目录；据此确认 `kp3072_v1` 不能替换正式 `accuracy_v1` baseline | 影响 Phase 3 的 Method B 优化结论与后续 final report 方法讨论；不改变当前正式 baseline 和正式方法主表引用路径 | 本次只补足 `kp3072_v1` 缺失的 full-length 结果，不继续重跑已有正式 ORB / SIFT / `accuracy_v1` mine_source 结果 |
 | CHG-20260324-07 | 2026-03-24 | code+docs | 新增桌面 GUI thin wrapper：增加 `scripts/run_stitching_gui.py` 与 `src/stitching/gui_thin_wrapper.py`，复用现有 CLI、manifest helper 和 outputs bundle；同步更新 README、环境文档与 ai-docs | 影响当前正式入口清单、用户运行方式与 Phase 4 完成状态；不改变核心 stitching / seam / evaluation pipeline | GUI 当前只封装单 run 和视频对注册；不做 web UI，不重写核心 pipeline |
 | CHG-20260324-08 | 2026-03-24 | code+docs | 修复 Phase 4 GUI 的 Tkinter 布局管理器回归：`Run Config` 区块统一改用 `grid`，不再在同一父容器混用 `pack/grid`；同步回填实施日志与 issue 状态说明 | 影响 GUI 初始化稳定性；不改变 GUI 功能面、manifest 写入逻辑或核心 stitching pipeline | 本次是用户实机触发后的最小回归修复；自动化环境无法稳定完成可见窗口级 smoke，需以用户本机重跑确认 |
+| CHG-20260324-09 | 2026-03-24 | code+docs | 为 Phase 4 GUI 增加 existing pair 首帧预览、独立注册弹窗，以及 run 完成后的目录打开能力；同步更新 README、环境文档与 ai-docs | 影响 GUI 的可用性和 Phase 4 MVP 的交互完整性；不改变核心 stitching / seam / evaluation pipeline | 预览复用 `io.open_pair()`；自动打开目录依赖本机文件管理器命令；当前仍不支持 frame-directory 注册和批量实验入口 |
+| CHG-20260324-10 | 2026-03-24 | code+docs | 对 Phase 4 GUI 做进一步 polish：按模式条件显示 keyframe 参数，明确注册按钮是上传新视频入口，并修复首帧预览的颜色通道错误 | 影响 GUI 的可解释性和视觉正确性；不改变核心 stitching / seam / evaluation pipeline | 本次同时把命令构建逻辑收敛为“只在对应模式下透传 keyframe 参数”，避免 UI 与实际行为脱节 |
+| CHG-20260324-11 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 的 `Run Config` 布局：将 `trigger diff / fg ratio / snapshot every / force cpu` 前置到稳定可见行，把 `keyframe_every / seam_keyframe_every` 放到最后一行，避免 keyframe 字段隐藏后在中间留下空洞 | 影响 GUI 表单的视觉布局与模式切换时的可读性；不改变任何 CLI 透传语义或核心 stitching pipeline | 本次只是布局重排，不新增功能；与前一轮 keyframe 条件显示逻辑配合后，视觉行为已与用户预期一致 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

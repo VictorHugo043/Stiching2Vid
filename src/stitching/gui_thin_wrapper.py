@@ -9,7 +9,9 @@ The GUI intentionally stays thin:
 
 from __future__ import annotations
 
+import base64
 import json
+import os
 import queue
 import re
 import shutil
@@ -24,7 +26,7 @@ from typing import Dict, List, Optional
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from stitching.io import PairConfig, load_pairs
+from stitching.io import PairConfig, load_pairs, open_pair
 from stitching.method_b_presets import get_method_b_preset
 
 from scripts.preprocess.split_sbs_stereo import (
@@ -46,6 +48,8 @@ METHOD_CHOICES: List[MethodChoice] = [
     MethodChoice("method_b_accuracy_v1", "Method B / accuracy_v1"),
     MethodChoice("method_b_kp3072_v1", "Method B / kp3072_v1"),
 ]
+
+PREVIEW_SIZE = (320, 180)
 
 
 def sanitize_identifier(value: str, fallback: str) -> str:
@@ -121,6 +125,65 @@ def build_registered_pair_entry(
     }
 
 
+def open_path_in_file_manager(path: Path) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"Path does not exist: {path}")
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+        return
+    if os.name == "nt":
+        os.startfile(str(path))  # type: ignore[attr-defined]
+        return
+    subprocess.Popen(["xdg-open", str(path)])
+
+
+def _frame_to_png_base64(frame_bgr, size: tuple[int, int] = PREVIEW_SIZE) -> str:
+    import cv2  # type: ignore
+    import numpy as np
+
+    target_w, target_h = size
+    h, w = frame_bgr.shape[:2]
+    if h <= 0 or w <= 0:
+        raise ValueError("Invalid frame shape for preview.")
+
+    scale = min(target_w / w, target_h / h)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+    resized = cv2.resize(frame_bgr, (new_w, new_h), interpolation=interpolation)
+    canvas = np.zeros((target_h, target_w, 3), dtype=resized.dtype)
+    x0 = (target_w - new_w) // 2
+    y0 = (target_h - new_h) // 2
+    canvas[y0 : y0 + new_h, x0 : x0 + new_w] = resized
+    # cv2.imencode expects BGR ndarray input; converting to RGB here would
+    # swap red/blue in the resulting PNG and cause a visible blue tint.
+    ok, encoded = cv2.imencode(".png", canvas)
+    if not ok:
+        raise RuntimeError("Failed to encode preview image.")
+    return base64.b64encode(encoded.tobytes()).decode("ascii")
+
+
+def load_pair_preview_png_data(pair: PairConfig) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    left_source = None
+    right_source = None
+    try:
+        left_source, right_source = open_pair(pair)
+        left_frame = left_source.read(0)
+        right_frame = right_source.read(0)
+        return (
+            _frame_to_png_base64(left_frame),
+            _frame_to_png_base64(right_frame),
+            None,
+        )
+    except Exception as exc:
+        return None, None, str(exc)
+    finally:
+        if left_source is not None:
+            left_source.close()
+        if right_source is not None:
+            right_source.close()
+
+
 class SubprocessRunner:
     def __init__(self) -> None:
         self.process: Optional[subprocess.Popen[str]] = None
@@ -183,6 +246,9 @@ class StitchingGuiApp:
         self.current_run_dir: Optional[Path] = None
         self.pairs: List[PairConfig] = []
         self.pair_map: Dict[str, PairConfig] = {}
+        self.left_preview_photo: Optional[tk.PhotoImage] = None
+        self.right_preview_photo: Optional[tk.PhotoImage] = None
+        self.register_dialog: Optional[tk.Toplevel] = None
 
         self.pair_var = tk.StringVar()
         self.method_var = tk.StringVar(value=METHOD_CHOICES[0].key)
@@ -199,18 +265,22 @@ class StitchingGuiApp:
         self.seam_trigger_foreground_ratio_var = tk.StringVar(value="0.08")
         self.snapshot_every_var = tk.StringVar(value="1000")
         self.force_cpu_var = tk.BooleanVar(value=True)
+        self.auto_open_run_dir_var = tk.BooleanVar(value=True)
         self.status_var = tk.StringVar(value="idle")
-
-        self.new_pair_id_var = tk.StringVar()
-        self.new_dataset_var = tk.StringVar(value="GUIUpload")
-        self.new_left_path_var = tk.StringVar()
-        self.new_right_path_var = tk.StringVar()
 
         self.log_text: tk.Text
         self.artefact_text: tk.Text
         self.pair_meta_label: ttk.Label
+        self.left_preview_label: ttk.Label
+        self.right_preview_label: ttk.Label
+        self.open_run_button: ttk.Button
+        self.geometry_keyframe_field: Optional[Dict[str, object]] = None
+        self.seam_keyframe_field: Optional[Dict[str, object]] = None
         self._build_ui()
         self.refresh_pairs()
+        self.geometry_mode_var.trace_add("write", self._on_mode_visibility_changed)
+        self.seam_policy_var.trace_add("write", self._on_mode_visibility_changed)
+        self._update_mode_visibility()
         self.root.after(200, self._poll_runner)
 
     def _build_ui(self) -> None:
@@ -220,36 +290,39 @@ class StitchingGuiApp:
         outer = ttk.Frame(self.root, padding=12)
         outer.pack(fill=tk.BOTH, expand=True)
 
-        top = ttk.Frame(outer)
-        top.pack(fill=tk.X)
-
-        pair_frame = ttk.LabelFrame(top, text="Existing Pair", padding=10)
-        pair_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
+        pair_frame = ttk.LabelFrame(outer, text="Existing Pair", padding=10)
+        pair_frame.pack(fill=tk.X)
+        pair_header = ttk.Frame(pair_frame)
+        pair_header.pack(fill=tk.X)
         self.pair_combo = ttk.Combobox(
-            pair_frame,
+            pair_header,
             textvariable=self.pair_var,
             state="readonly",
             width=72,
         )
-        self.pair_combo.pack(fill=tk.X)
+        self.pair_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.pair_combo.bind("<<ComboboxSelected>>", self._on_pair_changed)
-        ttk.Button(pair_frame, text="Refresh Pairs", command=self.refresh_pairs).pack(
-            anchor=tk.W,
-            pady=(8, 0),
+        ttk.Button(pair_header, text="Refresh Pairs", command=self.refresh_pairs).pack(
+            side=tk.LEFT,
+            padx=(8, 0),
+        )
+        ttk.Button(pair_header, text="Register Pair... (Upload New Videos)", command=self._open_register_dialog).pack(
+            side=tk.LEFT,
+            padx=(8, 0),
         )
         self.pair_meta_label = ttk.Label(pair_frame, text="No pair selected.")
-        self.pair_meta_label.pack(anchor=tk.W, pady=(8, 0))
+        self.pair_meta_label.pack(anchor=tk.W, pady=(8, 8))
 
-        register_frame = ttk.LabelFrame(top, text="Register New Video Pair", padding=10)
-        register_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self._add_labeled_entry(register_frame, "Pair ID", self.new_pair_id_var)
-        self._add_labeled_entry(register_frame, "Dataset", self.new_dataset_var)
-        self._add_browse_row(register_frame, "Left Video", self.new_left_path_var)
-        self._add_browse_row(register_frame, "Right Video", self.new_right_path_var)
-        ttk.Button(register_frame, text="Register Pair", command=self._register_pair).pack(
-            anchor=tk.W,
-            pady=(8, 0),
-        )
+        preview_row = ttk.Frame(pair_frame)
+        preview_row.pack(fill=tk.X)
+        left_frame = ttk.LabelFrame(preview_row, text="Left Frame 0", padding=6)
+        right_frame = ttk.LabelFrame(preview_row, text="Right Frame 0", padding=6)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
+        self.left_preview_label = ttk.Label(left_frame, text="No preview", anchor=tk.CENTER)
+        self.left_preview_label.pack(fill=tk.BOTH, expand=True)
+        self.right_preview_label = ttk.Label(right_frame, text="No preview", anchor=tk.CENTER)
+        self.right_preview_label.pack(fill=tk.BOTH, expand=True)
 
         run_frame = ttk.LabelFrame(outer, text="Run Config", padding=10)
         run_frame.pack(fill=tk.X, pady=(12, 0))
@@ -266,19 +339,48 @@ class StitchingGuiApp:
         self._grid_labeled_widget(grid, 1, 2, "Stride", ttk.Entry(grid, textvariable=self.stride_var, width=14))
         self._grid_labeled_widget(grid, 1, 3, "FPS", ttk.Entry(grid, textvariable=self.fps_var, width=14))
 
-        self._grid_labeled_widget(grid, 2, 0, "Keyframe Every", ttk.Entry(grid, textvariable=self.keyframe_every_var, width=14))
-        self._grid_labeled_widget(grid, 2, 1, "Seam Keyframe Every", ttk.Entry(grid, textvariable=self.seam_keyframe_every_var, width=14))
-        self._grid_labeled_widget(grid, 2, 2, "Trigger Diff", ttk.Entry(grid, textvariable=self.seam_trigger_diff_var, width=14))
-        self._grid_labeled_widget(grid, 2, 3, "FG Ratio", ttk.Entry(grid, textvariable=self.seam_trigger_foreground_ratio_var, width=14))
+        self._grid_labeled_widget(grid, 2, 0, "Trigger Diff", ttk.Entry(grid, textvariable=self.seam_trigger_diff_var, width=14))
+        self._grid_labeled_widget(grid, 2, 1, "FG Ratio", ttk.Entry(grid, textvariable=self.seam_trigger_foreground_ratio_var, width=14))
+        self._grid_labeled_widget(grid, 2, 2, "Snapshot Every", ttk.Entry(grid, textvariable=self.snapshot_every_var, width=14))
+        self._grid_labeled_widget(
+            grid,
+            2,
+            3,
+            "Force CPU",
+            ttk.Checkbutton(grid, text="Enabled", variable=self.force_cpu_var),
+        )
 
-        self._grid_labeled_widget(grid, 3, 0, "Snapshot Every", ttk.Entry(grid, textvariable=self.snapshot_every_var, width=14))
-        force_cpu = ttk.Checkbutton(grid, text="Force CPU", variable=self.force_cpu_var)
-        force_cpu.grid(row=7, column=1, sticky="w", padx=6, pady=(0, 6))
+        self.geometry_keyframe_field = self._grid_labeled_widget(
+            grid,
+            3,
+            0,
+            "Keyframe Every",
+            ttk.Entry(grid, textvariable=self.keyframe_every_var, width=14),
+        )
+        self.seam_keyframe_field = self._grid_labeled_widget(
+            grid,
+            3,
+            1,
+            "Seam Keyframe Every",
+            ttk.Entry(grid, textvariable=self.seam_keyframe_every_var, width=14),
+        )
 
         control_row = ttk.Frame(run_frame)
         control_row.pack(fill=tk.X, pady=(10, 0))
         ttk.Button(control_row, text="Start Run", command=self._start_run).pack(side=tk.LEFT)
         ttk.Button(control_row, text="Stop Run", command=self._stop_run).pack(side=tk.LEFT, padx=(8, 0))
+        self.open_run_button = ttk.Button(
+            control_row,
+            text="Open Run Folder",
+            command=self._open_current_run_dir,
+            state=tk.DISABLED,
+        )
+        self.open_run_button.pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Checkbutton(
+            control_row,
+            text="Auto-open on finish",
+            variable=self.auto_open_run_dir_var,
+        ).pack(side=tk.LEFT, padx=(12, 0))
         ttk.Label(control_row, textvariable=self.status_var).pack(side=tk.LEFT, padx=(16, 0))
 
         bottom = ttk.Panedwindow(outer, orient=tk.HORIZONTAL)
@@ -301,10 +403,11 @@ class StitchingGuiApp:
         return combo
 
     @staticmethod
-    def _grid_labeled_widget(parent: ttk.Frame, row: int, column: int, label: str, widget) -> None:
+    def _grid_labeled_widget(parent: ttk.Frame, row: int, column: int, label: str, widget) -> Dict[str, object]:
         label_row = row * 2
         widget_row = label_row + 1
-        ttk.Label(parent, text=label).grid(
+        label_widget = ttk.Label(parent, text=label)
+        label_widget.grid(
             row=label_row,
             column=column,
             sticky="w",
@@ -319,6 +422,26 @@ class StitchingGuiApp:
             pady=(0, 6),
         )
         parent.grid_columnconfigure(column, weight=1)
+        return {
+            "label": label_widget,
+            "widget": widget,
+            "label_row": label_row,
+            "widget_row": widget_row,
+            "column": column,
+        }
+
+    @staticmethod
+    def _set_field_visible(field: Optional[Dict[str, object]], visible: bool) -> None:
+        if not field:
+            return
+        label_widget = field["label"]
+        widget = field["widget"]
+        if visible:
+            label_widget.grid()
+            widget.grid()
+        else:
+            label_widget.grid_remove()
+            widget.grid_remove()
 
     @staticmethod
     def _add_labeled_entry(parent: ttk.Frame, label: str, variable: tk.StringVar) -> None:
@@ -346,47 +469,113 @@ class StitchingGuiApp:
         if path:
             variable.set(path)
 
-    def _append_log(self, text: str) -> None:
-        self.log_text.insert(tk.END, text)
-        self.log_text.see(tk.END)
+    def _on_mode_visibility_changed(self, *_args) -> None:
+        self._update_mode_visibility()
 
-    def _set_artefacts(self, text: str) -> None:
-        self.artefact_text.delete("1.0", tk.END)
-        self.artefact_text.insert("1.0", text)
-
-    def refresh_pairs(self) -> None:
-        self.pairs = sorted(load_pairs(self.manifest_path), key=lambda item: item.id)
-        self.pair_map = {pair.id: pair for pair in self.pairs}
-        pair_ids = [pair.id for pair in self.pairs]
-        self.pair_combo["values"] = pair_ids
-        if pair_ids and self.pair_var.get() not in self.pair_map:
-            self.pair_var.set(pair_ids[0])
-        self._on_pair_changed()
-
-    def _on_pair_changed(self, *_args) -> None:
-        pair = self.pair_map.get(self.pair_var.get())
-        if pair is None:
-            self.pair_meta_label.config(text="No pair selected.")
-            return
-        self.fps_var.set(str(int(infer_default_fps(pair))) if infer_default_fps(pair).is_integer() else str(infer_default_fps(pair)))
-        self.pair_meta_label.config(
-            text=f"dataset={pair.dataset} | input_type={pair.input_type} | left={pair.left} | right={pair.right}"
+    def _update_mode_visibility(self) -> None:
+        self._set_field_visible(
+            self.geometry_keyframe_field,
+            self.geometry_mode_var.get().strip() == "keyframe_update",
+        )
+        self._set_field_visible(
+            self.seam_keyframe_field,
+            self.seam_policy_var.get().strip() == "keyframe",
         )
 
-    def _register_pair(self) -> None:
-        pair_id = sanitize_identifier(self.new_pair_id_var.get(), "gui_upload_pair")
-        dataset_name = self.new_dataset_var.get().strip() or "GUIUpload"
-        left_src = Path(self.new_left_path_var.get().strip())
-        right_src = Path(self.new_right_path_var.get().strip())
+    def _set_preview_label(
+        self,
+        label: ttk.Label,
+        image_data: Optional[str],
+        fallback_text: str,
+    ) -> Optional[tk.PhotoImage]:
+        if image_data:
+            photo = tk.PhotoImage(data=image_data)
+            label.configure(image=photo, text="")
+            return photo
+        label.configure(image="", text=fallback_text)
+        return None
+
+    def _update_pair_preview(self, pair: PairConfig) -> None:
+        left_data, right_data, error = load_pair_preview_png_data(pair)
+        if error:
+            self.left_preview_photo = None
+            self.right_preview_photo = None
+            self.left_preview_label.configure(image="", text=f"Preview unavailable\n{error}")
+            self.right_preview_label.configure(image="", text="Preview unavailable")
+            return
+        self.left_preview_photo = self._set_preview_label(self.left_preview_label, left_data, "No preview")
+        self.right_preview_photo = self._set_preview_label(self.right_preview_label, right_data, "No preview")
+
+    def _open_register_dialog(self) -> None:
+        if self.register_dialog is not None and self.register_dialog.winfo_exists():
+            self.register_dialog.lift()
+            self.register_dialog.focus_force()
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Register New Pair")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        self.register_dialog = dialog
+
+        pair_id_var = tk.StringVar()
+        dataset_var = tk.StringVar(value="GUIUpload")
+        left_path_var = tk.StringVar()
+        right_path_var = tk.StringVar()
+
+        body = ttk.Frame(dialog, padding=12)
+        body.pack(fill=tk.BOTH, expand=True)
+        self._add_labeled_entry(body, "Pair ID", pair_id_var)
+        self._add_labeled_entry(body, "Dataset", dataset_var)
+        self._add_browse_row(body, "Left Video", left_path_var)
+        self._add_browse_row(body, "Right Video", right_path_var)
+
+        hint = ttk.Label(
+            body,
+            text="Videos will be copied into data/raw/Videos/gui_uploads/<pair_id>/ and then appended to pairs.yaml.",
+            wraplength=440,
+            justify=tk.LEFT,
+        )
+        hint.pack(anchor=tk.W, pady=(8, 0))
+
+        button_row = ttk.Frame(body)
+        button_row.pack(fill=tk.X, pady=(12, 0))
+        ttk.Button(
+            button_row,
+            text="Register",
+            command=lambda: self._register_pair_from_dialog(
+                dialog,
+                pair_id_var,
+                dataset_var,
+                left_path_var,
+                right_path_var,
+            ),
+        ).pack(side=tk.LEFT)
+        ttk.Button(button_row, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=(8, 0))
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+
+    def _register_pair_from_dialog(
+        self,
+        dialog: tk.Toplevel,
+        pair_id_var: tk.StringVar,
+        dataset_var: tk.StringVar,
+        left_path_var: tk.StringVar,
+        right_path_var: tk.StringVar,
+    ) -> None:
+        pair_id = sanitize_identifier(pair_id_var.get(), "gui_upload_pair")
+        dataset_name = dataset_var.get().strip() or "GUIUpload"
+        left_src = Path(left_path_var.get().strip())
+        right_src = Path(right_path_var.get().strip())
 
         if not left_src.exists() or not left_src.is_file():
-            messagebox.showerror("Register Pair", "Left video path is invalid.")
+            messagebox.showerror("Register Pair", "Left video path is invalid.", parent=dialog)
             return
         if not right_src.exists() or not right_src.is_file():
-            messagebox.showerror("Register Pair", "Right video path is invalid.")
+            messagebox.showerror("Register Pair", "Right video path is invalid.", parent=dialog)
             return
         if pair_id in self.pair_map:
-            messagebox.showerror("Register Pair", f"Pair id already exists: {pair_id}")
+            messagebox.showerror("Register Pair", f"Pair id already exists: {pair_id}", parent=dialog)
             return
 
         left_info = probe_video(left_src)
@@ -413,7 +602,42 @@ class StitchingGuiApp:
         self._append_log(
             f"[register] pair={pair_id} left={left_dst} right={right_dst} manifest_backup={backup_path}\n"
         )
-        messagebox.showinfo("Register Pair", f"Registered pair: {pair_id}")
+        messagebox.showinfo("Register Pair", f"Registered pair: {pair_id}", parent=dialog)
+        dialog.destroy()
+        self.register_dialog = None
+
+    def _append_log(self, text: str) -> None:
+        self.log_text.insert(tk.END, text)
+        self.log_text.see(tk.END)
+
+    def _set_artefacts(self, text: str) -> None:
+        self.artefact_text.delete("1.0", tk.END)
+        self.artefact_text.insert("1.0", text)
+
+    def refresh_pairs(self) -> None:
+        self.pairs = sorted(load_pairs(self.manifest_path), key=lambda item: item.id)
+        self.pair_map = {pair.id: pair for pair in self.pairs}
+        pair_ids = [pair.id for pair in self.pairs]
+        self.pair_combo["values"] = pair_ids
+        if pair_ids and self.pair_var.get() not in self.pair_map:
+            self.pair_var.set(pair_ids[0])
+        self._on_pair_changed()
+
+    def _on_pair_changed(self, *_args) -> None:
+        pair = self.pair_map.get(self.pair_var.get())
+        if pair is None:
+            self.pair_meta_label.config(text="No pair selected.")
+            self.left_preview_photo = None
+            self.right_preview_photo = None
+            self.left_preview_label.configure(image="", text="No preview")
+            self.right_preview_label.configure(image="", text="No preview")
+            return
+        fps_value = infer_default_fps(pair)
+        self.fps_var.set(str(int(fps_value)) if fps_value.is_integer() else str(fps_value))
+        self.pair_meta_label.config(
+            text=f"dataset={pair.dataset} | input_type={pair.input_type} | left={pair.left} | right={pair.right}"
+        )
+        self._update_pair_preview(pair)
 
     def _build_command(self, run_dir: Path, run_id: str) -> List[str]:
         pair_id = self.pair_var.get().strip()
@@ -440,20 +664,21 @@ class StitchingGuiApp:
             self.start_var.get().strip() or "0",
             "--stride",
             self.stride_var.get().strip() or "1",
-            "--keyframe_every",
-            self.keyframe_every_var.get().strip() or "5",
             "--snapshot_every",
             self.snapshot_every_var.get().strip() or "1000",
             "--blend",
             "feather",
         ]
 
+        if self.geometry_mode_var.get().strip() == "keyframe_update":
+            cmd.extend(["--keyframe_every", self.keyframe_every_var.get().strip() or "5"])
+
         max_frames = self.max_frames_var.get().strip()
         if max_frames:
             cmd.extend(["--max_frames", max_frames])
 
         seam_keyframe_every = self.seam_keyframe_every_var.get().strip()
-        if seam_keyframe_every:
+        if self.seam_policy_var.get().strip() == "keyframe" and seam_keyframe_every:
             cmd.extend(["--seam_keyframe_every", seam_keyframe_every])
 
         fps_value = self.fps_var.get().strip()
@@ -579,6 +804,7 @@ class StitchingGuiApp:
         )
 
         self.current_run_dir = run_dir
+        self.open_run_button.configure(state=tk.DISABLED)
         self.log_text.delete("1.0", tk.END)
         self._set_artefacts(f"run_dir={run_dir}\n")
         self._append_log(f"[gui] starting run_id={run_id}\n")
@@ -597,6 +823,15 @@ class StitchingGuiApp:
         self.runner.terminate()
         self._append_log("[gui] terminate requested\n")
 
+    def _open_current_run_dir(self) -> None:
+        if self.current_run_dir is None:
+            messagebox.showerror("Open Run Folder", "No run directory is available yet.")
+            return
+        try:
+            open_path_in_file_manager(self.current_run_dir)
+        except Exception as exc:
+            messagebox.showerror("Open Run Folder", str(exc))
+
     def _poll_runner(self) -> None:
         for line in self.runner.read_available():
             self._append_log(line)
@@ -606,6 +841,13 @@ class StitchingGuiApp:
             self.status_var.set(f"finished rc={rc}")
             self._append_log(f"\n[gui] process finished rc={rc}\n")
             self._set_artefacts(self._summarize_run_dir(self.current_run_dir))
+            if self.current_run_dir is not None and self.current_run_dir.exists():
+                self.open_run_button.configure(state=tk.NORMAL)
+                if self.auto_open_run_dir_var.get():
+                    try:
+                        open_path_in_file_manager(self.current_run_dir)
+                    except Exception as exc:
+                        self._append_log(f"[gui] failed to open run dir: {exc}\n")
             self.runner.clear()
 
         self.root.after(200, self._poll_runner)
