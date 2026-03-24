@@ -22,11 +22,13 @@
 | ISSUE-20260323-03 | partial | 在刷新后的 Phase 3 正式方法 compare 中，Method B 已不再“整体偏弱”，但它呈现出清晰 trade-off：`mean_inliers` 更高，而 `mean_inlier_ratio / approx_fps` 仍整体弱于 ORB/SIFT；dynamic seam 的收益也仍具明显 pair-dependence | 会直接影响 final report 的表述方式：不能把 “Method B 更强” 或 “Method B 更弱” 写成单一句子，也不能把 dynamic seam 的平均收益误读为所有 pair 都有效 | 当前应把 Method B 表述为“高内点数量、低内点率/低速度”的替代路线；后续若要进一步解释，可补按数据域的可视化与 plot/export 脚本 |
 | ISSUE-20260323-04 | partial | 多数据域 full-length suite 暴露出本地数据与 manifest 的轻微漂移：`mine_source_leaves_left_right` 当前源文件缺失；DynamicStereo `ignacio / teddy` 的当前可访问帧数分别为 `99 / 99`，与 manifest 元数据 `189 / 218` 不一致 | 影响“全量”和“全帧”的解释边界，也会影响 pair coverage 统计；但不阻塞当前 Phase 3 正式总表，因为 suite 已按当前可访问 source 长度完整跑完 | 当前正式口径统一以 `outputs/phase3/*/pair_coverage.csv` 的实际长度为准；后续若要修复，可补 manifest 校正或恢复缺失源文件 |
 | ISSUE-20260323-05 | closed | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 该问题已不再阻塞 final report 的正式方法结论 | 已用显式 Method B accuracy preset 重跑 `phase3_kitti_methods_acc_v2`、`phase3_dynamicstereo_methods_acc_v2`、`phase3_minesource_methods_acc_v2`，并生成 `phase3_overall_methods_acc_v2` 作为新的正式方法总表 |
+| ISSUE-20260324-01 | partial | fixed-geometry richer metrics 已大部分落地，但 temporal coherence 仍缺少更强的 motion-compensated 指标；当前只实现了 `seam-band flicker` 这一层 | 现在已经能比过去更完整地解释 Method B 的 trade-off，但如果 final report 需要更强的时序论证，单靠 `mean_stitched_delta + seam-band flicker` 仍有限 | 当前先保留 `seam-band flicker` 作为 MVP temporal artefact 指标；若后续需要更强时序论证，再单独补 `flow-compensated temporal residual` |
+| ISSUE-20260324-02 | partial | Method B candidate sweep 已完成，`kp3072_v1` 是当前最有希望的安全优化项，但它在 `mine_source_walking_left_right` 上存在明显回退，尚不能替换正式 `accuracy_v1` | 若直接把 candidate 升格为正式 baseline，可能在动态/低纹理场景引入负优化；若完全不继续验证，又无法判断它是否值得进入 final report 的“优化版 Method B” | 保持 `method_b_accuracy_v1` 冻结为正式基线；下一步若继续优化，优先对 `kp3072_v1` 做 full-length 多数据域复验 |
 
 ## 接下来最先做的 3 件事
-1. 基于 `phase3_overall_methods_acc_v2` 与 `phase3_overall_full_v1` 补统一 plot/export 脚本，把方法主表和 dynamic seam 主表转成最终论文图表。
-2. 从刷新后的正式方法总表中挑选代表性 pair，补 Method A vs Method B 的可视化案例，解释“高内点数量但较低内点率/较慢速度”的 trade-off。
-3. 若 Phase 3 图表导出完成且结论稳定，再决定是否进入 Phase 4 的 GUI thin wrapper。
+1. 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验，判断它能否作为“优化版 Method B”进入正式表格。
+2. 若继续补评测层，优先决定是否真的需要 `flow-compensated temporal residual`；否则当前 `seam-band flicker` 已可支撑 fixed-geometry 的 MVP temporal artefact 解释。
+3. 再补统一 plot/export 脚本，把刷新后的方法主表、dynamic seam 主表和 richer metrics 直接转成 final report 图表。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -91,7 +93,7 @@
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。
-- 当前建议直接从“补 Phase 3 统一 plot/export 脚本，并把刷新后的方法总表与 Phase 2/3 dynamic seam 总表转成 final report 图表”开始。
+- 当前建议直接从“Method B 安全优化小 sweep + fixed-geometry 评测扩展”开始。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

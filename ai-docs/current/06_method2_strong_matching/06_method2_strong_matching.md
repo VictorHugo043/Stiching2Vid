@@ -413,6 +413,174 @@
   - 在 accuracy preset 下能够稳定换来更高的内点数量
   - 但当前 CPU 路线下仍显著更慢，且内点率并不占优
 
+## 2026-03-24 复盘：当前还能怎么继续优化 Method B
+### 原则
+- 不直接覆盖当前正式 compare 使用的 `method_b_accuracy_v1`。
+- 后续优化必须作为新增候选 preset 并存验证，而不是直接把正式基线改掉。
+- 当前正式基线保持：
+  - `max_keypoints=4096`
+  - `resize_long_edge=1536`
+  - `depth_confidence=-1`
+  - `width_confidence=-1`
+  - `filter_threshold=0.1`
+
+### 当前 trade-off 的更细解释
+- 当前 `fixed_geometry + frame0_all` 正式 compare 里，Method B 的“慢”主要包含两层：
+  - 初始化阶段更慢：
+    - `SuperPoint + LightGlue` 首帧 feature/matching 代价显著高于 ORB/SIFT
+  - steady-state 也偏慢：
+    - 不同方法得到的几何和 output bbox/crop 可能不同，导致后续每帧 compose 代价并不完全相同
+- 当前 `inlier_ratio` 偏低也不能直接解读为“几何更差”：
+  - LightGlue 在 accuracy preset 下会保留更多中低置信度 matches
+  - 这会抬高 `mean_inliers`，但也会拉低 `inlier_ratio`
+  - 因此后续需要同时看：
+    - `inlier_count`
+    - `inlier_ratio`
+    - `reprojection_error`
+    - `inlier spatial coverage`
+
+### 当前看到的工程信号
+- 在代表性 run 中，accuracy preset 下：
+  - `stop_layer=9`
+  - `prune0_mean≈9`, `prune1_mean≈9`
+- 这表明在当前 accuracy preset 下，LightGlue 基本跑满层数、几乎不提前停止，也没有真正利用 pruning。
+- 同时当前正式数据域的源分辨率主要是：
+  - KITTI：`1242x375`
+  - DynamicStereo / `mine_source`：`1280x720`
+- 因而 `resize_long_edge=1536` 对这些数据实际上是上采样，而不是单纯“保留更多原始细节”。
+- 这解释了为什么当前 preset 能把内点数抬得很高，但也可能拖慢速度、引入更多低质量 keypoints/matches，从而压低 `inlier_ratio`。
+
+### 推荐的安全优化候选项
+- 候选 1：`no_upsample`
+  - 核心想法：
+    - 不再把 `1242x375 / 1280x720` 输入上采样到 `1536`
+    - 可通过 `resize_long_edge=0` 或新增 “no upsample / clamp to source long edge” 语义实现
+  - 预期收益：
+    - feature runtime 降低
+    - 低质量上采样 keypoints 减少
+    - `inlier_ratio` 可能改善
+  - 风险：
+    - `mean_inliers` 可能下滑
+- 候选 2：`max_keypoints=3072` 或 `3584`
+  - 核心想法：
+    - 保持较高召回，但减少 LightGlue 输入规模
+  - 预期收益：
+    - matching runtime 降低
+    - 低置信度尾部 matches 减少
+  - 风险：
+    - 极纹理场景的 `mean_inliers` 可能下降
+- 候选 3：更严格的 `filter_threshold`
+  - 核心想法：
+    - 从 `0.1` 提高到 `0.15` 或 `0.2`
+  - 预期收益：
+    - 可能提高 `inlier_ratio`
+    - 可能减少后续 MAGSAC 输入噪声
+  - 风险：
+    - 如果阈值过高，会直接损失有效 matches
+- 候选 4：适度恢复 LightGlue adaptivity
+  - 核心想法：
+    - 不回到旧 implicit preset，但可尝试温和 adaptive 版本，例如：
+      - `depth_confidence=0.95`
+      - `width_confidence=0.99`
+  - 预期收益：
+    - matching runtime 下降最明显
+  - 风险：
+    - 容易把当前高内点数量的优势再压回去
+    - 风险高于前 3 个候选项
+
+### 当前推荐的执行顺序
+- 第一优先级：
+  - `no_upsample`
+  - `max_keypoints=3072`
+- 第二优先级：
+  - `filter_threshold=0.15`
+- 第三优先级：
+  - moderate LightGlue adaptivity
+- 不建议当前优先做：
+  - 重新训练 SuperPoint / LightGlue
+  - 重写 matcher 边界
+  - 替换 MAGSAC 实现
+  - 直接改正式 compare 默认 preset
+
+### 2026-03-24 已实现的安全优化机制
+- 已新增：
+  - `src/stitching/method_b_presets.py`
+  - `scripts/run_method_b_preset_sweep.py`
+- 当前 candidate preset 命名固定为：
+  - `accuracy_v1`
+  - `no_upsample_v1`
+  - `kp3072_v1`
+  - `filter015_v1`
+- 这些 preset 的目标是：
+  - 只做并行验证
+  - 不覆盖正式 compare 默认值
+  - 先筛选“值得做 full-length 复验的候选项”
+
+### 2026-03-24 richer metrics 已落地
+- `geometry.py`
+  - 新增 `inlier_spatial_coverage`
+- `video_stitcher.py`
+  - 新增 seam-band 指标：
+    - `seam_band_illuminance_diff`
+    - `seam_band_gradient_disagreement`
+    - `seam_band_mask`
+- `temporal.py`
+  - `compute_frame_absdiff_mean()` 已支持 mask-aware 计算
+- `run_baseline_video.py`
+  - 新增视频级导出：
+    - `init_ms_mean`
+    - `per_frame_ms_mean`
+    - `avg_feature_runtime_ms_left`
+    - `avg_feature_runtime_ms_right`
+    - `avg_matching_runtime_ms`
+    - `avg_geometry_runtime_ms`
+    - `mean_reprojection_error`
+    - `mean_inlier_spatial_coverage`
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+    - `mean_seam_band_flicker`
+
+### 2026-03-24 candidate sweep 结果
+- 结果目录：
+  - `outputs/analysis/methodb_preset_sweep_v2/preset_summary.csv`
+  - `outputs/analysis/methodb_preset_sweep_v2/summary.csv`
+- representative pairs：
+  - `kitti_raw_data_2011_09_26_drive_0002_image_02_image_03`
+  - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+  - `mine_source_walking_left_right`
+- 聚合结果：
+  - `accuracy_v1`
+    - `mean_inliers ≈ 588.0`
+    - `mean_inlier_ratio ≈ 0.374`
+    - `approx_fps ≈ 3.68`
+    - `mean_reprojection_error ≈ 1.585`
+  - `no_upsample_v1`
+    - `mean_inliers ≈ 429.7`
+    - `mean_inlier_ratio ≈ 0.334`
+    - `approx_fps ≈ 5.70`
+    - `mean_reprojection_error ≈ 1.699`
+  - `kp3072_v1`
+    - `mean_inliers ≈ 539.7`
+    - `mean_inlier_ratio ≈ 0.366`
+    - `approx_fps ≈ 5.21`
+    - `mean_reprojection_error ≈ 1.492`
+  - `filter015_v1`
+    - `mean_inliers ≈ 562.0`
+    - `mean_inlier_ratio ≈ 0.368`
+    - `approx_fps ≈ 4.57`
+    - `mean_reprojection_error ≈ 1.670`
+
+### 当前结论
+- 当前正式 baseline 仍保持 `accuracy_v1`。
+- 当前最值得继续做 full-length 复验的 candidate 是 `kp3072_v1`。
+- 原因：
+  - 它在 KITTI 上几乎保住了 `accuracy_v1` 的内点数，同时明显更快
+  - 在 DynamicStereo 上甚至略有提升
+  - overall `reprojection_error` 更低
+- 但暂不直接升格为正式 baseline，因为：
+  - 在 `mine_source_walking_left_right` 上，它的 `mean_inliers` 从 `432` 降到 `272`
+  - 说明该 candidate 仍具有明显 data-dependent 风险
+
 ## 建议配置项
 - `feature_backend`
 - `matcher_backend`

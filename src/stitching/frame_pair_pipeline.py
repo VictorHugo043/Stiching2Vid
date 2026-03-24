@@ -355,6 +355,8 @@ def estimate_frame_pair_geometry(
         "backend_name": geometry_result.backend_name,
         "status": geometry_result.status,
         "runtime_ms": float(geometry_result.runtime_ms),
+        "reprojection_error": geometry_result.reprojection_error,
+        "inlier_spatial_coverage": geometry_result.inlier_spatial_coverage,
         "meta": geometry_result.meta,
     }
     if geometry_result.H is None or geometry_result.inlier_mask is None:

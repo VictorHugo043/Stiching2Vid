@@ -90,7 +90,7 @@ def compute_mask_change_ratio(prev_mask, curr_mask) -> Optional[float]:
     return float(changed.sum()) / float(max(1, union.sum()))
 
 
-def compute_frame_absdiff_mean(prev_frame, curr_frame) -> Optional[float]:
+def compute_frame_absdiff_mean(prev_frame, curr_frame, mask=None) -> Optional[float]:
     """Compute mean absolute image difference between consecutive stitched frames."""
 
     import cv2  # type: ignore
@@ -105,6 +105,13 @@ def compute_frame_absdiff_mean(prev_frame, curr_frame) -> Optional[float]:
     diff = cv2.absdiff(prev_arr, curr_arr)
     if diff.ndim == 3:
         diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    if mask is not None:
+        mask_arr = np.asarray(mask) > 0
+        if mask_arr.shape != diff.shape:
+            return None
+        if not mask_arr.any():
+            return None
+        return float(diff[mask_arr].mean())
     return float(diff.mean())
 
 

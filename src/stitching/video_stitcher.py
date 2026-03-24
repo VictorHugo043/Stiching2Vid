@@ -106,6 +106,81 @@ def _mean_overlap_diff(left_img, right_img, left_mask, right_mask) -> float:
     return float(gray[overlap].mean())
 
 
+def _compute_seam_band_mask(final_left_mask, final_right_mask, overlap_mask, band_radius: int = 5):
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    overlap = np.asarray(overlap_mask) > 0
+    if not overlap.any():
+        return np.zeros_like(overlap_mask, dtype=np.uint8)
+    left_assign = (np.asarray(final_left_mask) > 0).astype(np.uint8)
+    right_assign = (np.asarray(final_right_mask) > 0).astype(np.uint8)
+    kernel = np.ones((3, 3), dtype=np.uint8)
+    boundary = (
+        (cv2.dilate(left_assign, kernel, iterations=1) > 0)
+        & (cv2.dilate(right_assign, kernel, iterations=1) > 0)
+        & overlap
+    )
+    if not boundary.any():
+        return np.zeros_like(overlap_mask, dtype=np.uint8)
+    radius = max(1, int(band_radius))
+    band_kernel = np.ones((radius * 2 + 1, radius * 2 + 1), dtype=np.uint8)
+    band = cv2.dilate(boundary.astype(np.uint8) * 255, band_kernel, iterations=1) > 0
+    return ((band & overlap).astype(np.uint8)) * 255
+
+
+def _compute_seam_band_metrics(
+    left_img,
+    right_img,
+    left_canvas_mask,
+    right_canvas_mask,
+    final_left_mask,
+    final_right_mask,
+    *,
+    band_radius: int = 5,
+):
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    overlap = ((np.asarray(left_canvas_mask) > 0) & (np.asarray(right_canvas_mask) > 0)).astype(np.uint8) * 255
+    band_mask = _compute_seam_band_mask(
+        final_left_mask,
+        final_right_mask,
+        overlap,
+        band_radius=band_radius,
+    )
+    band = np.asarray(band_mask) > 0
+    overlap_count = int((overlap > 0).sum())
+    if overlap_count <= 0 or not band.any():
+        return {
+            "seam_band_mask": band_mask,
+            "seam_band_ratio": 0.0,
+            "seam_band_illuminance_diff": 0.0,
+            "seam_band_gradient_disagreement": 0.0,
+        }
+
+    left_gray = cv2.cvtColor(left_img, cv2.COLOR_BGR2GRAY)
+    right_gray = cv2.cvtColor(right_img, cv2.COLOR_BGR2GRAY)
+    left_gray_f = left_gray.astype(np.float32)
+    right_gray_f = right_gray.astype(np.float32)
+    illuminance_diff = np.abs(left_gray_f - right_gray_f)
+
+    grad_lx = cv2.Sobel(left_gray_f, cv2.CV_32F, 1, 0, ksize=3)
+    grad_ly = cv2.Sobel(left_gray_f, cv2.CV_32F, 0, 1, ksize=3)
+    grad_rx = cv2.Sobel(right_gray_f, cv2.CV_32F, 1, 0, ksize=3)
+    grad_ry = cv2.Sobel(right_gray_f, cv2.CV_32F, 0, 1, ksize=3)
+    grad_l = cv2.magnitude(grad_lx, grad_ly)
+    grad_r = cv2.magnitude(grad_rx, grad_ry)
+    grad_disagreement = np.abs(grad_l - grad_r)
+
+    return {
+        "seam_band_mask": band_mask,
+        "seam_band_ratio": float(band.sum()) / float(max(1, overlap_count)),
+        "seam_band_illuminance_diff": float(illuminance_diff[band].mean()),
+        "seam_band_gradient_disagreement": float(grad_disagreement[band].mean()),
+    }
+
+
 def _compose_limit_mask(canvas_masks, roi_masks, corners):
     import numpy as np  # type: ignore
 
@@ -503,6 +578,14 @@ class VideoStitcher:
             final_left_mask,
             final_right_mask,
         )
+        seam_band_metrics = _compute_seam_band_metrics(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_data["canvas_masks"][0],
+            final_data["canvas_masks"][1],
+            final_left_mask,
+            final_right_mask,
+        )
         output_bbox = _mask_union_bbox(final_left_mask, final_right_mask)
         stitched = self._blend(
             final_data["canvas_imgs"][0],
@@ -595,6 +678,11 @@ class VideoStitcher:
             "overlap_area_current": int(final_data["overlap_area"]),
             "overlap_diff_before": float(overlap_diff_before),
             "overlap_diff_after": float(overlap_diff_after),
+            "seam_band_ratio": float(seam_band_metrics["seam_band_ratio"]),
+            "seam_band_illuminance_diff": float(seam_band_metrics["seam_band_illuminance_diff"]),
+            "seam_band_gradient_disagreement": float(
+                seam_band_metrics["seam_band_gradient_disagreement"]
+            ),
             "last_seam_frame_index": int(frame_idx),
             "last_seam_policy": "init",
             "last_seam_reason": "init",
@@ -627,6 +715,11 @@ class VideoStitcher:
             "init_ms": float(self.state.metadata["init_ms"]),
             "overlap_diff_before": float(overlap_diff_before),
             "overlap_diff_after": float(overlap_diff_after),
+            "seam_band_ratio": float(seam_band_metrics["seam_band_ratio"]),
+            "seam_band_illuminance_diff": float(seam_band_metrics["seam_band_illuminance_diff"]),
+            "seam_band_gradient_disagreement": float(
+                seam_band_metrics["seam_band_gradient_disagreement"]
+            ),
             "crop_applied": bool(crop_out.get("crop_applied", False)),
             "crop_method": str(crop_out.get("crop_method", "none")),
             "crop_rect": self.state.metadata.get("crop_rect"),
@@ -636,6 +729,7 @@ class VideoStitcher:
             "seam_policy": "init",
             "seam_trigger_reason": "init",
             "seam_mask_change_ratio": 0.0,
+            "seam_band_mask": seam_band_metrics["seam_band_mask"],
         }
 
     def stitch_frame(
@@ -791,6 +885,14 @@ class VideoStitcher:
             final_left_mask,
             final_right_mask,
         )
+        seam_band_metrics = _compute_seam_band_metrics(
+            final_data["canvas_imgs"][0],
+            final_data["canvas_imgs"][1],
+            final_data["canvas_masks"][0],
+            final_data["canvas_masks"][1],
+            final_left_mask,
+            final_right_mask,
+        )
         seam_mask_change_ratio = 0.0
         if prev_final_masks is not None and len(prev_final_masks) == 2:
             change_left = compute_mask_change_ratio(prev_final_masks[0], final_left_mask)
@@ -868,6 +970,13 @@ class VideoStitcher:
         self.state.metadata["overlap_area_current"] = int(final_data["overlap_area"])
         self.state.metadata["overlap_diff_before"] = float(overlap_diff_before)
         self.state.metadata["overlap_diff_after"] = float(overlap_diff_after)
+        self.state.metadata["seam_band_ratio"] = float(seam_band_metrics["seam_band_ratio"])
+        self.state.metadata["seam_band_illuminance_diff"] = float(
+            seam_band_metrics["seam_band_illuminance_diff"]
+        )
+        self.state.metadata["seam_band_gradient_disagreement"] = float(
+            seam_band_metrics["seam_band_gradient_disagreement"]
+        )
         self.state.metadata["last_seam_policy"] = seam_decision.policy
         self.state.metadata["last_seam_reason"] = seam_decision.reason
         self.state.metadata["seam_trigger_armed"] = bool(seam_decision.trigger_armed_next)
@@ -882,12 +991,18 @@ class VideoStitcher:
             "overlap_area": int(final_data["overlap_area"]),
             "overlap_diff_before": float(overlap_diff_before),
             "overlap_diff_after": float(overlap_diff_after),
+            "seam_band_ratio": float(seam_band_metrics["seam_band_ratio"]),
+            "seam_band_illuminance_diff": float(seam_band_metrics["seam_band_illuminance_diff"]),
+            "seam_band_gradient_disagreement": float(
+                seam_band_metrics["seam_band_gradient_disagreement"]
+            ),
             "seam_compute_ms": float(seam_compute_ms),
             "seam_recomputed": bool(seam_decision.recompute),
             "seam_policy": seam_decision.policy,
             "seam_trigger_reason": seam_decision.reason,
             "seam_trigger_flags": dict(seam_decision.trigger_flags),
             "seam_mask_change_ratio": float(seam_mask_change_ratio),
+            "seam_band_mask": seam_band_metrics["seam_band_mask"],
             "foreground_ratio": float(foreground_ratio),
             "foreground_protect_ratio": float(foreground_protect_ratio),
             "trigger_armed_next": bool(seam_decision.trigger_armed_next),

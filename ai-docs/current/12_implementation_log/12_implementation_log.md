@@ -2803,3 +2803,253 @@
 - 下一步建议：
   - 基于 `phase3_overall_methods_acc_v2` 与 `phase3_overall_full_v1` 补统一 plot/export 脚本。
   - final report 中将方法主表与 dynamic seam 主表分开引用，避免再次混用旧 Method B preset 结果。
+
+## IMP-20260324-02
+- 状态：done
+- 标题：复盘 Method B 的安全优化空间，并扩展 fixed-geometry 下的评测指标设计
+- 本步目标：
+  - 在不立即改动核心算法的前提下，复盘当前 `SuperPoint + LightGlue + USAC_MAGSAC` 路径仍可安全优化的工程杠杆。
+  - 阅读 `A Metric for Video Blending Quality Assessment`，结合现有 run bundle、参数和 fixed-geometry 约束，提出比 `mean_inliers / mean_inlier_ratio / fps` 更完整的正式评测指标。
+  - 明确哪些优化点适合后续最小实验，哪些应暂缓，避免为追求局部指标而破坏当前正式 compare 结果。
+- 关联上一步结论：
+  - `IMP-20260324-01`：刷新后的正式 compare 证明 Method B 已不再“整体偏弱”，但仍呈现“高内点数量、低内点率、低速度”的 trade-off。
+  - `DEC-20260324-01`：Phase 3 正式方法结论必须引用 `phase3_*_methods_acc_v2` 和 `phase3_overall_methods_acc_v2`，因此后续优化不能直接覆盖当前正式结果。
+  - `ISSUE-20260323-03`：当前 final report 需要更细的 Method B trade-off 解释，而不只是一个单一强弱判断。
+- 本步回读文档：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码 / 资料：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_video_compare_suite.py`
+  - `background/TIP-2020-A Metric for Video Blending Quality Assessment.pdf`
+- 准备修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前需要先收敛“后续优化方向”和“扩展指标”，再决定是否启动新的实验子任务。
+  - 这一步更像研究设计与评估设计，结论应该先进入 ai-docs，而不是直接落代码。
+- 风险点：
+  - 若不区分“正式结果”和“候选优化方向”，容易把当前正式 compare 结果与后续探索性调参混淆。
+  - 若新增指标脱离现有 run bundle，可实现成本会失控。
+  - 仅看 inliers / ratio / fps 可能误判 fixed-geometry 下的视觉质量，尤其忽略 blending / seam / temporal artefacts。
+- 验收标准：
+  - 给出一组不会直接破坏当前正式结果的 Method B 优化候选项，并按风险排序。
+  - 给出 fixed-geometry 下更完整、可落地的评测指标清单，区分“可直接复用”“可低成本新增”“暂缓实现”。
+  - 形成清晰下一步建议，而不是立即大范围改代码。
+- 替代方案与不选原因：
+  - 直接继续盲目调 Method B 参数并重跑 full-length suite，未采用。
+  - 只做口头总结、不更新 ai-docs，未采用。
+- 实际修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 回读当前 Method B 前端与正式 compare 结果后，明确冻结 `method_b_accuracy_v1` 作为正式基线，不允许后续优化直接覆盖正式结果。
+  - 在 `06_method2_strong_matching` 中新增“2026-03-24 复盘：当前还能怎么继续优化 Method B”，把候选优化项分成：
+    - `no_upsample`
+    - `max_keypoints=3072/3584`
+    - 更严格 `filter_threshold`
+    - moderate `LightGlue` adaptivity
+  - 在 `05_evaluation` 中新增 fixed-geometry 方法 compare 的四类指标框架：
+    - 初始化与运行代价
+    - 几何质量
+    - blending / seam 质量
+    - temporal coherence
+  - 在 `11_decision_log` 中新增：
+    - `DEC-20260324-02`
+    - `DEC-20260324-03`
+  - 在 `14_open_issues_and_next_steps` 中新增：
+    - `ISSUE-20260324-01`
+    - `ISSUE-20260324-02`
+- 验证方式：
+  - 回读并比对：
+    - `phase3_overall_methods_acc_v2`
+    - 代表性 `debug.json`
+    - 代表性 `transforms.csv`
+  - Method B 运行时证据：
+    - `SuperPoint + LightGlue` 在代表性 run 上的 `last_feature_stage / last_matching_stage`
+    - `stop_layer=9`
+    - `prune0_mean≈9`, `prune1_mean≈9`
+  - 论文阅读：
+    - 本地 PDF：`background/TIP-2020-A Metric for Video Blending Quality Assessment.pdf`
+    - 公开摘要来源：PubMed `31796407`
+- 运行结果与验证结果：
+  - 当前 Method B 的主要问题已进一步收敛为：
+    - accuracy preset 下 `mean_inliers` 很强
+    - 但 `inlier_ratio` 与 `fps` 仍偏弱
+  - 当前最可能的安全优化方向不是推翻 SuperPoint/LightGlue 接入，而是继续做受控 preset sweep。
+  - 当前正式评测的主要缺口不是算法完全失效，而是 fixed-geometry 下指标过少，无法解释：
+    - 初始化慢还是 steady-state 慢
+    - recall 更强还是 purity 更强
+    - blending / temporal artefacts 是否更差
+- 与原计划相比的偏差：
+  - 本步没有启动新的参数 sweep 或代码实验。
+  - 这是有意限制范围：先把“该怎么安全优化”和“该补哪些指标”写清楚，再决定下一个最小实验子任务。
+- 下一步建议：
+  - 先做一个小规模 Method B preset sweep，不覆盖正式 baseline。
+  - sweep 优先顺序：
+    - `no_upsample`
+    - `max_keypoints=3072`
+    - `filter_threshold=0.15`
+  - 与此同时补 fixed-geometry 的评测导出：
+    - `init_ms / per_frame_ms`
+    - `reprojection_error`
+    - seam-band / temporal coherence 指标
+
+## IMP-20260324-03
+- 状态：done
+- 标题：Phase 3 补强：Method B 安全优化候选与 fixed-geometry richer metrics
+- 本步目标：
+  - 在不覆盖当前正式 `method_b_accuracy_v1` baseline 的前提下，新增 Method B 候选 preset 机制并做小范围 sweep。
+  - 为 fixed-geometry 正式比较补充运行代价、几何质量、blending / seam-band、temporal artefact 指标。
+  - 输出新的分析结果，用于判断 Method B 是否存在可接受的精度/速度折中点。
+- 关联上一步结论：
+  - `DEC-20260324-02`：当前正式 `Method B` baseline 冻结为 `method_b_accuracy_v1`，后续优化必须以新增 candidate preset 的方式进行。
+  - `DEC-20260324-03`：fixed-geometry 正式比较应补充 richer metrics，而不是继续只看 `inliers / inlier_ratio / fps`。
+  - `ISSUE-20260324-01`：当前 formal compare 缺少 reprojection、stage runtime 和 seam-band 指标。
+  - `ISSUE-20260324-02`：当前 accuracy preset 的上采样与禁用 adaptivity 可能同时拉低 FPS 与 inlier ratio。
+- 本步回读文档：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_video_compare_suite.py`
+- 准备修改文件：
+  - `src/stitching/method_b_presets.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_method_b_preset_sweep.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `run_baseline_video.py`、`video_stitcher.py`、`temporal.py` 是 fixed-geometry richer metrics 的真实导出路径。
+  - `geometry.py` 和 `frame_pair_pipeline.py` 负责把 reprojection / spatial coverage 从 pair-level 传到视频级。
+  - `method_b_presets.py` 与新 sweep 脚本可以把 Method B 优化限定在“新增候选 preset”范围内，避免污染正式 baseline。
+  - ai-docs 需要同步记录新的指标定义、候选 preset 和 sweep 结果。
+- 风险点：
+  - 指标扩展过多导致 `run_baseline_video.py` 侵入性变大。
+  - seam-band 指标定义不稳，可能出现个别场景空 band 或解释偏差。
+  - Method B 候选 preset 若默认启用，会破坏当前正式 compare 的可复现性。
+  - 代表性 sweep 范围过大，拖慢本步迭代。
+- 验收标准：
+  - 不改变当前正式 `method_b_accuracy_v1` 的默认结果，新增 candidate preset 需显式选择。
+  - `metrics_preview.json` 与 `transforms.csv` 至少新增：
+    - `init_ms_mean`
+    - `per_frame_ms_mean`
+    - `avg_runtime_ms`
+    - `mean_reprojection_error`
+    - `mean_inlier_spatial_coverage`
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+    - `mean_seam_band_flicker`
+  - 运行 1 个单条 smoke 和 1 个代表性 Method B preset sweep。
+  - ai-docs 回填清楚哪些指标已落地、哪些仍延期。
+- 替代方案与不选原因：
+  - 方案：直接修改当前正式 Method B accuracy preset 并重跑全部正式 compare。
+  - 不选原因：这会覆盖当前正式基线，无法区分“baseline 已有结果”和“候选优化结果”。
+- 实际修改文件：
+  - `src/stitching/method_b_presets.py`
+  - `src/stitching/geometry.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `src/stitching/temporal.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_method_b_preset_sweep.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增 `method_b_presets.py`，固定 `accuracy_v1 / no_upsample_v1 / kp3072_v1 / filter015_v1`。
+  - 在 `geometry.py` 中新增 `inlier_spatial_coverage`。
+  - 在 `video_stitcher.py` 中新增 seam-band 局部代理指标：
+    - `seam_band_illuminance_diff`
+    - `seam_band_gradient_disagreement`
+    - `seam_band_mask`
+  - 在 `temporal.py` 中把 `compute_frame_absdiff_mean()` 扩展为 mask-aware，用于 `seam_band_flicker`。
+  - 在 `run_baseline_video.py` 中扩展导出：
+    - `init_ms_mean`
+    - `per_frame_ms_mean`
+    - `mean_reprojection_error`
+    - `mean_inlier_spatial_coverage`
+    - `avg_feature_runtime_ms_left/right`
+    - `avg_matching_runtime_ms`
+    - `avg_geometry_runtime_ms`
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+    - `mean_seam_band_flicker`
+  - 在 `run_video_compare_suite.py` 中同步读取 richer metrics。
+  - 新增 `run_method_b_preset_sweep.py`，用于 Method B 小范围 candidate sweep。
+  - 修复了 crop 后 `seam_band_mask` 未同步裁剪导致 `seam_band_flicker` 误为 0 的问题。
+- 验证方式：
+  - 运行：
+    - `python3 -m py_compile src/stitching/method_b_presets.py src/stitching/geometry.py src/stitching/frame_pair_pipeline.py src/stitching/temporal.py src/stitching/video_stitcher.py scripts/run_baseline_video.py scripts/run_video_compare_suite.py scripts/run_method_b_preset_sweep.py`
+    - `python3 scripts/run_baseline_video.py --help`
+    - `python3 scripts/run_method_b_preset_sweep.py --help`
+  - smoke：
+    - `outputs/runs/methodb_metrics_smoke_20260324_fix1`
+  - candidate sweep：
+    - `outputs/analysis/methodb_preset_sweep_v2`
+- 运行结果与验证结果：
+  - 新指标已成功写入 `metrics_preview.json` 与 `transforms.csv`。
+  - smoke 样例 `methodb_metrics_smoke_20260324_fix1` 已导出：
+    - `mean_reprojection_error = 1.578`
+    - `mean_inlier_spatial_coverage = 0.562`
+    - `init_ms_mean = 709.17`
+    - `per_frame_ms_mean = 393.32`
+    - `mean_seam_band_illuminance_diff = 12.20`
+    - `mean_seam_band_gradient_disagreement = 59.29`
+    - `mean_seam_band_flicker = 10.12`
+  - candidate sweep 已完成 `4 presets x 3 pairs = 12 runs`。
+  - 当前最值得继续 full-length 复验的 candidate 为 `kp3072_v1`，但尚未升格为正式 baseline。
+- 与原计划相比的偏差：
+  - 本轮没有实现 `flow-compensated temporal residual`，改为先落地更轻量的 `seam-band flicker`。
+  - 本轮没有直接改写正式 compare 的默认 Method B preset。
+- 下一步建议：
+  - 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验。
+  - 若继续收尾 Phase 3，则基于新的 richer metrics 补统一 plot/export 脚本。

@@ -489,6 +489,59 @@
   - dynamic seam：
     - 仍以 `phase3_*_full_v1` 和 `phase3_overall_full_v1` 为准
 
+### 当前 Phase 3 进度补充（2026-03-24，Method B 下一轮优化与评测扩展）
+- 当前 Method B 不再需要“推翻重做”，而是需要：
+  - 保持 `method_b_accuracy_v1` 作为正式基线
+  - 在此之上做小范围、安全的候选 preset sweep
+- 当前优先候选项：
+  - `no_upsample`
+  - `max_keypoints=3072`
+  - `filter_threshold=0.15`
+  - moderate `LightGlue` adaptivity
+- 当前不建议直接做：
+  - 训练新模型
+  - 替换 seam backend
+  - 用新的 faster preset 覆盖正式方法 compare
+- 当前评测主问题：
+  - `fixed_geometry` 下只看 `mean_inliers / mean_inlier_ratio / approx_fps` 太少
+  - 下一步应补：
+    - `init_ms / per_frame_ms`
+    - `reprojection_error`
+    - `seam-band illuminance / ghosting`
+    - `flow-compensated temporal coherence`
+
+### 当前 Phase 3 进度补充（2026-03-24，Method B candidate sweep 与 richer metrics 已落地）
+- 已实现：
+  - `src/stitching/method_b_presets.py`
+  - `scripts/run_method_b_preset_sweep.py`
+  - `run_baseline_video.py` / `run_video_compare_suite.py` richer metrics 导出
+- 已落地的 fixed-geometry 指标：
+  - 运行代价：
+    - `init_ms_mean`
+    - `per_frame_ms_mean`
+    - `avg_runtime_ms`
+    - `avg_feature_runtime_ms_left/right`
+    - `avg_matching_runtime_ms`
+    - `avg_geometry_runtime_ms`
+  - 几何质量：
+    - `mean_reprojection_error`
+    - `mean_inlier_spatial_coverage`
+  - blending / seam 质量：
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+  - temporal artefact：
+    - `mean_seam_band_flicker`
+    - `mean_stitched_delta`
+- 当前仍延期：
+  - `flow-compensated temporal residual`
+- candidate sweep 结果目录：
+  - `outputs/analysis/methodb_preset_sweep_v2`
+- 当前最值得继续验证的 candidate：
+  - `kp3072_v1`
+- 当前结论：
+  - 它是最像“安全优化”的候选项
+  - 但仍未通过 full-length 多数据域复验，因此不能替换正式 `method_b_accuracy_v1`
+
 ## Phase 4
 ### 目标
 - 做 GUI thin wrapper。

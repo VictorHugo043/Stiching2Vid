@@ -14,6 +14,7 @@ class GeometryResult:
     inlier_count: int
     inlier_ratio: float
     reprojection_error: Optional[float]
+    inlier_spatial_coverage: Optional[float]
     backend_name: str
     runtime_ms: float
     status: str
@@ -56,6 +57,35 @@ def _compute_reprojection_error(H, pts_right, pts_left, inlier_mask) -> Optional
     return float(errors.mean())
 
 
+def _compute_inlier_spatial_coverage(feature_left, match_result, inlier_mask) -> Optional[float]:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+
+    if not inlier_mask or not getattr(match_result, "matches_lr", None):
+        return None
+    image_w, image_h = feature_left.image_size
+    image_area = float(max(1, int(image_w) * int(image_h)))
+    inlier_points = [
+        feature_left.keypoints_xy[q_idx]
+        for (q_idx, _), keep in zip(match_result.matches_lr, inlier_mask)
+        if int(keep) > 0
+    ]
+    if not inlier_points:
+        return None
+
+    pts = np.asarray(inlier_points, dtype=np.float32).reshape(-1, 2)
+    if pts.shape[0] >= 3:
+        hull = cv2.convexHull(pts.reshape(-1, 1, 2))
+        area = float(cv2.contourArea(hull))
+    elif pts.shape[0] == 2:
+        xs = pts[:, 0]
+        ys = pts[:, 1]
+        area = float((xs.max() - xs.min()) * (ys.max() - ys.min()))
+    else:
+        area = 0.0
+    return float(min(1.0, max(0.0, area / image_area)))
+
+
 def estimate_homography_result(
     feature_left,
     feature_right,
@@ -80,6 +110,7 @@ def estimate_homography_result(
             inlier_count=0,
             inlier_ratio=0.0,
             reprojection_error=None,
+            inlier_spatial_coverage=None,
             backend_name=backend_name,
             runtime_ms=float((time.perf_counter() - start_time) * 1000.0),
             status="not_enough_matches",
@@ -110,6 +141,7 @@ def estimate_homography_result(
             inlier_count=0,
             inlier_ratio=0.0,
             reprojection_error=None,
+            inlier_spatial_coverage=None,
             backend_name=backend_name,
             runtime_ms=float(runtime_ms),
             status="homography_failed",
@@ -127,12 +159,18 @@ def estimate_homography_result(
         else 0.0
     )
     reprojection_error = _compute_reprojection_error(H, pts_right, pts_left, inlier_mask)
+    inlier_spatial_coverage = _compute_inlier_spatial_coverage(
+        feature_left,
+        match_result,
+        inlier_mask,
+    )
     return GeometryResult(
         H=H,
         inlier_mask=inlier_mask,
         inlier_count=inlier_count,
         inlier_ratio=inlier_ratio,
         reprojection_error=reprojection_error,
+        inlier_spatial_coverage=inlier_spatial_coverage,
         backend_name=backend_name,
         runtime_ms=float(runtime_ms),
         status="ok",

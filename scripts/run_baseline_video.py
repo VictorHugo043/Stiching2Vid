@@ -923,6 +923,12 @@ def _build_transform_columns() -> List[str]:
             "jitter_meaningful",
             "geometry_recomputed",
             "geometry_update_reason",
+            "reprojection_error",
+            "inlier_spatial_coverage",
+            "feature_runtime_ms_left",
+            "feature_runtime_ms_right",
+            "matching_runtime_ms",
+            "geometry_runtime_ms",
             "H_delta_norm",
             "overlap_area_current",
             "seam_policy",
@@ -931,6 +937,10 @@ def _build_transform_columns() -> List[str]:
             "trigger_armed",
             "overlap_diff_before",
             "overlap_diff_after",
+            "seam_band_ratio",
+            "seam_band_illuminance_diff",
+            "seam_band_gradient_disagreement",
+            "seam_band_flicker",
             "stitched_delta_mean",
             "seam_mask_change_ratio",
             "crop_applied",
@@ -1020,7 +1030,7 @@ def main() -> int:
         warp_to_roi,
     )
     from stitching.cropper import Cropper  # noqa: E402
-    from stitching.video_stitcher import VideoStitcher  # noqa: E402
+    from stitching.video_stitcher import VideoStitcher, _compute_seam_band_metrics  # noqa: E402
     from stitching.viz import overlay_images  # noqa: E402
 
     start_time = time.perf_counter()
@@ -1294,6 +1304,12 @@ def main() -> int:
         "n_matches_good": None,
         "n_inliers": None,
         "inlier_ratio": None,
+        "reprojection_error": None,
+        "inlier_spatial_coverage": None,
+        "feature_runtime_ms_left": None,
+        "feature_runtime_ms_right": None,
+        "matching_runtime_ms": None,
+        "geometry_runtime_ms": None,
     }
 
     def _update_last_stats_from_pair_result(pair_result) -> None:
@@ -1321,6 +1337,39 @@ def main() -> int:
         last_stats["inlier_ratio"] = (
             float(geometry_result.inlier_ratio)
             if geometry_result is not None and geometry_result.inlier_mask is not None
+            else None
+        )
+        last_stats["reprojection_error"] = (
+            float(geometry_result.reprojection_error)
+            if geometry_result is not None and geometry_result.reprojection_error is not None
+            else None
+        )
+        last_stats["inlier_spatial_coverage"] = (
+            float(geometry_result.inlier_spatial_coverage)
+            if geometry_result is not None and geometry_result.inlier_spatial_coverage is not None
+            else None
+        )
+        feature_stage = getattr(pair_result, "feature_stage", {}) or {}
+        matching_stage = getattr(pair_result, "matching_stage", {}) or {}
+        geometry_stage = getattr(pair_result, "geometry_stage", {}) or {}
+        last_stats["feature_runtime_ms_left"] = (
+            float(feature_stage.get("left", {}).get("runtime_ms"))
+            if feature_stage.get("left", {}).get("runtime_ms") is not None
+            else None
+        )
+        last_stats["feature_runtime_ms_right"] = (
+            float(feature_stage.get("right", {}).get("runtime_ms"))
+            if feature_stage.get("right", {}).get("runtime_ms") is not None
+            else None
+        )
+        last_stats["matching_runtime_ms"] = (
+            float(matching_stage.get("runtime_ms"))
+            if matching_stage.get("runtime_ms") is not None
+            else None
+        )
+        last_stats["geometry_runtime_ms"] = (
+            float(geometry_stage.get("runtime_ms"))
+            if geometry_stage.get("runtime_ms") is not None
             else None
         )
 
@@ -1381,6 +1430,7 @@ def main() -> int:
         inlier_ratio = float(pair_result.geometry_result.inlier_ratio)
         inliers_ok.append(inlier_count)
         inlier_ratios_ok.append(inlier_ratio)
+        _record_geometry_event_metrics(pair_result)
         return pair_result, pair_result.geometry_result.H, matches_img
 
     smoother = HomographySmoother(
@@ -1400,10 +1450,21 @@ def main() -> int:
     overlap_diff_after_values: List[float] = []
     seam_mask_change_values: List[float] = []
     stitched_delta_values: List[float] = []
+    reprojection_error_values: List[float] = []
+    inlier_spatial_coverage_values: List[float] = []
+    feature_runtime_left_values: List[float] = []
+    feature_runtime_right_values: List[float] = []
+    matching_runtime_values: List[float] = []
+    geometry_runtime_values: List[float] = []
+    seam_band_ratio_values: List[float] = []
+    seam_band_illuminance_values: List[float] = []
+    seam_band_gradient_values: List[float] = []
+    seam_band_flicker_values: List[float] = []
     foreground_ratio_values: List[float] = []
     prev_raw_corners = None
     prev_sm_corners = None
     prev_stitched_written = None
+    prev_seam_band_mask = None
     seam_cache: Optional[Dict[str, object]] = None
     video_stitcher = VideoStitcher(
         seam_method=_seam_cli_to_method(args.seam),
@@ -1429,6 +1490,24 @@ def main() -> int:
     )
     video_prev_H = None
     frames_since_video_init = 0
+
+    def _record_geometry_event_metrics(pair_result) -> None:
+        geometry_result = getattr(pair_result, "geometry_result", None)
+        feature_stage = getattr(pair_result, "feature_stage", {}) or {}
+        matching_stage = getattr(pair_result, "matching_stage", {}) or {}
+        geometry_stage = getattr(pair_result, "geometry_stage", {}) or {}
+        if geometry_result is not None and geometry_result.reprojection_error is not None:
+            reprojection_error_values.append(float(geometry_result.reprojection_error))
+        if geometry_result is not None and geometry_result.inlier_spatial_coverage is not None:
+            inlier_spatial_coverage_values.append(float(geometry_result.inlier_spatial_coverage))
+        if feature_stage.get("left", {}).get("runtime_ms") is not None:
+            feature_runtime_left_values.append(float(feature_stage["left"]["runtime_ms"]))
+        if feature_stage.get("right", {}).get("runtime_ms") is not None:
+            feature_runtime_right_values.append(float(feature_stage["right"]["runtime_ms"]))
+        if matching_stage.get("runtime_ms") is not None:
+            matching_runtime_values.append(float(matching_stage["runtime_ms"]))
+        if geometry_stage.get("runtime_ms") is not None:
+            geometry_runtime_values.append(float(geometry_stage["runtime_ms"]))
 
     processed_idx = 0
     source_idx = int(args.start)
@@ -1615,6 +1694,14 @@ def main() -> int:
                     seam_policy_used = str(stitch_out.get("seam_policy", seam_policy_effective))
                     foreground_ratio = float(stitch_out.get("foreground_ratio", 0.0))
                     foreground_protect_ratio = float(stitch_out.get("foreground_protect_ratio", 0.0))
+                    seam_band_ratio = float(stitch_out.get("seam_band_ratio", 0.0))
+                    seam_band_illuminance_diff = float(
+                        stitch_out.get("seam_band_illuminance_diff", 0.0)
+                    )
+                    seam_band_gradient_disagreement = float(
+                        stitch_out.get("seam_band_gradient_disagreement", 0.0)
+                    )
+                    seam_band_mask = stitch_out.get("seam_band_mask")
                     trigger_armed_next = int(bool(stitch_out.get("trigger_armed_next", True)))
                     trigger_states_next = dict(stitch_out.get("trigger_states_next", {}) or {})
                     proposed_output_bbox = stitch_out.get("output_bbox")
@@ -1695,6 +1782,20 @@ def main() -> int:
                             overlap_diff_after = float(
                                 init_out.get("overlap_diff_after", overlap_diff_after)
                             )
+                            seam_band_ratio = float(init_out.get("seam_band_ratio", seam_band_ratio))
+                            seam_band_illuminance_diff = float(
+                                init_out.get(
+                                    "seam_band_illuminance_diff",
+                                    seam_band_illuminance_diff,
+                                )
+                            )
+                            seam_band_gradient_disagreement = float(
+                                init_out.get(
+                                    "seam_band_gradient_disagreement",
+                                    seam_band_gradient_disagreement,
+                                )
+                            )
+                            seam_band_mask = init_out.get("seam_band_mask", seam_band_mask)
                             proposed_output_bbox = init_out.get("output_bbox")
                             current_final_masks = list(video_stitcher.state.seam_masks_final or [])
                             if len(previous_final_masks) == 2 and len(current_final_masks) == 2:
@@ -1739,6 +1840,9 @@ def main() -> int:
                     overlap_diff_before_values.append(overlap_diff_before)
                     overlap_diff_after_values.append(overlap_diff_after)
                     seam_mask_change_values.append(seam_mask_change_ratio)
+                    seam_band_ratio_values.append(float(seam_band_ratio))
+                    seam_band_illuminance_values.append(float(seam_band_illuminance_diff))
+                    seam_band_gradient_values.append(float(seam_band_gradient_disagreement))
                     foreground_ratio_values.append(float(foreground_ratio))
                     debug["overlap_area_current"] = int(overlap_current)
                     debug["overlap_area_samples"].append(
@@ -1794,10 +1898,27 @@ def main() -> int:
                         }
                     if bool(args.crop) and output_crop_rect is not None:
                         stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
+                        if seam_band_mask is not None:
+                            seam_band_mask = _crop_frame_to_rect(seam_band_mask, output_crop_rect)
                     stitched_delta_mean = compute_frame_absdiff_mean(prev_stitched_written, stitched_written)
+                    seam_band_flicker = None
+                    flicker_mask = seam_band_mask
+                    if prev_seam_band_mask is not None and seam_band_mask is not None:
+                        prev_mask_arr = np.asarray(prev_seam_band_mask) > 0
+                        curr_mask_arr = np.asarray(seam_band_mask) > 0
+                        if prev_mask_arr.shape == curr_mask_arr.shape:
+                            flicker_mask = ((prev_mask_arr | curr_mask_arr).astype(np.uint8)) * 255
+                    seam_band_flicker = compute_frame_absdiff_mean(
+                        prev_stitched_written,
+                        stitched_written,
+                        mask=flicker_mask,
+                    )
                     prev_stitched_written = stitched_written
+                    prev_seam_band_mask = seam_band_mask
                     if stitched_delta_mean is not None:
                         stitched_delta_values.append(float(stitched_delta_mean))
+                    if seam_band_flicker is not None:
+                        seam_band_flicker_values.append(float(seam_band_flicker))
 
                     if writer is None:
                         out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
@@ -1907,6 +2028,12 @@ def main() -> int:
                         "jitter_meaningful": jitter_meaningful,
                         "geometry_recomputed": int(geometry_recomputed),
                         "geometry_update_reason": geometry_update_reason,
+                        "reprojection_error": last_stats["reprojection_error"],
+                        "inlier_spatial_coverage": last_stats["inlier_spatial_coverage"],
+                        "feature_runtime_ms_left": last_stats["feature_runtime_ms_left"],
+                        "feature_runtime_ms_right": last_stats["feature_runtime_ms_right"],
+                        "matching_runtime_ms": last_stats["matching_runtime_ms"],
+                        "geometry_runtime_ms": last_stats["geometry_runtime_ms"],
                         "H_delta_norm": float(h_delta),
                         "overlap_area_current": int(overlap_current),
                         "seam_policy": seam_policy_used,
@@ -1915,6 +2042,12 @@ def main() -> int:
                         "trigger_armed": int(trigger_armed_next),
                         "overlap_diff_before": float(overlap_diff_before),
                         "overlap_diff_after": float(overlap_diff_after),
+                        "seam_band_ratio": float(seam_band_ratio),
+                        "seam_band_illuminance_diff": float(seam_band_illuminance_diff),
+                        "seam_band_gradient_disagreement": float(
+                            seam_band_gradient_disagreement
+                        ),
+                        "seam_band_flicker": seam_band_flicker,
                         "stitched_delta_mean": stitched_delta_mean,
                         "seam_mask_change_ratio": float(seam_mask_change_ratio),
                         "crop_applied": int(1 if stitch_out.get("crop_applied") else 0),
@@ -2013,6 +2146,7 @@ def main() -> int:
                         H_raw = valid_H_raw
                         inliers_ok.append(inlier_count)
                         inlier_ratios_ok.append(inlier_ratio)
+                        _record_geometry_event_metrics(pair_result)
                         note_parts.append("estimation=OK")
                     except Exception as exc:
                         keyframe_failed = True
@@ -2074,6 +2208,10 @@ def main() -> int:
                 seam_trigger_reason = "none"
                 seam_trigger_flags: Dict[str, object] = {}
                 seam_mask_change_ratio = 0.0
+                seam_band_ratio = 0.0
+                seam_band_illuminance_diff = 0.0
+                seam_band_gradient_disagreement = 0.0
+                seam_band_mask = None
                 crop_applied = 0
                 crop_method_used = "none"
                 crop_lir_rect = None
@@ -2760,8 +2898,27 @@ def main() -> int:
                             final_left_mask,
                             final_right_mask,
                         )
+                        seam_band_metrics = _compute_seam_band_metrics(
+                            left_canvas,
+                            right_canvas,
+                            left_mask_full,
+                            right_mask_full,
+                            final_left_mask,
+                            final_right_mask,
+                        )
+                        seam_band_ratio = float(seam_band_metrics["seam_band_ratio"])
+                        seam_band_illuminance_diff = float(
+                            seam_band_metrics["seam_band_illuminance_diff"]
+                        )
+                        seam_band_gradient_disagreement = float(
+                            seam_band_metrics["seam_band_gradient_disagreement"]
+                        )
+                        seam_band_mask = seam_band_metrics["seam_band_mask"]
                         overlap_diff_before_values.append(float(overlap_diff_before))
                         overlap_diff_after_values.append(float(overlap_diff_after))
+                        seam_band_ratio_values.append(float(seam_band_ratio))
+                        seam_band_illuminance_values.append(float(seam_band_illuminance_diff))
+                        seam_band_gradient_values.append(float(seam_band_gradient_disagreement))
 
                         if seam_recomputed:
                             overlap_stats = summarize_overlap(left_mask_full, right_mask_full)
@@ -2808,10 +2965,27 @@ def main() -> int:
                     }
                 if bool(args.crop) and output_crop_rect is not None:
                     stitched_written = _crop_frame_to_rect(stitched, output_crop_rect)
+                    if seam_band_mask is not None:
+                        seam_band_mask = _crop_frame_to_rect(seam_band_mask, output_crop_rect)
                 stitched_delta_mean = compute_frame_absdiff_mean(prev_stitched_written, stitched_written)
+                seam_band_flicker = None
+                flicker_mask = seam_band_mask
+                if prev_seam_band_mask is not None and seam_band_mask is not None:
+                    prev_mask_arr = np.asarray(prev_seam_band_mask) > 0
+                    curr_mask_arr = np.asarray(seam_band_mask) > 0
+                    if prev_mask_arr.shape == curr_mask_arr.shape:
+                        flicker_mask = ((prev_mask_arr | curr_mask_arr).astype(np.uint8)) * 255
+                seam_band_flicker = compute_frame_absdiff_mean(
+                    prev_stitched_written,
+                    stitched_written,
+                    mask=flicker_mask,
+                )
                 prev_stitched_written = stitched_written
+                prev_seam_band_mask = seam_band_mask
                 if stitched_delta_mean is not None:
                     stitched_delta_values.append(float(stitched_delta_mean))
+                if seam_band_flicker is not None:
+                    seam_band_flicker_values.append(float(seam_band_flicker))
 
                 if writer is None:
                     out_h, out_w = int(stitched_written.shape[0]), int(stitched_written.shape[1])
@@ -2919,6 +3093,12 @@ def main() -> int:
                     "jitter_meaningful": jitter_meaningful,
                     "geometry_recomputed": int(geometry_recomputed),
                     "geometry_update_reason": geometry_update_reason,
+                    "reprojection_error": last_stats["reprojection_error"],
+                    "inlier_spatial_coverage": last_stats["inlier_spatial_coverage"],
+                    "feature_runtime_ms_left": last_stats["feature_runtime_ms_left"],
+                    "feature_runtime_ms_right": last_stats["feature_runtime_ms_right"],
+                    "matching_runtime_ms": last_stats["matching_runtime_ms"],
+                    "geometry_runtime_ms": last_stats["geometry_runtime_ms"],
                     "H_delta_norm": float(h_delta),
                     "overlap_area_current": int(overlap_area_current),
                     "seam_policy": seam_policy_effective,
@@ -2927,6 +3107,12 @@ def main() -> int:
                     "trigger_armed": int(trigger_armed_next),
                     "overlap_diff_before": float(overlap_diff_before),
                     "overlap_diff_after": float(overlap_diff_after),
+                    "seam_band_ratio": float(seam_band_ratio),
+                    "seam_band_illuminance_diff": float(seam_band_illuminance_diff),
+                    "seam_band_gradient_disagreement": float(
+                        seam_band_gradient_disagreement
+                    ),
+                    "seam_band_flicker": seam_band_flicker,
                     "stitched_delta_mean": stitched_delta_mean,
                     "seam_mask_change_ratio": float(seam_mask_change_ratio),
                     "crop_applied": int(crop_applied),
@@ -3016,6 +3202,56 @@ def main() -> int:
         if stitched_delta_values
         else 0.0
     )
+    reprojection_error_mean = (
+        float(sum(reprojection_error_values) / len(reprojection_error_values))
+        if reprojection_error_values
+        else 0.0
+    )
+    inlier_spatial_coverage_mean = (
+        float(sum(inlier_spatial_coverage_values) / len(inlier_spatial_coverage_values))
+        if inlier_spatial_coverage_values
+        else 0.0
+    )
+    feature_runtime_left_mean = (
+        float(sum(feature_runtime_left_values) / len(feature_runtime_left_values))
+        if feature_runtime_left_values
+        else 0.0
+    )
+    feature_runtime_right_mean = (
+        float(sum(feature_runtime_right_values) / len(feature_runtime_right_values))
+        if feature_runtime_right_values
+        else 0.0
+    )
+    matching_runtime_mean = (
+        float(sum(matching_runtime_values) / len(matching_runtime_values))
+        if matching_runtime_values
+        else 0.0
+    )
+    geometry_runtime_mean = (
+        float(sum(geometry_runtime_values) / len(geometry_runtime_values))
+        if geometry_runtime_values
+        else 0.0
+    )
+    seam_band_ratio_mean = (
+        float(sum(seam_band_ratio_values) / len(seam_band_ratio_values))
+        if seam_band_ratio_values
+        else 0.0
+    )
+    seam_band_illuminance_mean = (
+        float(sum(seam_band_illuminance_values) / len(seam_band_illuminance_values))
+        if seam_band_illuminance_values
+        else 0.0
+    )
+    seam_band_gradient_mean = (
+        float(sum(seam_band_gradient_values) / len(seam_band_gradient_values))
+        if seam_band_gradient_values
+        else 0.0
+    )
+    seam_band_flicker_mean = (
+        float(sum(seam_band_flicker_values) / len(seam_band_flicker_values))
+        if seam_band_flicker_values
+        else 0.0
+    )
     foreground_ratio_mean = (
         float(sum(foreground_ratio_values) / len(foreground_ratio_values))
         if foreground_ratio_values
@@ -3041,6 +3277,16 @@ def main() -> int:
         "mean_overlap_diff_before": float(overlap_diff_before_mean),
         "mean_overlap_diff_after": float(overlap_diff_after_mean),
         "mean_seam_mask_change_ratio": float(seam_mask_change_mean),
+        "mean_reprojection_error": float(reprojection_error_mean),
+        "mean_inlier_spatial_coverage": float(inlier_spatial_coverage_mean),
+        "avg_feature_runtime_ms_left": float(feature_runtime_left_mean),
+        "avg_feature_runtime_ms_right": float(feature_runtime_right_mean),
+        "avg_matching_runtime_ms": float(matching_runtime_mean),
+        "avg_geometry_runtime_ms": float(geometry_runtime_mean),
+        "mean_seam_band_ratio": float(seam_band_ratio_mean),
+        "mean_seam_band_illuminance_diff": float(seam_band_illuminance_mean),
+        "mean_seam_band_gradient_disagreement": float(seam_band_gradient_mean),
+        "mean_seam_band_flicker": float(seam_band_flicker_mean),
         "mean_stitched_delta": float(stitched_delta_mean),
         "mean_foreground_ratio": float(foreground_ratio_mean),
         "foreground_triggered_count": int(debug.get("foreground_triggered_count", 0)),
@@ -3119,6 +3365,16 @@ def main() -> int:
         "mean_overlap_diff_before": overlap_diff_before_mean,
         "mean_overlap_diff_after": overlap_diff_after_mean,
         "mean_seam_mask_change_ratio": seam_mask_change_mean,
+        "mean_reprojection_error": reprojection_error_mean,
+        "mean_inlier_spatial_coverage": inlier_spatial_coverage_mean,
+        "avg_feature_runtime_ms_left": feature_runtime_left_mean,
+        "avg_feature_runtime_ms_right": feature_runtime_right_mean,
+        "avg_matching_runtime_ms": matching_runtime_mean,
+        "avg_geometry_runtime_ms": geometry_runtime_mean,
+        "mean_seam_band_ratio": seam_band_ratio_mean,
+        "mean_seam_band_illuminance_diff": seam_band_illuminance_mean,
+        "mean_seam_band_gradient_disagreement": seam_band_gradient_mean,
+        "mean_seam_band_flicker": seam_band_flicker_mean,
         "mean_stitched_delta": stitched_delta_mean,
         "mean_foreground_ratio": foreground_ratio_mean,
         "temporal_primary_metric": temporal_primary_metric,
@@ -3154,6 +3410,9 @@ def main() -> int:
         "jitter_scope": _jitter_scope_for_geometry_mode(geometry_mode),
         "reinit_count": int(debug.get("reinit_count", 0)),
         "init_ms_mean": float(debug.get("time_breakdown_summary", {}).get("init_ms_mean", 0.0)),
+        "per_frame_ms_mean": float(
+            debug.get("time_breakdown_summary", {}).get("per_frame_ms_mean", 0.0)
+        ),
         "reuse_per_frame_ms_mean": float(
             debug.get("time_breakdown_summary", {}).get("per_frame_ms_mean", 0.0)
         ),

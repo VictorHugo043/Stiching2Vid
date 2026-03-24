@@ -277,6 +277,129 @@
   - `mine_source` 真实视频
   - 至少 1 组较稳定的静态样例
 
+### 固定几何下的方法 compare 指标扩展建议（2026-03-24）
+- 当前三项主指标：
+  - `mean_inliers`
+  - `mean_inlier_ratio`
+  - `approx_fps`
+- 当前问题：
+  - 这三项不足以解释 `fixed_geometry + frame0_all` 下的真实 trade-off。
+  - 尤其是：
+    - `approx_fps` 会把初始化代价和 steady-state compose 代价混在一起
+    - `inlier_ratio` 会把“保留更多 matches 带来的 recall 提升”和“几何更差”混在一起
+    - 完全没有覆盖 seam/blending/temporal artefacts
+
+#### 建议改成四类指标
+- 1. 初始化与运行代价
+  - 直接复用 / 可低成本导出：
+    - `init_ms_mean`
+    - `reuse_per_frame_ms_mean` 或 `time_breakdown_summary.per_frame_ms_mean`
+    - `avg_runtime_ms`
+    - `approx_fps`
+  - 解读方式：
+    - `init_ms_mean` 表示首帧建图 / 匹配 / 建立 geometry 的启动延迟
+    - `per_frame_ms_mean` 表示固定几何下的 steady-state 视频合成代价
+    - `approx_fps` 只作为 full-run amortized throughput，不单独作为“算法快慢”的唯一结论
+
+- 2. 几何质量
+  - 当前可直接复用：
+    - `mean_inliers`
+    - `mean_inlier_ratio`
+  - 建议新增：
+    - `mean_reprojection_error`
+    - `inlier spatial coverage`
+      - 例如 inlier 凸包面积 / 图像面积，或网格占据率
+    - `match_confidence summary`
+      - LightGlue score 均值 / 中位数 / p10
+  - 理由：
+    - `mean_inliers` 更像 recall
+    - `inlier_ratio` 更像 purity
+    - `reprojection_error` 更能直接描述几何拟合质量
+    - `coverage` 可以避免 “inliers 很多但只集中在局部” 的误判
+
+- 3. Blending / seam 质量
+  - 当前可直接复用：
+    - `mean_overlap_diff_before`
+    - `mean_overlap_diff_after`
+  - 建议新增：
+    - `seam-band illuminance difference`
+      - seam 附近窄带区域的亮度均值差 / 低频亮度差
+    - `seam-band gradient disagreement`
+      - 近 seam 边缘的梯度差，用于近似 ghosting / bleeding
+    - `crop / valid-area ratio`
+      - 输出有效区域占比、bbox 面积、黑边比例
+  - 论文映射：
+    - `A Metric for Video Blending Quality Assessment` 强调同时考虑：
+      - `illuminance consistency`
+      - artefact：`bleeding / ghosting`
+  - 对当前工程的落地方式：
+    - 不需要完整复现论文总分
+    - 先做 seam-band 局部代理指标即可
+
+- 4. Temporal coherence
+  - 当前可直接复用：
+    - `mean_stitched_delta`
+    - `mean_seam_mask_change_ratio`
+    - `mean_jitter_sm`（仅 geometry 非固定时）
+  - fixed-geometry 下建议新增：
+    - `flow-compensated temporal residual`
+      - 对 stitched frame 做 optical flow warp 后再算 SSD / MAE
+    - `seam-band flicker`
+      - seam band 区域跨帧亮度变化
+  - 论文映射：
+    - Video Blending Quality 论文把 `temporal coherence` 作为独立质量维度，而不是附属指标
+  - 当前建议：
+    - fixed-geometry 下不要再把 `jitter` 当主时序指标
+    - 优先看 `mean_stitched_delta` 和 flow-compensated temporal residual
+
+#### 2026-03-24 当前落地状态
+- 已落地到 `metrics_preview.json` / `transforms.csv`：
+  - 运行代价：
+    - `init_ms_mean`
+    - `per_frame_ms_mean`
+    - `avg_runtime_ms`
+    - `avg_feature_runtime_ms_left`
+    - `avg_feature_runtime_ms_right`
+    - `avg_matching_runtime_ms`
+    - `avg_geometry_runtime_ms`
+  - 几何质量：
+    - `mean_reprojection_error`
+    - `mean_inlier_spatial_coverage`
+  - blending / seam 质量：
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+  - temporal artefact：
+    - `mean_seam_band_flicker`
+    - `mean_stitched_delta`
+- 当前仍延期：
+  - `flow-compensated temporal residual`
+  - `match_confidence summary`
+  - 完整论文式 blended video 总分
+- 当前选择：
+  - fixed-geometry 的时序 artefact MVP 先用 `seam-band flicker`
+  - 不在本轮引入 optical flow，以避免把评测层复杂度拉得过高
+
+#### 2026-03-24 Method B candidate sweep 结果
+- 代表性 sweep 输出：
+  - `outputs/analysis/methodb_preset_sweep_v2/summary.csv`
+  - `outputs/analysis/methodb_preset_sweep_v2/preset_summary.csv`
+- 当前 candidate preset：
+  - `accuracy_v1`
+  - `no_upsample_v1`
+  - `kp3072_v1`
+  - `filter015_v1`
+- 当前最合理的下一轮 candidate：
+  - `kp3072_v1`
+- 原因：
+  - 相比 `accuracy_v1`，它在代表性 sweep 上把 `approx_fps` 从约 `3.68` 提高到约 `5.21`
+  - 同时总体 `mean_inliers` 只从约 `588` 降到约 `540`
+  - `mean_reprojection_error` 反而从约 `1.585` 改善到约 `1.492`
+  - 但它在 `mine_source_walking_left_right` 上有明显回退，因此当前仍只能作为 candidate，不替换正式 baseline
+- 当前不建议直接替换正式 baseline 的原因：
+  - `no_upsample_v1` 虽然更快，但总体 `mean_inliers` 下降过多
+  - `filter015_v1` 的 overall 更像“局部改善、局部恶化”，没有形成清晰优势
+  - `kp3072_v1` 仍未做 full-length 多数据域复验
+
 ### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）
 - 正式入口：
   - `scripts/run_phase3_kitti_compare_suite.py`
