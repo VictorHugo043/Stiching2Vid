@@ -399,6 +399,41 @@
   - 但它在 `mine_source_walking_left_right` 上有明显回退，因此当前仍只能作为 candidate，不替换正式 baseline
 - 当前不建议直接替换正式 baseline 的原因：
   - `kp3072_v1` 仍未做 full-length 多数据域复验
+
+#### 2026-03-24 `kp3072_v1` full-length 多数据域复验结果
+- 输出目录：
+  - `outputs/phase3/phase3_kitti_methods_kp3072_v1/`
+  - `outputs/phase3/phase3_dynamicstereo_methods_kp3072_v1/`
+  - `outputs/phase3/phase3_minesource_methodb_kp3072_v1/`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/overall_method_compare.csv`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/by_dataset_method_compare.csv`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/method_b_accuracy_vs_kp3072_delta.csv`
+- overall 对比：
+  - `method_b_accuracy_v1`
+    - `mean_inliers ≈ 748.88`
+    - `mean_inlier_ratio ≈ 0.5558`
+    - `approx_fps ≈ 7.355`
+    - `mean_reprojection_error ≈ 1.4309`
+  - `method_b_kp3072_v1`
+    - `mean_inliers ≈ 609.58`
+    - `mean_inlier_ratio ≈ 0.5634`
+    - `approx_fps ≈ 7.453`
+    - `mean_reprojection_error ≈ 1.3832`
+- 数据域差异：
+  - KITTI：
+    - `kp3072_v1` 与 `accuracy_v1` 的 `mean_inliers` 基本一致
+    - `fps` 略有提升
+  - DynamicStereo：
+    - `kp3072_v1` 的 `inliers / inlier_ratio / reprojection` 略优
+    - `fps` 略低
+  - `mine_source`：
+    - `accuracy_v1 mean_inliers ≈ 842.59`
+    - `kp3072_v1 mean_inliers ≈ 628.65`
+    - 出现明显负优化
+- 当前正式结论：
+  - `kp3072_v1` 不应升格为正式默认
+  - `accuracy_v1` 继续作为正式 Method B baseline
+  - `kp3072_v1` 仅作为候选复验与方法讨论材料保留
   - 其余 exploratory candidate 已移出当前主框架
 
 ### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）

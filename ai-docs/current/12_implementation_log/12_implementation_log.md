@@ -3281,3 +3281,116 @@
 - 下一步建议：
   - 若后续继续做实验或收尾，统一只从正式入口和 `scripts/legacy/README.md` 中列出的边界出发。
   - 如需进一步瘦身，可只在未来确认完全不再使用时，再删除 `scripts/legacy/` 中的历史脚本。
+
+## IMP-20260324-06
+- 状态：done
+- 标题：`kp3072_v1` full-length 多数据域正式 compare 与四方法对照汇总
+- 本步目标：
+  - 在不覆盖当前正式 `accuracy_v1` baseline 的前提下，完成 `kp3072_v1` 的 full-length 多数据域方法 compare。
+  - 将 `method_a_orb / method_a_sift / method_b_accuracy_v1 / method_b_kp3072_v1` 放入统一对照表，便于直接判断 `kp3072_v1` 是否值得进入正式表格或只保留为 candidate。
+- 关联上一步结论：
+  - `DEC-20260324-05`：`kp3072_v1` 是当前最值得继续 full-length 验证的 Method B candidate。
+  - `DEC-20260324-06`：正式默认 baseline 仍为 `accuracy_v1`，不能被覆盖。
+  - 用户本步明确要求做一次 `kp3072_v1` 全量测试，并与 `method_a_orb / method_a_sift / method_b_accuracy_v1` 对比输出结果。
+- 本步回读文档：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/build_phase3_overall_summary.py`
+  - `scripts/run_phase3_full_methods_suite.py`
+- 准备修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 需要把 `kp3072_v1` 的 full-length 结果纳入正式 compare 语境，但不能覆盖现有 `accuracy_v1` 正式表。
+  - ai-docs 必须明确：这一步是在正式 baseline 之外新增候选复验总表，并记录它是否值得升格。
+- 风险点：
+  - full-length 三数据域 compare 运行时间长，若某一子 suite 失败需要决定是否局部重跑。
+  - 若只看 overall 平均，可能掩盖 `mine_source_walking_left_right` 这类已知回退场景。
+  - 现有脚本没有现成“四方法总表”，需要最小化生成一个对照输出，避免改动正式入口。
+- 验收标准：
+  - 生成 `kp3072_v1` 的 KITTI / DynamicStereo / mine_source full-length 方法 compare 结果。
+  - 生成 unified overall summary。
+  - 生成一份四方法并排对照结果：
+    - `method_a_orb`
+    - `method_a_sift`
+    - `method_b_accuracy_v1`
+    - `method_b_kp3072_v1`
+  - ai-docs 明确记录：`kp3072_v1` 是否继续仅作 candidate，还是值得进入后续正式表格。
+- 替代方案与不选原因：
+  - 方案：只做少量代表性 pair 复验。
+  - 不选原因：用户明确要求全量测试，而且 `kp3072_v1` 的价值正取决于多数据域 full-length 稳定性，而不是局部 smoke。
+- 实际修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 完成 `kp3072_v1` 的 full-length 多数据域复验：
+    - KITTI：`phase3_kitti_methods_kp3072_v1__methods`
+    - DynamicStereo：`phase3_dynamicstereo_methods_kp3072_v1__methods`
+    - `mine_source`：`phase3_minesource_methodb_kp3072_v1__methods`
+  - 生成数据域级 summary：
+    - `outputs/phase3/phase3_kitti_methods_kp3072_v1/`
+    - `outputs/phase3/phase3_dynamicstereo_methods_kp3072_v1/`
+    - `outputs/phase3/phase3_minesource_methodb_kp3072_v1/`
+  - 新增四方法对照输出：
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/overall_method_compare.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/by_dataset_method_compare.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/method_b_accuracy_vs_kp3072_delta.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/summary.md`
+  - 由于 ORB / SIFT 与 `accuracy_v1` 已有正式 full-length 表，本步只把 `mine_source` 改为 `method_b` only 全量复验，避免继续浪费时间重复跑 Method A。
+- 验证方式：
+  - `outputs/video_compare/phase3_kitti_methods_kp3072_v1__methods/summary.csv`
+  - `outputs/video_compare/phase3_dynamicstereo_methods_kp3072_v1__methods/summary.csv`
+  - `outputs/video_compare/phase3_minesource_methodb_kp3072_v1__methods/summary.csv`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/overall_method_compare.csv`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/by_dataset_method_compare.csv`
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/method_b_accuracy_vs_kp3072_delta.csv`
+- 运行结果与验证结果：
+  - `kp3072_v1` 全量 Method B 复验已完成：
+    - KITTI：`6/6` pair
+    - DynamicStereo：`3/3` pair
+    - `mine_source`：`17/17` pair
+  - official baseline `accuracy_v1` 与 `kp3072_v1` 的 overall 对照结果：
+    - `method_b_accuracy_v1`
+      - `mean_inliers ≈ 748.88`
+      - `mean_inlier_ratio ≈ 0.5558`
+      - `approx_fps ≈ 7.355`
+      - `mean_reprojection_error ≈ 1.4309`
+    - `method_b_kp3072_v1`
+      - `mean_inliers ≈ 609.58`
+      - `mean_inlier_ratio ≈ 0.5634`
+      - `approx_fps ≈ 7.453`
+      - `mean_reprojection_error ≈ 1.3832`
+  - 关键数据域差异：
+    - KITTI：`kp3072_v1` 与 `accuracy_v1` 几乎一致，但 `fps` 略增
+    - DynamicStereo：`kp3072_v1` 的 `inliers / inlier_ratio / reprojection` 略优，但 `fps` 略低
+    - `mine_source`：`kp3072_v1` 从约 `842.59` 内点明显回退到约 `628.65`
+  - 结论：
+    - `kp3072_v1` 不能升格为正式默认
+    - 但可保留为“轻量优化候选”的对照材料
+- 偏差：
+  - 原计划最初启动了三数据域三方法全量重跑，但在 `mine_source` 阶段中止，改为只跑 `method_b`。
+  - 原因是 ORB / SIFT 与 `accuracy_v1` 已存在正式 full-length 结果，本步真正缺失的只是 `kp3072_v1` Method B 全量结果；继续重跑 Method A 只会增加时间成本，不提高结论质量。
+- 下一步建议：
+  - 若继续优化 Method B，应探索新的安全候选，而不是直接沿用 `kp3072_v1` 替换正式默认。
+  - 若实验部分先收尾，可继续围绕 `phase3_overall_methods_rich_v3` 与 `phase3_methodb_accuracy_vs_kp3072_v1` 撰写 final report 方法讨论。

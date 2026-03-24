@@ -517,6 +517,20 @@
   - 不覆盖正式 compare 默认值
   - 先筛选“值得做 full-length 复验的候选项”
 
+### 2026-03-24 `kp3072_v1` full-length 复验结论
+- 已完成：
+  - KITTI full-length：`outputs/phase3/phase3_kitti_methods_kp3072_v1/`
+  - DynamicStereo full-length：`outputs/phase3/phase3_dynamicstereo_methods_kp3072_v1/`
+  - `mine_source` full-length：`outputs/phase3/phase3_minesource_methodb_kp3072_v1/`
+  - 四方法对照：`outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/`
+- 结果：
+  - `kp3072_v1` 在 overall 上只换来了轻微的 `inlier_ratio / fps / reprojection` 改善
+  - 但 `mean_inliers` 从约 `748.88` 明显降到约 `609.58`
+  - 且在 `mine_source` 上从约 `842.59` 明显回退到约 `628.65`
+- 当前结论：
+  - `kp3072_v1` 不能替换正式 `accuracy_v1`
+  - 但它仍可作为一个“轻量降 keypoints 的对照候选”保留在讨论中
+
 ### 2026-03-24 richer metrics 已落地
 - `geometry.py`
   - 新增 `inlier_spatial_coverage`

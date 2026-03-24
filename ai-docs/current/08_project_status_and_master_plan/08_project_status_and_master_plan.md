@@ -38,6 +38,10 @@
   - overlap 统计
   - seam debug
   - 部分 temporal debug
+- 当前 Phase 3 方法侧最新正式结论：
+  - `accuracy_v1` 继续保持为正式 Method B baseline。
+  - `kp3072_v1` 的 full-length 多数据域复验已完成，但由于在 `mine_source` 上存在明显负优化，不升格为正式默认。
+  - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/` 保留为候选复验与方法讨论目录。
 
 ### 3. 当前最关键的限制点与耦合点
 - `scripts/run_baseline_video.py` 为单体 orchestrator，承载过多职责。

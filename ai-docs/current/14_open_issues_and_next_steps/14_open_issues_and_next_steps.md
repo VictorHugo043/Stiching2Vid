@@ -23,10 +23,10 @@
 | ISSUE-20260323-04 | partial | 多数据域 full-length suite 暴露出本地数据与 manifest 的轻微漂移：`mine_source_leaves_left_right` 当前源文件缺失；DynamicStereo `ignacio / teddy` 的当前可访问帧数分别为 `99 / 99`，与 manifest 元数据 `189 / 218` 不一致 | 影响“全量”和“全帧”的解释边界，也会影响 pair coverage 统计；但不阻塞当前 Phase 3 正式总表，因为 suite 已按当前可访问 source 长度完整跑完 | 当前正式口径统一以 `outputs/phase3/*/pair_coverage.csv` 的实际长度为准；后续若要修复，可补 manifest 校正或恢复缺失源文件 |
 | ISSUE-20260323-05 | closed | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 该问题已不再阻塞 final report 的正式方法结论 | 已先用显式 Method B accuracy preset 重跑 `phase3_*_methods_acc_v2`，随后进一步完成 richer-metrics full-length 重跑并以 `phase3_*_methods_rich_v3` / `phase3_overall_methods_rich_v3` 取代旧方法主表 |
 | ISSUE-20260324-01 | partial | fixed-geometry richer metrics 已完成 full-length 正式重跑与 plot/export，但 temporal coherence 仍缺少更强的 motion-compensated 指标；当前只实现了 `seam-band flicker` 这一层 | 现在已经能用 full-length richer-metrics 正式表更完整地解释 Method B 的 trade-off，但如果 final report 需要更强的时序论证，单靠 `mean_stitched_delta + seam-band flicker` 仍有限 | 当前先保留 `seam-band flicker` 作为 MVP temporal artefact 指标；若后续需要更强时序论证，再单独补 `flow-compensated temporal residual` |
-| ISSUE-20260324-02 | partial | Method B candidate sweep 已完成，`kp3072_v1` 是当前最有希望的安全优化项，但它在 `mine_source_walking_left_right` 上存在明显回退，尚不能替换正式 `accuracy_v1` | 若直接把 candidate 升格为正式 baseline，可能在动态/低纹理场景引入负优化；若完全不继续验证，又无法判断它是否值得进入 final report 的“优化版 Method B” | 保持 `method_b_accuracy_v1` 冻结为正式基线；下一步若继续优化，优先对 `kp3072_v1` 做 full-length 多数据域复验 |
+| ISSUE-20260324-02 | closed | `kp3072_v1` 的 full-length 多数据域复验已完成；它虽然略微改善了 overall `inlier_ratio / fps / reprojection`，但 `mean_inliers` 从约 `748.88` 降到约 `609.58`，且在 `mine_source` 上明显回退，因此不能替换正式 `accuracy_v1` | 该问题已不再阻塞当前正式 baseline 选择 | 继续保持 `accuracy_v1` 为正式默认；把 `kp3072_v1` 仅作为候选复验与方法讨论材料保留在 `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/` |
 
 ## 接下来最先做的 3 件事
-1. 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验，判断它能否作为“优化版 Method B”进入正式表格。
+1. 若继续优化 Method B，优先探索新的安全候选或新的参数方向；`kp3072_v1` 的 full-length 复验已完成，当前不值得升格为正式默认。
 2. 若继续补评测层，优先决定是否真的需要 `flow-compensated temporal residual`；否则当前 `seam-band flicker` 已可支撑 fixed-geometry 的 MVP temporal artefact 解释。
 3. 若实验部分先收尾，可直接进入 Phase 4 做 GUI thin wrapper，并复用当前正式 suite / figure artefacts。
 

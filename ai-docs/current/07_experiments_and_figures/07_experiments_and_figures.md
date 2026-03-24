@@ -86,6 +86,11 @@
   - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_quality_metrics.png`
   - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_temporal_metrics.png`
   - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_by_dataset.png`
+  - Method B candidate 对照：
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/overall_method_compare.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/by_dataset_method_compare.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/method_b_accuracy_vs_kp3072_delta.csv`
+    - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/summary.md`
 - 当前 final report 最值得保留的 KITTI 图表：
   - 方法总表：
     - `method_summary.csv`
