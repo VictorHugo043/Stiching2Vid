@@ -79,6 +79,15 @@
   - `accuracy_v1`
   - `kp3072_v1`
 
+## 当前 GUI 使用约束（2026-03-24 更新）
+- `Register Pair... (Upload New Videos)` 仅支持左右视频文件注册，不支持 frame directory。
+- 注册新 pair 时必须显式填写唯一 `pair_id`：
+  - 为空会被拒绝
+  - 清洗后为空会被拒绝
+  - 与现有 pair 重名会被拒绝
+- 注册成功写入 `pairs.yaml` 时，当前默认采用文本级局部插入，尽量只追加新增 block，不重排整份 manifest。
+- `run_id` 仍允许 GUI 自动生成默认值，这与 `pair_id` 的强制显式填写是两套不同规则。
+
 ## 当前调试建议（2026-03-20 更新）
 - 若你在 `fixed_geometry` 下观察 dynamic seam：
   - 先看 `jitter_scope`

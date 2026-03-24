@@ -45,6 +45,8 @@
 | CHG-20260324-09 | 2026-03-24 | code+docs | 为 Phase 4 GUI 增加 existing pair 首帧预览、独立注册弹窗，以及 run 完成后的目录打开能力；同步更新 README、环境文档与 ai-docs | 影响 GUI 的可用性和 Phase 4 MVP 的交互完整性；不改变核心 stitching / seam / evaluation pipeline | 预览复用 `io.open_pair()`；自动打开目录依赖本机文件管理器命令；当前仍不支持 frame-directory 注册和批量实验入口 |
 | CHG-20260324-10 | 2026-03-24 | code+docs | 对 Phase 4 GUI 做进一步 polish：按模式条件显示 keyframe 参数，明确注册按钮是上传新视频入口，并修复首帧预览的颜色通道错误 | 影响 GUI 的可解释性和视觉正确性；不改变核心 stitching / seam / evaluation pipeline | 本次同时把命令构建逻辑收敛为“只在对应模式下透传 keyframe 参数”，避免 UI 与实际行为脱节 |
 | CHG-20260324-11 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 的 `Run Config` 布局：将 `trigger diff / fg ratio / snapshot every / force cpu` 前置到稳定可见行，把 `keyframe_every / seam_keyframe_every` 放到最后一行，避免 keyframe 字段隐藏后在中间留下空洞 | 影响 GUI 表单的视觉布局与模式切换时的可读性；不改变任何 CLI 透传语义或核心 stitching pipeline | 本次只是布局重排，不新增功能；与前一轮 keyframe 条件显示逻辑配合后，视觉行为已与用户预期一致 |
+| CHG-20260324-12 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 注册流程：`Register New Pair` 现在强制要求显式唯一 `pair_id`，拒绝空值、清洗后为空和重复名称 | 影响 GUI 注册交互与 manifest 写入约束；不改变 run id 默认生成逻辑或核心 stitching pipeline | 本次只改注册校验，不引入新的 manifest 字段或注册能力边界 |
+| CHG-20260324-13 | 2026-03-24 | code+docs | 修复 manifest 追加导致 `pairs.yaml` 整体重排的问题：`append_manifest_entries()` 改为默认文本级局部插入，并把插入定位从 `mine_source` 特化扩展为按 entry 的 `dataset` 就近插入 | 影响 GUI 注册与 `split_sbs_stereo` 的 manifest 写入行为；现有 `pairs.yaml` 的 diff 可读性显著改善；不改变 manifest schema 或核心 stitching pipeline | 本次不清洗历史 diff，只保证后续新增 pair 尽量只产生局部新增 block |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

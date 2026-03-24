@@ -3803,3 +3803,129 @@
 - 下一步建议：
   - 由用户直接确认隐藏 keyframe 字段后是否已没有中间空洞。
   - 若继续做 GUI，只处理更细的显示文案或 artefact 预览，不再扩展能力边界。
+
+## IMP-20260324-12
+- 状态：done
+- 标题：Phase 4 GUI polish：Register New Pair 强制要求显式唯一 `pair_id`
+- 本步目标：
+  - 禁止用户在注册新 pair 时留空 `pair_id`。
+  - 禁止“输入后清洗为空”的无效 `pair_id`。
+  - 检测到重复 `pair_id` 时拒绝注册，并提示用户更换名称。
+- 关联上一步结论：
+  - GUI 的注册流程已经改为独立弹窗，但当前仍会在空输入时自动回退为 `gui_upload_pair`。
+  - 用户明确要求这一步不能自动兜底，必须要求显式填写唯一 `pair_id`。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 注册逻辑源头只在 GUI 弹窗处理函数。
+  - 决策、实施、变更和当前 GUI 使用约束需要同步记录。
+- 风险点：
+  - 必须只影响注册流程，不能误伤现有 `run_id` 的默认生成逻辑。
+  - 需要区分“原始输入为空”和“输入经清洗后为空”这两类错误提示。
+- 验收标准：
+  - 空 `pair_id` 不能注册。
+  - 只含无效字符的 `pair_id` 不能注册。
+  - 重复 `pair_id` 不能注册。
+  - 合法且唯一的 `pair_id` 仍可正常注册。
+- 替代方案与不选原因：
+  - 方案：继续使用 `gui_upload_pair` 作为自动 fallback，再只做重名检查。
+  - 不选原因：这违背用户对显式命名和重复保护的要求，也会继续把不清晰的 pair id 写入 manifest。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 注册流程不再为 `pair_id` 使用 `gui_upload_pair` 自动 fallback。
+  - 当输入为空时，弹出 `Pair ID is required.`。
+  - 当清洗后为空时，弹出 `Pair ID must contain at least one letter or number.`。
+  - 当名称重复时，弹出更明确的重名提示，并要求用户更换名称。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 代码路径上已不再存在注册流程对 `gui_upload_pair` 的 fallback 使用。
+- 偏差：
+  - 本步只修注册校验，没有扩展更多 GUI 字段或 manifest schema。
+  - 当前自动化环境仍未做真实点击级交互验证，需以用户本机体验为准。
+- 下一步建议：
+  - 由用户直接确认：
+    - 空 `pair_id` 是否会被拒绝
+    - 重复 `pair_id` 是否会被拒绝
+    - 合法新 `pair_id` 是否仍可成功注册
+
+## IMP-20260324-13
+- 状态：done
+- 标题：Phase 4 GUI polish：修复注册新 pair 导致 `pairs.yaml` 整体重排的问题
+- 本步目标：
+  - 定位并修复“注册一个新 pair 后，`pairs.yaml` 显示全文件几乎都被修改”的问题。
+  - 让 manifest 追加尽量只产生局部 diff。
+  - 保持 GUI 注册与 `split_sbs_stereo` 使用同一条追加写入路径。
+- 关联上一步结论：
+  - `IMP-20260324-12` 已强制要求显式唯一 `pair_id`。
+  - 用户进一步发现：虽然注册逻辑正确，但 manifest 写入会重排整个文件，影响版本管理可读性。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `data/manifests/pairs.yaml`
+- 准备修改文件：
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 实际写入 helper 在 `split_sbs_stereo.py`，GUI 只是复用它。
+  - 需要把新的 manifest 写入约束固化到决策、实施、变更与使用约束文档中。
+- 风险点：
+  - 原有文本插入逻辑只偏向 `mine_source`，现在必须扩展为按 `dataset` 插入，否则会把 GUIUpload 等新 dataset 放错位置。
+  - 改成文本级插入后，必须确保不会破坏现有 YAML 结构和空行分组。
+- 验收标准：
+  - 新增 pair 时，不再重写整份 `pairs.yaml`。
+  - diff 应尽量只包含新增 entry block。
+  - 现有 GUI 注册和 `split_sbs_stereo` 仍共用同一追加 helper。
+- 替代方案与不选原因：
+  - 方案：继续用 ruamel round-trip，再单独调整 dump 风格。
+  - 不选原因：即使保留注释，round-trip 仍可能重排整个文件，不能满足“只局部追加”的需求。
+- 实际修改文件：
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `append_manifest_entries()` 不再优先使用 ruamel 对整份 manifest 做 round-trip dump。
+  - 默认改为文本级局部插入，尽量保持现有 `pairs.yaml` 布局不变。
+  - 文本插入位置从原本只照顾 `mine_source`，扩展为按 entry 的 `dataset` 就近插入；若当前 dataset 不存在，则追加到文件末尾。
+- 验证方式：
+  - `python3 -m py_compile scripts/preprocess/split_sbs_stereo.py src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - 在临时 manifest 副本上调用 `append_manifest_entries()`，检查 diff 是否只包含新增 block
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - 当前 helper 已改为文本级局部追加路径，不会再因为 ruamel round-trip 导致全文件风格重排。
+- 偏差：
+  - 本步没有回写清洗历史上已经被重排过的 manifest。
+  - 当前验证使用临时副本，不直接改动正式 `pairs.yaml` 内容。
+- 下一步建议：
+  - 由用户在 GUI 中再注册一个新 pair，确认 git diff 只剩新增 block。

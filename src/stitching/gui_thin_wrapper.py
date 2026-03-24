@@ -563,7 +563,18 @@ class StitchingGuiApp:
         left_path_var: tk.StringVar,
         right_path_var: tk.StringVar,
     ) -> None:
-        pair_id = sanitize_identifier(pair_id_var.get(), "gui_upload_pair")
+        raw_pair_id = pair_id_var.get().strip()
+        if not raw_pair_id:
+            messagebox.showerror("Register Pair", "Pair ID is required.", parent=dialog)
+            return
+        pair_id = sanitize_identifier(raw_pair_id, "")
+        if not pair_id:
+            messagebox.showerror(
+                "Register Pair",
+                "Pair ID must contain at least one letter or number.",
+                parent=dialog,
+            )
+            return
         dataset_name = dataset_var.get().strip() or "GUIUpload"
         left_src = Path(left_path_var.get().strip())
         right_src = Path(right_path_var.get().strip())
@@ -575,7 +586,11 @@ class StitchingGuiApp:
             messagebox.showerror("Register Pair", "Right video path is invalid.", parent=dialog)
             return
         if pair_id in self.pair_map:
-            messagebox.showerror("Register Pair", f"Pair id already exists: {pair_id}", parent=dialog)
+            messagebox.showerror(
+                "Register Pair",
+                f"Pair id already exists: {pair_id}\nPlease choose another name.",
+                parent=dialog,
+            )
             return
 
         left_info = probe_video(left_src)
