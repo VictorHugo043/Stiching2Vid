@@ -60,21 +60,26 @@
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/pair_compare.csv`
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/visual_summary.md`
 - Phase 3 KITTI full-length 正式入口：
-  - `outputs/phase3/phase3_kitti_full_v1/method_summary.csv`
-  - `outputs/phase3/phase3_kitti_full_v1/method_pair_compare.csv`
+  - 方法 compare 刷新版：
+    - `outputs/phase3/phase3_kitti_methods_acc_v2/method_summary.csv`
+    - `outputs/phase3/phase3_kitti_methods_acc_v2/method_pair_compare.csv`
+  - Dynamic seam 正式表：
   - `outputs/phase3/phase3_kitti_full_v1/dynamic_preset_summary.csv`
   - `outputs/phase3/phase3_kitti_full_v1/dynamic_pair_compare.csv`
   - `outputs/phase3/phase3_kitti_full_v1/pair_coverage.csv`
-  - `outputs/phase3/phase3_kitti_full_v1/phase3_kitti_summary.md`
-  - `outputs/phase3/phase3_dynamicstereo_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_kitti_methods_acc_v2/phase3_kitti_summary.md`
+  - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_summary.csv`
+  - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_pair_compare.csv`
   - `outputs/phase3/phase3_dynamicstereo_full_v1/dynamic_preset_summary.csv`
   - `outputs/phase3/phase3_dynamicstereo_full_v1/pair_coverage.csv`
-  - `outputs/phase3/phase3_minesource_full_v1/method_summary.csv`
+  - `outputs/phase3/phase3_minesource_methods_acc_v2/method_summary.csv`
+  - `outputs/phase3/phase3_minesource_methods_acc_v2/method_pair_compare.csv`
   - `outputs/phase3/phase3_minesource_full_v1/dynamic_preset_summary.csv`
   - `outputs/phase3/phase3_minesource_full_v1/pair_coverage.csv`
-  - `outputs/phase3/phase3_overall_full_v1/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_by_dataset.csv`
   - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_preset_summary.csv`
-  - `outputs/phase3/phase3_overall_full_v1/phase3_overall_summary.md`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/phase3_overall_summary.md`
 - 当前 final report 最值得保留的 KITTI 图表：
   - 方法总表：
     - `method_summary.csv`

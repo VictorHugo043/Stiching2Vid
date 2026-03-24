@@ -317,24 +317,27 @@
   - `0021=209`
   - 总计 `1215` 帧 / 子 suite
 - 方法对比聚合结果：
+  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
+    - `outputs/phase3/phase3_kitti_methods_acc_v2/method_summary.csv`
+    - 旧 `phase3_kitti_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 435.17`
     - `mean_inlier_ratio ≈ 0.610`
-    - `approx_fps ≈ 24.32`
+    - `approx_fps ≈ 33.79`
   - `method_a_sift`
     - `mean_inliers ≈ 529.17`
     - `mean_inlier_ratio ≈ 0.487`
-    - `approx_fps ≈ 27.43`
+    - `approx_fps ≈ 38.75`
   - `method_b`
-    - `mean_inliers ≈ 345.50`
-    - `mean_inlier_ratio ≈ 0.389`
-    - `approx_fps ≈ 18.82`
+    - `mean_inliers ≈ 594.00`
+    - `mean_inlier_ratio ≈ 0.393`
+    - `approx_fps ≈ 17.66`
 - 当前 KITTI 方法结论：
-  - 在这组 full-length KITTI color stereo fixed-geometry compare 上，`Method B` 没有在匹配内点或速度上胜过 `Method A`。
-  - 这应解释为当前数据域与 preset 下的实验结论，而不是 Method B 接入失败。
-  - 因此 final report 中不能默认宣称 “Method B 一定优于 Method A”，而应写成：
-    - Method B 在部分数据域和更强动态场景有价值
-    - 但在当前 KITTI color stereo full-length fixed-geometry compare 上，ORB/SIFT 仍保持竞争力
+  - 在刷新后的正式 KITTI 方法 compare 上，`Method B` 的 `mean_inliers` 已高于 ORB/SIFT。
+  - 但 `Method B` 的 `mean_inlier_ratio` 和 `approx_fps` 仍弱于 ORB/SIFT。
+  - 因此 final report 中不应再把 KITTI 结论写成“Method B 整体偏弱”，而应写成：
+    - Method B 能换来更高的内点数量
+    - 但代价是更低的内点率与更慢的速度
 - KITTI dynamic seam 聚合结果：
   - `baseline_fixed`
     - `mean_overlap_diff_after ≈ 4.690`
@@ -377,18 +380,21 @@
   - `teddy=99`
   - 合计 `281` 帧 / 子 suite
 - 方法对比聚合结果：
+  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
+    - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_summary.csv`
+    - 旧 `phase3_dynamicstereo_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 532.67`
     - `mean_inlier_ratio ≈ 0.628`
-    - `approx_fps ≈ 11.27`
+    - `approx_fps ≈ 18.01`
   - `method_a_sift`
     - `mean_inliers ≈ 257.00`
     - `mean_inlier_ratio ≈ 0.482`
-    - `approx_fps ≈ 10.72`
+    - `approx_fps ≈ 17.04`
   - `method_b`
-    - `mean_inliers ≈ 306.33`
-    - `mean_inlier_ratio ≈ 0.384`
-    - `approx_fps ≈ 6.44`
+    - `mean_inliers ≈ 527.67`
+    - `mean_inlier_ratio ≈ 0.396`
+    - `approx_fps ≈ 7.80`
 - dynamic seam 聚合结果：
   - `baseline_fixed`
     - `mean_overlap_diff_after ≈ 6.530`
@@ -436,18 +442,21 @@
   - 17 个可用 pair 全部跑完
   - 合计 `5873` 帧 / 子 suite
 - 方法对比聚合结果：
+  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
+    - `outputs/phase3/phase3_minesource_methods_acc_v2/method_summary.csv`
+    - 旧 `phase3_minesource_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 468.76`
     - `mean_inlier_ratio ≈ 0.847`
-    - `approx_fps ≈ 11.61`
+    - `approx_fps ≈ 12.58`
   - `method_a_sift`
     - `mean_inliers ≈ 754.35`
     - `mean_inlier_ratio ≈ 0.788`
-    - `approx_fps ≈ 10.32`
+    - `approx_fps ≈ 11.40`
   - `method_b`
-    - `mean_inliers ≈ 424.41`
-    - `mean_inlier_ratio ≈ 0.601`
-    - `approx_fps ≈ 9.47`
+    - `mean_inliers ≈ 842.59`
+    - `mean_inlier_ratio ≈ 0.641`
+    - `approx_fps ≈ 7.69`
 - dynamic seam 聚合结果：
   - `baseline_fixed`
     - `mean_overlap_diff_after ≈ 6.439`
@@ -460,35 +469,41 @@
     - `approx_fps ≈ 7.64`
 - 当前 mine_source 结论：
   - `trigger_fused_d18_fg008` 在自采视频上继续显著优于 `baseline_fixed / keyframe_seam10`。
-  - Method A 仍强于当前 Method B preset，尤其在自采视频的固定几何 compare 上更明显。
+  - 在刷新后的正式方法 compare 上，Method B 的 `mean_inliers` 已高于 ORB/SIFT。
+  - 但 `mean_inlier_ratio` 与 `approx_fps` 仍明显落后于 Method A。
 
-### Phase 3 统一总表（2026-03-23）
+### Phase 3 统一总表（2026-03-24，方法 compare 刷新版）
 - 总表入口：
   - `scripts/build_phase3_overall_summary.py`
-- 当前正式总表：
-  - `outputs/phase3/phase3_overall_full_v1/overall_method_summary.csv`
+- 当前正式方法总表：
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_by_dataset.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_pair_coverage.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/phase3_overall_summary.md`
+- 当前正式 dynamic seam 总表：
   - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_preset_summary.csv`
-  - `outputs/phase3/phase3_overall_full_v1/overall_method_by_dataset.csv`
   - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_by_dataset.csv`
-  - `outputs/phase3/phase3_overall_full_v1/overall_pair_coverage.csv`
-  - `outputs/phase3/phase3_overall_full_v1/phase3_overall_summary.md`
+- 说明：
+  - 方法总表与 dynamic seam 总表当前来自不同 suite：
+    - 方法 compare 用显式 Method B accuracy preset 的 `*_methods_acc_v2`
+    - dynamic seam compare 继续沿用 `*_full_v1`
 - 当前整体覆盖：
   - `26` 个可运行 pair
-  - `78` 条方法 compare run
-  - `78` 条 dynamic seam run
-  - 共 `156` 条 full-length run
+  - 刷新后的方法 compare：`78` 条 full-length run
+  - 正式 dynamic seam compare：`78` 条 full-length run
   - 共覆盖 `7369` 帧 / 子 suite 维度
 - 当前 overall 结论：
   - 方法主轴：
-    - `method_a_sift` 当前总体 `mean_inliers` 最高
-    - `method_a_orb` 当前总体 `mean_inlier_ratio` 最高
-    - `method_b` 当前总体速度和匹配质量都未超过 Method A
+    - `method_b` 当前总体 `mean_inliers` 最高：`≈748.88`
+    - `method_a_orb` 当前总体 `mean_inlier_ratio` 最高：`≈0.767`
+    - `method_a_sift` 当前总体速度最高：`approx_fps≈18.36`
+    - `method_b` 当前总体 `mean_inlier_ratio≈0.556`、`approx_fps≈10.00`
   - dynamic seam 主轴：
     - `trigger_fused_d18_fg008` 当前总体 `mean_overlap_diff_after` 最优
     - 但相较 `baseline_fixed` 会带来明显速度下降
   - 因此 final report 中当前最稳的表述应是：
     - `trigger_fused_d18_fg008` 是当前 OpenCV seam backend 路线下最有效的 dynamic seam preset
-    - `Method B` 已完整接入并可稳定运行，但在当前三数据域的 fixed-geometry compare 上没有整体超过 Method A
+    - `Method B` 已完整接入并稳定运行；在显式 accuracy preset 下，它提供更高的内点数量，但仍以更低的内点率和更慢的速度为代价
 
 ## 可视化与 final report 保留项
 - 必保留图：

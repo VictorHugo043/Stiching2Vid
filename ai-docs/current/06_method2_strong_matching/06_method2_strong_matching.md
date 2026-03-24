@@ -390,9 +390,28 @@
 ### 当前结论
 - Method B 之前“显得很差”，至少部分是 preset 和 SuperPoint preprocess 接入问题，而不是纯算法结论。
 - 本次修复后，Method B 的匹配和 inlier 质量已经明显改善。
-- 但 Phase 3 旧正式 compare 结果仍然是基于旧 implicit preset 跑出来的，因此：
-  - 当前不能直接拿旧总表写 final report 的最终 Method B 结论
-  - 需要用显式 Method B accuracy preset 重新刷新正式方法对比
+- 2026-03-24 已完成正式 full-length 方法 compare 刷新：
+  - `outputs/phase3/phase3_kitti_methods_acc_v2/method_summary.csv`
+  - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_summary.csv`
+  - `outputs/phase3/phase3_minesource_methods_acc_v2/method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_summary.csv`
+- 刷新后的正式结论：
+  - KITTI：
+    - `method_b mean_inliers≈594.00`，已高于 ORB/SIFT
+    - 但 `mean_inlier_ratio≈0.393`、`fps≈17.66` 仍低于 ORB/SIFT
+  - DynamicStereo：
+    - `method_b mean_inliers≈527.67`，与 ORB 接近，明显高于 SIFT
+    - 但 `mean_inlier_ratio≈0.396`、`fps≈7.80` 仍明显偏弱
+  - `mine_source`：
+    - `method_b mean_inliers≈842.59`，已高于 ORB/SIFT
+    - 但 `mean_inlier_ratio≈0.641`、`fps≈7.69` 仍低于 Method A
+  - overall：
+    - `method_b mean_inliers≈748.88` 最高
+    - `method_a_orb mean_inlier_ratio≈0.767` 最高
+    - `method_a_sift fps≈18.36` 最高
+- 因此 Method B 当前应被表述为：
+  - 在 accuracy preset 下能够稳定换来更高的内点数量
+  - 但当前 CPU 路线下仍显著更慢，且内点率并不占优
 
 ## 建议配置项
 - `feature_backend`

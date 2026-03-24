@@ -2673,3 +2673,133 @@
 - 下一步建议：
   - 使用显式 Method B accuracy preset 重跑 Phase 3 正式方法 compare。
   - 刷新 `phase3_kitti_full_v1 / phase3_dynamicstereo_full_v1 / phase3_minesource_full_v1` 的方法总表后，再决定 final report 的 Method B 结论。
+
+## IMP-20260324-01
+- 状态：done
+- 标题：刷新 Phase 3 正式 Method A vs Method B compare，固定显式 Method B accuracy preset
+- 本步目标：
+  - 将 Phase 3 正式方法 compare 入口切换到显式 Method B accuracy preset。
+  - 重跑 KITTI、DynamicStereo、`mine_source` 的 full-length 方法对比，并刷新 unified overall 总表。
+  - 在不改 seam backend 和 dynamic compare 结论的前提下，更新 Phase 3 对 Method B 的正式结论。
+- 关联上一步结论：
+  - `IMP-20260323-06`：旧 Phase 3 Method B compare 至少部分低估了 Method B，原因来自旧 implicit preset 和 `SuperPoint` preprocess resize 接入偏差。
+  - `DEC-20260323-09`：Method B 正式 compare 应固定采用显式 accuracy preset，而不是继续沿用旧 implicit preset。
+  - `ISSUE-20260323-05`：当前 Phase 3 方法总表需要用显式 Method B accuracy preset 重跑后才能作为 final report 事实来源。
+- 本步回读文档：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/build_phase3_overall_summary.py`
+- 准备修改文件：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前正式 compare driver 还没有把 Method B accuracy preset 固化为默认入口，因此 Phase 3 方法总表仍可能继续沿用旧参数。
+  - 需要保证后续重跑和最终论文复现命令都指向同一套显式 Method B preset。
+- 风险点：
+  - full-length 重跑耗时长，若中途失败会拖慢 Phase 3 刷新。
+  - Method B accuracy preset 可能在某些 pair 上提升 inliers 但降低 fps，需要如实保留这种 trade-off。
+  - 旧 suite 目录与新 suite 目录并存时，文档必须明确哪个才是正式结果。
+- 验收标准：
+  - Phase 3 compare 入口默认使用显式 Method B accuracy preset。
+  - KITTI、DynamicStereo、`mine_source` 的方法 compare 全量 full-length 重跑完成。
+  - 生成新的按数据域和 overall 的方法总表，并明确替代旧 Phase 3 方法结论。
+- 替代方案与不选原因：
+  - 直接复用旧 suite，只在文档里口头修正，未采用。
+  - 只重跑部分代表性 pair，不采用，因为用户要求刷新正式 compare。
+- 实际修改文件：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `scripts/run_video_compare_suite.py`
+    - 将显式 Method B accuracy preset 固化为正式 compare 默认参数：
+      - `max_keypoints=4096`
+      - `resize_long_edge=1536`
+      - `depth_confidence=-1`
+      - `width_confidence=-1`
+      - `filter_threshold=0.1`
+    - 将上述 preset 记录进 `summary.json::method_b_preset`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+    - 将 Method B accuracy preset 透传到数据域级 full-length suite
+    - 将 preset 记录进 `summary_manifest.json::method_b_preset`
+  - 生成新的正式方法 compare suite：
+    - `outputs/phase3/phase3_kitti_methods_acc_v2`
+    - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2`
+    - `outputs/phase3/phase3_minesource_methods_acc_v2`
+    - `outputs/phase3/phase3_overall_methods_acc_v2`
+  - 明确旧 `phase3_*_full_v1` 中的方法表仅保留为旧 implicit preset 历史结果，dynamic seam 正式表仍沿用 `*_full_v1`
+- 验证方式：
+  - `python3 -m py_compile scripts/run_video_compare_suite.py scripts/run_phase3_kitti_compare_suite.py`
+  - `.venv-methodb/bin/python scripts/run_video_compare_suite.py --help`
+  - `.venv-methodb/bin/python scripts/run_phase3_kitti_compare_suite.py --help`
+  - dry-run 验证 Method B accuracy preset 已被透传：
+    - `phase3_kitti_methods_acc_v2` dry-run 命令中可见：
+      - `--max_keypoints 4096`
+      - `--resize_long_edge 1536`
+      - `--depth_confidence -1.0`
+      - `--width_confidence -1.0`
+      - `--filter_threshold 0.1`
+  - full-length 正式重跑：
+    - `phase3_kitti_methods_acc_v2`
+    - `phase3_dynamicstereo_methods_acc_v2`
+    - `phase3_minesource_methods_acc_v2`
+  - 总表聚合：
+    - `python3 scripts/build_phase3_overall_summary.py --suite_id phase3_overall_methods_acc_v2 --source_suites phase3_kitti_methods_acc_v2 phase3_dynamicstereo_methods_acc_v2 phase3_minesource_methods_acc_v2`
+- 运行结果与验证结果：
+  - 三个数据域 full-length 方法 compare 全部通过：
+    - KITTI：`18/18 passed`
+    - DynamicStereo：`9/9 passed`
+    - `mine_source`：`51/51 passed`
+  - 刷新后的数据域方法总表：
+    - KITTI：`outputs/phase3/phase3_kitti_methods_acc_v2/method_summary.csv`
+      - `method_a_orb`: `mean_inliers≈435.17`, `mean_inlier_ratio≈0.610`, `fps≈33.79`
+      - `method_a_sift`: `mean_inliers≈529.17`, `mean_inlier_ratio≈0.487`, `fps≈38.75`
+      - `method_b`: `mean_inliers≈594.00`, `mean_inlier_ratio≈0.393`, `fps≈17.66`
+    - DynamicStereo：`outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_summary.csv`
+      - `method_a_orb`: `mean_inliers≈532.67`, `mean_inlier_ratio≈0.628`, `fps≈18.01`
+      - `method_a_sift`: `mean_inliers≈257.00`, `mean_inlier_ratio≈0.482`, `fps≈17.04`
+      - `method_b`: `mean_inliers≈527.67`, `mean_inlier_ratio≈0.396`, `fps≈7.80`
+    - `mine_source`：`outputs/phase3/phase3_minesource_methods_acc_v2/method_summary.csv`
+      - `method_a_orb`: `mean_inliers≈468.76`, `mean_inlier_ratio≈0.847`, `fps≈12.58`
+      - `method_a_sift`: `mean_inliers≈754.35`, `mean_inlier_ratio≈0.788`, `fps≈11.40`
+      - `method_b`: `mean_inliers≈842.59`, `mean_inlier_ratio≈0.641`, `fps≈7.69`
+  - 刷新后的 unified overall 方法总表：
+    - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_summary.csv`
+      - `method_a_orb`: `mean_inliers≈468.38`, `mean_inlier_ratio≈0.767`, `fps≈18.10`
+      - `method_a_sift`: `mean_inliers≈645.00`, `mean_inlier_ratio≈0.683`, `fps≈18.36`
+      - `method_b`: `mean_inliers≈748.88`, `mean_inlier_ratio≈0.556`, `fps≈10.00`
+  - 当前正式结论：
+    - Method B 不再是“整体偏弱”。
+    - 在显式 accuracy preset 下，Method B 的 `mean_inliers` 在 KITTI、`mine_source` 和 overall 上都已经高于 Method A；DynamicStereo 上与 ORB 接近、明显高于 SIFT。
+    - 但 Method B 的 `mean_inlier_ratio` 和 `approx_fps` 仍整体落后于 ORB/SIFT，因此更准确的结论是“更高的内点数量换来更低的内点率和速度”。
+- 与原计划相比的偏差：
+  - 本步只刷新了正式方法 compare，没有重跑 dynamic seam 总表。
+  - 这是有意限制范围：dynamic seam 结论当前不依赖 Method B preset 复盘，仍以 `phase3_*_full_v1` 为正式来源。
+- 下一步建议：
+  - 基于 `phase3_overall_methods_acc_v2` 与 `phase3_overall_full_v1` 补统一 plot/export 脚本。
+  - final report 中将方法主表与 dynamic seam 主表分开引用，避免再次混用旧 Method B preset 结果。

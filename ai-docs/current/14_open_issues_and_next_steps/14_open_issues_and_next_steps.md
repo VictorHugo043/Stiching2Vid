@@ -19,14 +19,14 @@
 | ISSUE-20260320-02 | partial | `adaptive_update` 的 controller 已从全局 armed 细化为 per-trigger rearm，但带 cooldown/hysteresis 的 stable preset 在 sustained foreground 场景下仍偏保守 | `adaptive_update` 已不再系统性退化为“一次性 geometry refresh”，但若直接把 stable preset 当默认值，仍可能低估 adaptive geometry 的作用 | 当前默认仍使用 `trigger_fused_d18_fg008`；若后续继续研究 adaptive geometry，再考虑 foreground-specific cooldown 或更细的 trigger fusion |
 | ISSUE-20260323-01 | partial | `foreground_mode=disagreement` 长时间高位的问题已通过 per-trigger rearm 明显缓解，但当前 `adaptive_stable` 仍会在部分 `mine_source_*` 视频上几乎不再重算 | 会继续限制 adaptive geometry 的默认可用性，并使 stable preset 难以作为正式推荐值 | 当前将其降级为实验 preset；后续若继续优化 adaptive controller，再专门围绕 stable preset 调参 |
 | ISSUE-20260323-02 | deferred | seam temporal smoothing 在当前实现下会把 `mean_overlap_diff_after` 压到 `0.0`，导致该指标不再适合拿来比较 smoothing 质量 | 当前已知解释边界清楚，但若未来要把 smoothing 升级为正式主轴，仍需要新 temporal metric | 当前 smoothing 评估优先看 `mean_seam_mask_change_ratio / mean_stitched_delta / approx_fps`；若 Phase 3 需要更深入 temporal 结论，再单独补 smoothing-specific metric |
-| ISSUE-20260323-03 | partial | 在当前 6 条 KITTI `image_02_image_03` full-length fixed-geometry suite 上，Method B 没有整体优于 Method A，且 dynamic seam 的收益呈明显 pair-dependent | 会直接影响 final report 的表述方式：不能把 “Method B 更强” 写成无条件结论，也不能把 dynamic seam 的平均收益误读为所有 KITTI pair 都有效 | 当前将其视为实验结论而非集成 bug；后续若要进一步解释，可补 domain-specific 参数分析或加入更强动态数据域对照 |
+| ISSUE-20260323-03 | partial | 在刷新后的 Phase 3 正式方法 compare 中，Method B 已不再“整体偏弱”，但它呈现出清晰 trade-off：`mean_inliers` 更高，而 `mean_inlier_ratio / approx_fps` 仍整体弱于 ORB/SIFT；dynamic seam 的收益也仍具明显 pair-dependence | 会直接影响 final report 的表述方式：不能把 “Method B 更强” 或 “Method B 更弱” 写成单一句子，也不能把 dynamic seam 的平均收益误读为所有 pair 都有效 | 当前应把 Method B 表述为“高内点数量、低内点率/低速度”的替代路线；后续若要进一步解释，可补按数据域的可视化与 plot/export 脚本 |
 | ISSUE-20260323-04 | partial | 多数据域 full-length suite 暴露出本地数据与 manifest 的轻微漂移：`mine_source_leaves_left_right` 当前源文件缺失；DynamicStereo `ignacio / teddy` 的当前可访问帧数分别为 `99 / 99`，与 manifest 元数据 `189 / 218` 不一致 | 影响“全量”和“全帧”的解释边界，也会影响 pair coverage 统计；但不阻塞当前 Phase 3 正式总表，因为 suite 已按当前可访问 source 长度完整跑完 | 当前正式口径统一以 `outputs/phase3/*/pair_coverage.csv` 的实际长度为准；后续若要修复，可补 manifest 校正或恢复缺失源文件 |
-| ISSUE-20260323-05 | partial | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 若直接沿用 `phase3_overall_full_v1` 的 Method B 结论写 final report，可能把“旧 preset 下的事实”误写成“Method B 本身不如 Method A” | 已完成前端修复与代表性复查；下一步应使用显式 Method B accuracy preset 重跑正式方法 compare，至少刷新 KITTI + DynamicStereo + `mine_source` 的方法总表 |
+| ISSUE-20260323-05 | closed | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 该问题已不再阻塞 final report 的正式方法结论 | 已用显式 Method B accuracy preset 重跑 `phase3_kitti_methods_acc_v2`、`phase3_dynamicstereo_methods_acc_v2`、`phase3_minesource_methods_acc_v2`，并生成 `phase3_overall_methods_acc_v2` 作为新的正式方法总表 |
 
 ## 接下来最先做的 3 件事
-1. 用显式 Method B accuracy preset 重跑正式方法 compare，刷新 Phase 3 的 Method A vs Method B 总表。
-2. 基于刷新后的 Phase 3 总表补统一 plot/export 脚本，把表格转成最终论文图表。
-3. 若 Method 结果刷新后结论稳定，再决定是否进入 Phase 4 的 GUI thin wrapper。
+1. 基于 `phase3_overall_methods_acc_v2` 与 `phase3_overall_full_v1` 补统一 plot/export 脚本，把方法主表和 dynamic seam 主表转成最终论文图表。
+2. 从刷新后的正式方法总表中挑选代表性 pair，补 Method A vs Method B 的可视化案例，解释“高内点数量但较低内点率/较慢速度”的 trade-off。
+3. 若 Phase 3 图表导出完成且结论稳定，再决定是否进入 Phase 4 的 GUI thin wrapper。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -91,7 +91,7 @@
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。
-- 当前建议直接从“刷新 Phase 3 的 Method B 正式 compare”开始。
+- 当前建议直接从“补 Phase 3 统一 plot/export 脚本，并把刷新后的方法总表与 Phase 2/3 dynamic seam 总表转成 final report 图表”开始。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

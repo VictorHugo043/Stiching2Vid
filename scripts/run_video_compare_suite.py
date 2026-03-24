@@ -27,6 +27,12 @@ PAIR_ALIASES: Dict[str, str] = {
     "kitti0005": "kitti_raw_data_2011_09_26_drive_0005_image_02_image_03",
 }
 
+DEFAULT_METHOD_B_MAX_KEYPOINTS = 4096
+DEFAULT_METHOD_B_RESIZE_LONG_EDGE = 1536
+DEFAULT_METHOD_B_DEPTH_CONFIDENCE = -1.0
+DEFAULT_METHOD_B_WIDTH_CONFIDENCE = -1.0
+DEFAULT_METHOD_B_FILTER_THRESHOLD = 0.1
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -134,14 +140,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max_keypoints",
         type=int,
-        default=None,
-        help="Optional Method B max_keypoints override",
+        default=DEFAULT_METHOD_B_MAX_KEYPOINTS,
+        help="Method B max_keypoints override; formal compare defaults to the accuracy preset",
     )
     parser.add_argument(
         "--resize_long_edge",
         type=int,
-        default=None,
-        help="Optional Method B resize_long_edge override",
+        default=DEFAULT_METHOD_B_RESIZE_LONG_EDGE,
+        help="Method B resize_long_edge override; formal compare defaults to the accuracy preset",
+    )
+    parser.add_argument(
+        "--depth_confidence",
+        type=float,
+        default=DEFAULT_METHOD_B_DEPTH_CONFIDENCE,
+        help="Method B LightGlue depth_confidence override; formal compare defaults to the accuracy preset",
+    )
+    parser.add_argument(
+        "--width_confidence",
+        type=float,
+        default=DEFAULT_METHOD_B_WIDTH_CONFIDENCE,
+        help="Method B LightGlue width_confidence override; formal compare defaults to the accuracy preset",
+    )
+    parser.add_argument(
+        "--filter_threshold",
+        type=float,
+        default=DEFAULT_METHOD_B_FILTER_THRESHOLD,
+        help="Method B LightGlue filter_threshold override; formal compare defaults to the accuracy preset",
     )
     parser.add_argument(
         "--method_a_feature",
@@ -229,6 +253,12 @@ def _build_case_command(
         cmd.extend(["--max_keypoints", str(args.max_keypoints)])
     if args.resize_long_edge is not None:
         cmd.extend(["--resize_long_edge", str(args.resize_long_edge)])
+    if args.depth_confidence is not None:
+        cmd.extend(["--depth_confidence", str(args.depth_confidence)])
+    if args.width_confidence is not None:
+        cmd.extend(["--width_confidence", str(args.width_confidence)])
+    if args.filter_threshold is not None:
+        cmd.extend(["--filter_threshold", str(args.filter_threshold)])
     return cmd
 
 
@@ -438,6 +468,13 @@ def main() -> int:
                 "video_mode": args.video_mode,
                 "reuse_mode": args.reuse_mode,
                 "max_frames": args.max_frames,
+                "method_b_preset": {
+                    "max_keypoints": args.max_keypoints,
+                    "resize_long_edge": args.resize_long_edge,
+                    "depth_confidence": args.depth_confidence,
+                    "width_confidence": args.width_confidence,
+                    "filter_threshold": args.filter_threshold,
+                },
                 "results": results,
             },
             ensure_ascii=False,
