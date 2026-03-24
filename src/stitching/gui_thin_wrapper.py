@@ -274,8 +274,7 @@ class StitchingGuiApp:
         self.left_preview_label: ttk.Label
         self.right_preview_label: ttk.Label
         self.open_run_button: ttk.Button
-        self.geometry_keyframe_field: Optional[Dict[str, object]] = None
-        self.seam_keyframe_field: Optional[Dict[str, object]] = None
+        self.dynamic_options_frame: ttk.Frame
         self._build_ui()
         self.refresh_pairs()
         self.geometry_mode_var.trace_add("write", self._on_mode_visibility_changed)
@@ -339,31 +338,17 @@ class StitchingGuiApp:
         self._grid_labeled_widget(grid, 1, 2, "Stride", ttk.Entry(grid, textvariable=self.stride_var, width=14))
         self._grid_labeled_widget(grid, 1, 3, "FPS", ttk.Entry(grid, textvariable=self.fps_var, width=14))
 
-        self._grid_labeled_widget(grid, 2, 0, "Trigger Diff", ttk.Entry(grid, textvariable=self.seam_trigger_diff_var, width=14))
-        self._grid_labeled_widget(grid, 2, 1, "FG Ratio", ttk.Entry(grid, textvariable=self.seam_trigger_foreground_ratio_var, width=14))
-        self._grid_labeled_widget(grid, 2, 2, "Snapshot Every", ttk.Entry(grid, textvariable=self.snapshot_every_var, width=14))
+        self._grid_labeled_widget(grid, 2, 0, "Snapshot Every", ttk.Entry(grid, textvariable=self.snapshot_every_var, width=14))
         self._grid_labeled_widget(
             grid,
             2,
-            3,
+            1,
             "Force CPU",
             ttk.Checkbutton(grid, text="Enabled", variable=self.force_cpu_var),
         )
 
-        self.geometry_keyframe_field = self._grid_labeled_widget(
-            grid,
-            3,
-            0,
-            "Keyframe Every",
-            ttk.Entry(grid, textvariable=self.keyframe_every_var, width=14),
-        )
-        self.seam_keyframe_field = self._grid_labeled_widget(
-            grid,
-            3,
-            1,
-            "Seam Keyframe Every",
-            ttk.Entry(grid, textvariable=self.seam_keyframe_every_var, width=14),
-        )
+        self.dynamic_options_frame = ttk.Frame(run_frame)
+        self.dynamic_options_frame.pack(fill=tk.X, pady=(6, 0))
 
         control_row = ttk.Frame(run_frame)
         control_row.pack(fill=tk.X, pady=(10, 0))
@@ -431,19 +416,6 @@ class StitchingGuiApp:
         }
 
     @staticmethod
-    def _set_field_visible(field: Optional[Dict[str, object]], visible: bool) -> None:
-        if not field:
-            return
-        label_widget = field["label"]
-        widget = field["widget"]
-        if visible:
-            label_widget.grid()
-            widget.grid()
-        else:
-            label_widget.grid_remove()
-            widget.grid_remove()
-
-    @staticmethod
     def _add_labeled_entry(parent: ttk.Frame, label: str, variable: tk.StringVar) -> None:
         row = ttk.Frame(parent)
         row.pack(fill=tk.X, pady=2)
@@ -473,14 +445,63 @@ class StitchingGuiApp:
         self._update_mode_visibility()
 
     def _update_mode_visibility(self) -> None:
-        self._set_field_visible(
-            self.geometry_keyframe_field,
-            self.geometry_mode_var.get().strip() == "keyframe_update",
-        )
-        self._set_field_visible(
-            self.seam_keyframe_field,
-            self.seam_policy_var.get().strip() == "keyframe",
-        )
+        for child in self.dynamic_options_frame.winfo_children():
+            child.destroy()
+
+        geometry_mode = self.geometry_mode_var.get().strip()
+        seam_policy = self.seam_policy_var.get().strip()
+        column = 0
+
+        if geometry_mode == "keyframe_update":
+            self._grid_labeled_widget(
+                self.dynamic_options_frame,
+                0,
+                column,
+                "Keyframe Every",
+                ttk.Entry(
+                    self.dynamic_options_frame,
+                    textvariable=self.keyframe_every_var,
+                    width=14,
+                ),
+            )
+            column += 1
+        if seam_policy == "keyframe":
+            self._grid_labeled_widget(
+                self.dynamic_options_frame,
+                0,
+                column,
+                "Seam Keyframe Every",
+                ttk.Entry(
+                    self.dynamic_options_frame,
+                    textvariable=self.seam_keyframe_every_var,
+                    width=14,
+                ),
+            )
+            column += 1
+        if seam_policy == "trigger":
+            self._grid_labeled_widget(
+                self.dynamic_options_frame,
+                0,
+                column,
+                "Trigger Diff",
+                ttk.Entry(
+                    self.dynamic_options_frame,
+                    textvariable=self.seam_trigger_diff_var,
+                    width=14,
+                ),
+            )
+            column += 1
+            self._grid_labeled_widget(
+                self.dynamic_options_frame,
+                0,
+                column,
+                "FG Ratio",
+                ttk.Entry(
+                    self.dynamic_options_frame,
+                    textvariable=self.seam_trigger_foreground_ratio_var,
+                    width=14,
+                ),
+            )
 
     def _set_preview_label(
         self,

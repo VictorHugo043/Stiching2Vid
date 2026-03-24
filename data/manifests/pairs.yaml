@@ -1552,3 +1552,18 @@ pairs:
       frame_count_right: 77
       fps: null
       resolution: '(1224, 370)'
+
+  - id: jellyfish
+    dataset: GUIUpload
+    input_type: video
+    left: data/raw/Videos/gui_uploads/jellyfish/left.mp4
+    right: data/raw/Videos/gui_uploads/jellyfish/right.mp4
+    calib: null
+    optional: false
+    meta:
+      scene: jellyfish
+      cameras: [left, right]
+      length_left: 176
+      length_right: 176
+      fps: 30.0
+      resolution: [1280, 720]

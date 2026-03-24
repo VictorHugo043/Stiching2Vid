@@ -47,6 +47,8 @@
 | CHG-20260324-11 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 的 `Run Config` 布局：将 `trigger diff / fg ratio / snapshot every / force cpu` 前置到稳定可见行，把 `keyframe_every / seam_keyframe_every` 放到最后一行，避免 keyframe 字段隐藏后在中间留下空洞 | 影响 GUI 表单的视觉布局与模式切换时的可读性；不改变任何 CLI 透传语义或核心 stitching pipeline | 本次只是布局重排，不新增功能；与前一轮 keyframe 条件显示逻辑配合后，视觉行为已与用户预期一致 |
 | CHG-20260324-12 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 注册流程：`Register New Pair` 现在强制要求显式唯一 `pair_id`，拒绝空值、清洗后为空和重复名称 | 影响 GUI 注册交互与 manifest 写入约束；不改变 run id 默认生成逻辑或核心 stitching pipeline | 本次只改注册校验，不引入新的 manifest 字段或注册能力边界 |
 | CHG-20260324-13 | 2026-03-24 | code+docs | 修复 manifest 追加导致 `pairs.yaml` 整体重排的问题：`append_manifest_entries()` 改为默认文本级局部插入，并把插入定位从 `mine_source` 特化扩展为按 entry 的 `dataset` 就近插入 | 影响 GUI 注册与 `split_sbs_stereo` 的 manifest 写入行为；现有 `pairs.yaml` 的 diff 可读性显著改善；不改变 manifest schema 或核心 stitching pipeline | 本次不清洗历史 diff，只保证后续新增 pair 尽量只产生局部新增 block |
+| CHG-20260324-14 | 2026-03-24 | code+docs | 继续收敛 Phase 4 GUI 的动态参数区：`Trigger Diff / FG Ratio` 改为只在 `seam_policy=trigger` 时显示，并与 keyframe 参数共用按模式重建的动态参数行；`Snapshot Every / Force CPU` 保持稳定显示 | 影响 GUI 表单布局与模式切换时的可读性；不改变 CLI 透传语义或核心 stitching pipeline | 本次用“重建动态参数行”替代固定 grid 单格隐藏，目的是彻底消除空位占位 |
+| CHG-20260324-15 | 2026-03-24 | code+docs | 修复 Phase 4 GUI 动态参数区的错位：放弃错父容器的 `pack` 方案，改为在 `dynamic_options_frame` 上直接使用与主表单一致的 `grid` 布局重建 `keyframe / trigger` 字段 | 影响 GUI 表单显示协调性；不改变任何 CLI 透传或核心 stitching pipeline 语义 | 本次是纯布局实现修复，目标是让动态字段和主表单完全对齐 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

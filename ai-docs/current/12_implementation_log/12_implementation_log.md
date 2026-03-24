@@ -3929,3 +3929,128 @@
   - 当前验证使用临时副本，不直接改动正式 `pairs.yaml` 内容。
 - 下一步建议：
   - 由用户在 GUI 中再注册一个新 pair，确认 git diff 只剩新增 block。
+
+## IMP-20260324-14
+- 状态：done
+- 标题：Phase 4 GUI polish：`trigger` 参数条件显示并并入动态参数区
+- 本步目标：
+  - 让 `Trigger Diff / FG Ratio` 只在 `seam_policy=trigger` 时显示。
+  - 将 `trigger` 参数排在 `keyframe` 相关参数之后。
+  - 避免在非 trigger 模式下留下中间空位。
+- 关联上一步结论：
+  - `IMP-20260324-11` 已把 keyframe 字段挪到后面，但 `Trigger Diff / FG Ratio` 仍是稳定显示行。
+  - 用户明确要求 trigger 参数也应跟随 policy 条件显示，并放在 keyframe 参数后面。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 问题只在 GUI 表单显示层。
+  - 需要同步记录当前 GUI 动态参数区的最终行为约束。
+- 风险点：
+  - 若继续在固定 grid 上做隐藏，仍会留下视觉空位。
+  - 必须保证命令层现有的 trigger 条件透传逻辑不被破坏。
+- 验收标准：
+  - `Trigger Diff / FG Ratio` 只在 `seam_policy=trigger` 时显示。
+  - 动态参数区按 `Keyframe Every -> Seam Keyframe Every -> Trigger Diff -> FG Ratio` 顺序连续排列。
+  - `Snapshot Every / Force CPU` 保持稳定显示。
+- 替代方案与不选原因：
+  - 方案：保留固定 grid，再单独隐藏 trigger 两格。
+  - 不选原因：这样仍容易留下视觉空位，不如直接重建动态参数行。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `Run Config` 中只保留 `Snapshot Every / Force CPU` 为稳定可见字段。
+  - 新增单独的动态参数行，根据当前 `geometry_mode / seam_policy` 即时重建：
+    - `geometry_mode=keyframe_update` 时显示 `Keyframe Every`
+    - `seam_policy=keyframe` 时显示 `Seam Keyframe Every`
+    - `seam_policy=trigger` 时显示 `Trigger Diff / FG Ratio`
+  - `trigger` 参数现在一定排在 keyframe 参数之后，不再在非 trigger 模式下占位。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 命令层原有“只有 `seam_policy=trigger` 才透传 trigger 参数”的逻辑保持不变，UI 与 CLI 语义一致。
+- 偏差：
+  - 本步只调整 GUI 动态参数区，不改注册、preview 或 run 目录逻辑。
+  - 自动化环境仍未做可见窗口级点击验证，需以用户本机体验为准。
+- 下一步建议：
+  - 由用户直接确认：
+    - `trigger` 模式外是否已不显示 `Trigger Diff / FG Ratio`
+    - 当前动态参数区是否已没有空位
+
+## IMP-20260324-15
+- 状态：done
+- 标题：Phase 4 GUI polish：修复动态参数区输入框错位
+- 本步目标：
+  - 修复 `Keyframe Every / Seam Keyframe Every / Trigger Diff / FG Ratio` 的显示错位。
+  - 让动态参数区与主 `Run Config` 共用同一套列对齐风格。
+  - 不改变已有条件显示和命令透传语义。
+- 关联上一步结论：
+  - `IMP-20260324-14` 已把 trigger 参数并入动态参数区，但用户实机截图显示字段位置严重错位，不协调。
+  - 当前优先级是修复布局实现本身，而不是继续改参数逻辑。
+- 本步回读文档：
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `src/stitching/gui_thin_wrapper.py`
+- 准备修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 错位根因只在 GUI 动态参数区的布局实现。
+  - 需要把这次布局层修复记录到决策/实施/变更文档。
+- 风险点：
+  - 不能在修布局时破坏现有 `trigger` / `keyframe` 条件显示逻辑。
+  - 不能误改命令层现有的参数透传条件。
+- 验收标准：
+  - 动态参数区字段与主表单风格一致、位置对齐。
+  - `keyframe` / `trigger` 条件显示逻辑保持不变。
+  - GUI 启动和 `--help` 回归通过。
+- 替代方案与不选原因：
+  - 方案：继续保留当前 `pack` 结构，只调 `padx/pady/width`。
+  - 不选原因：这治标不治本，根因是 widget 父容器和布局管理方式不一致。
+- 实际修改文件：
+  - `src/stitching/gui_thin_wrapper.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 移除动态参数区上一版的 `_pack_dynamic_field()` 布局方式。
+  - 动态参数区改为直接使用 `_grid_labeled_widget()` 按列重建。
+  - `Keyframe Every / Seam Keyframe Every / Trigger Diff / FG Ratio` 现在与主 `Run Config` 采用同一套 label+widget 对齐风格。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/gui_thin_wrapper.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_stitching_gui.py --help`
+- 运行结果与验证结果：
+  - 语法检查通过。
+  - launcher `--help` 正常。
+  - 动态参数区已经切回 `grid` 路径，不再混用错父容器的 `pack` 布局。
+- 偏差：
+  - 本步只修布局实现，不调整任何参数默认值或功能逻辑。
+  - 自动化环境仍未进行真实窗口截图级验证，需以用户本机体验为准。
+- 下一步建议：
+  - 由用户直接确认当前动态参数区是否已经和主表单对齐。
