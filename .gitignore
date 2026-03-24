@@ -8,6 +8,7 @@ __pycache__/
 data/raw/
 data/preprocess/
 scripts/preprocess/
+scripts/legacy
 outputs/
 external/
 *.mp4

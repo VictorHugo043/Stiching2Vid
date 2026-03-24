@@ -46,6 +46,26 @@
 - 当前 `jitter` 在固定几何路径下会系统性失真。
 - 当前 seam backend 是 OpenCV seam mask 风格，不支持 object-centered seam energy。
 
+### 4. 当前脚本框架分层（2026-03-24）
+- 正式入口保留在顶层 `scripts/`：
+  - `run_baseline_video.py`
+  - `run_baseline_frame.py`
+  - `run_video_compare_suite.py`
+  - `run_phase2_dynamic_compare_suite.py`
+  - `run_phase3_full_methods_suite.py`
+  - `build_phase3_report_figures.py`
+- 辅助 / 调试工具仍保留在顶层：
+  - `inspect_pair.py`
+  - `preprocess/split_sbs_stereo.py`
+  - `run_frame_smoke_suite.py`
+- 历史 / 探索性工具已移入 `scripts/legacy/`：
+  - `ablate_temporal.py`
+  - `ablate_seam.py`
+  - `run_method_b_preset_sweep.py`
+- Method B preset 当前只保留：
+  - `accuracy_v1`
+  - `kp3072_v1`
+
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts
 2. `Phase 1` Method B 落地
@@ -110,7 +130,7 @@
   - 当前 baseline video pipeline 的 as-built 行为已对齐到文档。
   - `run_baseline_video.py` 已显式导出 `geometry_mode` 与 `jitter_meaningful`。
   - `fixed_geometry / keyframe_update / adaptive_update` 的语义边界已固定。
-  - `scripts/ablate_temporal.py` 与 `scripts/ablate_seam.py` 已降级为 legacy exploratory helpers，不再作为当前 Phase 0 闭环前提。
+  - `scripts/legacy/ablate_temporal.py` 与 `scripts/legacy/ablate_seam.py` 已降级为 legacy exploratory helpers，不再作为当前 Phase 0 闭环前提。
 - 暂未完成但不阻塞 Phase 1：
   - 显式 `config.json` 导出
   - 统一 experiment driver
@@ -454,38 +474,39 @@
   - `width_confidence=-1`
   - `filter_threshold=0.1`
 
-### 当前 Phase 3 进度补充（2026-03-24，正式方法 compare 刷新）
-- 已完成显式 Method B accuracy preset 下的正式 full-length 方法 compare 刷新：
+### 当前 Phase 3 进度补充（2026-03-24，正式方法 compare richer-metrics 全量重跑）
+- 已完成显式 Method B accuracy preset 下的正式 full-length 方法 compare richer-metrics 全量重跑：
   - KITTI：
-    - `outputs/phase3/phase3_kitti_methods_acc_v2`
+    - `outputs/phase3/phase3_kitti_methods_rich_v3`
   - DynamicStereo：
-    - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2`
+    - `outputs/phase3/phase3_dynamicstereo_methods_rich_v3`
   - `mine_source`：
-    - `outputs/phase3/phase3_minesource_methods_acc_v2`
+    - `outputs/phase3/phase3_minesource_methods_rich_v3`
   - unified overall：
-    - `outputs/phase3/phase3_overall_methods_acc_v2`
+    - `outputs/phase3/phase3_overall_methods_rich_v3`
 - 当前正式方法结论已经替换为：
   - KITTI：
     - `method_b mean_inliers≈594.00`，高于 ORB/SIFT
-    - 但 `mean_inlier_ratio≈0.393`、`fps≈17.66` 仍低于 ORB/SIFT
+    - 但 `mean_inlier_ratio≈0.393`、`fps≈13.68` 仍低于 ORB/SIFT
   - DynamicStereo：
     - `method_b mean_inliers≈527.67`，与 ORB 接近，明显高于 SIFT
-    - 但 `mean_inlier_ratio≈0.396`、`fps≈7.80` 仍明显偏弱
+    - 但 `mean_inlier_ratio≈0.396`、`fps≈5.19` 仍明显偏弱
   - `mine_source`：
     - `method_b mean_inliers≈842.59`，高于 ORB/SIFT
-    - 但 `mean_inlier_ratio≈0.641`、`fps≈7.69` 仍低于 Method A
+    - 但 `mean_inlier_ratio≈0.641`、`fps≈5.51` 仍低于 Method A
   - overall：
     - `method_b mean_inliers≈748.88` 最高
     - `method_a_orb mean_inlier_ratio≈0.767` 最高
-    - `method_a_sift fps≈18.36` 最高
+    - `method_a_sift fps≈12.63` 最高
 - 当前含义：
   - 旧的 “Method B 整体偏弱” 结论已不再成立。
   - 当前更准确的表述是：
     - Method B 在 accuracy preset 下能换来更高的内点数量
     - 但当前 CPU 路线下仍以更低的内点率和更慢的速度为代价
+    - 同时它在 `mean_overlap_diff_after`、`mean_seam_band_illuminance_diff`、`mean_seam_band_flicker` 上体现出一部分 seam/blending 代理指标优势
 - 当前正式结果引用边界：
   - 方法 compare：
-    - 以 `phase3_*_methods_acc_v2` 和 `phase3_overall_methods_acc_v2` 为准
+    - 以 `phase3_*_methods_rich_v3` 和 `phase3_overall_methods_rich_v3` 为准
   - dynamic seam：
     - 仍以 `phase3_*_full_v1` 和 `phase3_overall_full_v1` 为准
 
@@ -513,7 +534,7 @@
 ### 当前 Phase 3 进度补充（2026-03-24，Method B candidate sweep 与 richer metrics 已落地）
 - 已实现：
   - `src/stitching/method_b_presets.py`
-  - `scripts/run_method_b_preset_sweep.py`
+  - `scripts/legacy/run_method_b_preset_sweep.py`
   - `run_baseline_video.py` / `run_video_compare_suite.py` richer metrics 导出
 - 已落地的 fixed-geometry 指标：
   - 运行代价：
@@ -541,6 +562,19 @@
 - 当前结论：
   - 它是最像“安全优化”的候选项
   - 但仍未通过 full-length 多数据域复验，因此不能替换正式 `method_b_accuracy_v1`
+  - 其余 exploratory Method B preset 已移出当前主框架，只保留历史记录
+- richer metrics 正式总表与图表现已生成：
+  - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/figure_manifest.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_core_metrics.png`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_runtime_metrics.png`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_quality_metrics.png`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_temporal_metrics.png`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_by_dataset.png`
+- 当前图表解释边界：
+  - `init_ms_mean` 与 `per_frame_ms_mean` 可用于区分初始化成本和 steady-state compose 成本
+  - `avg_feature_runtime_ms_left/right`、`avg_matching_runtime_ms`、`avg_geometry_runtime_ms` 当前应解释为 geometry-update event 的阶段耗时均值，而不是逐帧 steady-state runtime
 
 ## Phase 4
 ### 目标

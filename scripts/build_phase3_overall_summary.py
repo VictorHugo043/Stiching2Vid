@@ -20,10 +20,23 @@ METHOD_NUMERIC_FIELDS: List[str] = [
     "mean_inlier_ratio",
     "avg_runtime_ms",
     "approx_fps",
+    "mean_reprojection_error",
+    "mean_inlier_spatial_coverage",
+    "mean_overlap_diff_after",
+    "mean_seam_band_illuminance_diff",
+    "mean_seam_band_gradient_disagreement",
+    "mean_seam_band_flicker",
+    "mean_stitched_delta",
     "mean_jitter_raw",
     "mean_jitter_sm",
     "p95_jitter_raw",
     "p95_jitter_sm",
+    "init_ms_mean",
+    "per_frame_ms_mean",
+    "avg_feature_runtime_ms_left",
+    "avg_feature_runtime_ms_right",
+    "avg_matching_runtime_ms",
+    "avg_geometry_runtime_ms",
     "warnings_count",
     "errors_count",
 ]
@@ -200,7 +213,9 @@ def _build_markdown(
                 f"`pair_count={row['pair_count']}` "
                 f"`inliers={row.get('mean_inliers')}` "
                 f"`inlier_ratio={row.get('mean_inlier_ratio')}` "
-                f"`fps={row.get('approx_fps')}`"
+                f"`fps={row.get('approx_fps')}` "
+                f"`reproj={row.get('mean_reprojection_error')}` "
+                f"`seam_flicker={row.get('mean_seam_band_flicker')}`"
             )
         lines.append("")
 

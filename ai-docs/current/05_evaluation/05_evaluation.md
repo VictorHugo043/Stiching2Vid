@@ -378,6 +378,10 @@
 - 当前选择：
   - fixed-geometry 的时序 artefact MVP 先用 `seam-band flicker`
   - 不在本轮引入 optical flow，以避免把评测层复杂度拉得过高
+  - `avg_feature_runtime_ms_left/right`、`avg_matching_runtime_ms`、`avg_geometry_runtime_ms`
+    - 当前口径是“geometry-update event”的阶段耗时均值
+    - 在 `fixed_geometry + frame0_all` 下，它们主要反映初始化阶段成本
+    - 不应与 `per_frame_ms_mean` 混读为 steady-state 逐帧成本
 
 #### 2026-03-24 Method B candidate sweep 结果
 - 代表性 sweep 输出：
@@ -385,9 +389,7 @@
   - `outputs/analysis/methodb_preset_sweep_v2/preset_summary.csv`
 - 当前 candidate preset：
   - `accuracy_v1`
-  - `no_upsample_v1`
   - `kp3072_v1`
-  - `filter015_v1`
 - 当前最合理的下一轮 candidate：
   - `kp3072_v1`
 - 原因：
@@ -396,9 +398,8 @@
   - `mean_reprojection_error` 反而从约 `1.585` 改善到约 `1.492`
   - 但它在 `mine_source_walking_left_right` 上有明显回退，因此当前仍只能作为 candidate，不替换正式 baseline
 - 当前不建议直接替换正式 baseline 的原因：
-  - `no_upsample_v1` 虽然更快，但总体 `mean_inliers` 下降过多
-  - `filter015_v1` 的 overall 更像“局部改善、局部恶化”，没有形成清晰优势
   - `kp3072_v1` 仍未做 full-length 多数据域复验
+  - 其余 exploratory candidate 已移出当前主框架
 
 ### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）
 - 正式入口：
@@ -440,9 +441,10 @@
   - `0021=209`
   - 总计 `1215` 帧 / 子 suite
 - 方法对比聚合结果：
-  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
-    - `outputs/phase3/phase3_kitti_methods_acc_v2/method_summary.csv`
-    - 旧 `phase3_kitti_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
+  - 2026-03-24 起，正式方法表改以 richer-metrics full-length suite 为准：
+    - `outputs/phase3/phase3_kitti_methods_rich_v3/method_summary.csv`
+    - 旧 `phase3_kitti_methods_acc_v2/method_summary.csv` 降级为“仅含较少指标的旧正式表”
+    - `phase3_kitti_full_v1/method_summary.csv` 继续仅保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 435.17`
     - `mean_inlier_ratio ≈ 0.610`
@@ -503,9 +505,10 @@
   - `teddy=99`
   - 合计 `281` 帧 / 子 suite
 - 方法对比聚合结果：
-  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
-    - `outputs/phase3/phase3_dynamicstereo_methods_acc_v2/method_summary.csv`
-    - 旧 `phase3_dynamicstereo_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
+  - 2026-03-24 起，正式方法表改以 richer-metrics full-length suite 为准：
+    - `outputs/phase3/phase3_dynamicstereo_methods_rich_v3/method_summary.csv`
+    - 旧 `phase3_dynamicstereo_methods_acc_v2/method_summary.csv` 降级为“仅含较少指标的旧正式表”
+    - `phase3_dynamicstereo_full_v1/method_summary.csv` 继续仅保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 532.67`
     - `mean_inlier_ratio ≈ 0.628`
@@ -565,9 +568,10 @@
   - 17 个可用 pair 全部跑完
   - 合计 `5873` 帧 / 子 suite
 - 方法对比聚合结果：
-  - 2026-03-24 起，正式方法表改以刷新后的显式 accuracy preset suite 为准：
-    - `outputs/phase3/phase3_minesource_methods_acc_v2/method_summary.csv`
-    - 旧 `phase3_minesource_full_v1/method_summary.csv` 只保留为旧 implicit preset 历史结果
+  - 2026-03-24 起，正式方法表改以 richer-metrics full-length suite 为准：
+    - `outputs/phase3/phase3_minesource_methods_rich_v3/method_summary.csv`
+    - 旧 `phase3_minesource_methods_acc_v2/method_summary.csv` 降级为“仅含较少指标的旧正式表”
+    - `phase3_minesource_full_v1/method_summary.csv` 继续仅保留为旧 implicit preset 历史结果
   - `method_a_orb`
     - `mean_inliers ≈ 468.76`
     - `mean_inlier_ratio ≈ 0.847`
@@ -595,38 +599,44 @@
   - 在刷新后的正式方法 compare 上，Method B 的 `mean_inliers` 已高于 ORB/SIFT。
   - 但 `mean_inlier_ratio` 与 `approx_fps` 仍明显落后于 Method A。
 
-### Phase 3 统一总表（2026-03-24，方法 compare 刷新版）
+### Phase 3 统一总表（2026-03-24，richer metrics 全量重跑）
 - 总表入口：
   - `scripts/build_phase3_overall_summary.py`
 - 当前正式方法总表：
-  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_summary.csv`
-  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_method_by_dataset.csv`
-  - `outputs/phase3/phase3_overall_methods_acc_v2/overall_pair_coverage.csv`
-  - `outputs/phase3/phase3_overall_methods_acc_v2/phase3_overall_summary.md`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/overall_pair_coverage.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/phase3_overall_summary.md`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/figure_manifest.csv`
+  - `outputs/phase3/phase3_overall_methods_rich_v3/figures/figures.md`
 - 当前正式 dynamic seam 总表：
   - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_preset_summary.csv`
   - `outputs/phase3/phase3_overall_full_v1/overall_dynamic_by_dataset.csv`
 - 说明：
   - 方法总表与 dynamic seam 总表当前来自不同 suite：
-    - 方法 compare 用显式 Method B accuracy preset 的 `*_methods_acc_v2`
+    - 方法 compare 用显式 Method B accuracy preset 的 `*_methods_rich_v3`
     - dynamic seam compare 继续沿用 `*_full_v1`
 - 当前整体覆盖：
   - `26` 个可运行 pair
-  - 刷新后的方法 compare：`78` 条 full-length run
+  - richer-metrics 方法 compare：`78` 条 full-length run
   - 正式 dynamic seam compare：`78` 条 full-length run
   - 共覆盖 `7369` 帧 / 子 suite 维度
 - 当前 overall 结论：
   - 方法主轴：
     - `method_b` 当前总体 `mean_inliers` 最高：`≈748.88`
     - `method_a_orb` 当前总体 `mean_inlier_ratio` 最高：`≈0.767`
-    - `method_a_sift` 当前总体速度最高：`approx_fps≈18.36`
-    - `method_b` 当前总体 `mean_inlier_ratio≈0.556`、`approx_fps≈10.00`
+    - `method_a_sift` 当前总体速度最高：`approx_fps≈12.63`
+    - `method_b` 当前总体 `mean_inlier_ratio≈0.556`、`approx_fps≈7.36`
+    - `method_b` 当前总体 `mean_seam_band_flicker≈7.44` 最低
+    - `method_b` 当前总体 `mean_overlap_diff_after≈6.08` 优于 Method A
+    - `method_a_sift` 当前总体 `mean_reprojection_error≈0.843` 最低
   - dynamic seam 主轴：
     - `trigger_fused_d18_fg008` 当前总体 `mean_overlap_diff_after` 最优
     - 但相较 `baseline_fixed` 会带来明显速度下降
   - 因此 final report 中当前最稳的表述应是：
     - `trigger_fused_d18_fg008` 是当前 OpenCV seam backend 路线下最有效的 dynamic seam preset
-    - `Method B` 已完整接入并稳定运行；在显式 accuracy preset 下，它提供更高的内点数量，但仍以更低的内点率和更慢的速度为代价
+    - `Method B` 已完整接入并稳定运行；在显式 accuracy preset 下，它提供更高的内点数量和更好的部分 seam/blending 代理指标，但仍以更低的内点率、更高 reprojection error 和更慢的速度为代价
+    - stage runtime breakdown 当前应解释为“初始化 geometry-update event 的阶段耗时”，不是 steady-state 逐帧成本
 
 ## 可视化与 final report 保留项
 - 必保留图：
@@ -643,8 +653,8 @@
 
 ## 当前脚本与后续建议
 - 现有：
-  - `scripts/ablate_temporal.py`
-  - `scripts/ablate_seam.py`
+  - `scripts/legacy/ablate_temporal.py`
+  - `scripts/legacy/ablate_seam.py`
 - 当前定位：
   - 这两个脚本保留为 legacy exploratory helpers
   - 不作为 Phase 0 / Phase 1 的正式实验入口或验收前提

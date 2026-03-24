@@ -6,7 +6,7 @@
   - baseline `Method A` development and execution
   - `Method B` single-frame development and validation
   - preprocess helpers such as `split_sbs_stereo.py`
-  - the frame smoke suite added in Phase 1
+  - the auxiliary frame smoke suite added in Phase 1
 
 ## Environment Matrix
 | Environment | Purpose | Recommended Python | Install Source | Current Notes |
@@ -134,7 +134,7 @@ python scripts/run_baseline_frame.py \
 ```
 
 ## Frame Smoke Suite
-The repo includes a multi-pair frame smoke suite:
+The repo includes a multi-pair frame smoke suite as an auxiliary debug tool:
 - `scripts/run_frame_smoke_suite.py`
 
 Default pairs:
@@ -146,6 +146,7 @@ Default pairs:
 Notes:
 - user shorthand `mysourceindoor2` maps to the real manifest id `mine_source_indoor2_left_right`
 - the suite launches `scripts/run_baseline_frame.py` once per pair and writes a summary bundle under `outputs/frame_smoke/<suite_id>/`
+- the suite is not part of the current formal Phase 2 / Phase 3 experiment workflow
 
 Run Method A smoke suite:
 

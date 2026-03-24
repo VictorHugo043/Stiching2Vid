@@ -10,7 +10,7 @@
 | ISSUE-20260319-01 | closed | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 已补 root `requirements.txt`、`requirements-methodb.txt` 与 `docs/environment.md` |
 | ISSUE-20260319-02 | closed | 当前 Method B 正式环境已经按 `requirements-methodb.txt` 安装并验证通过；`.venv-methodb` 已在多 pair 单帧、多帧抽样和短视频 smoke 上跑通 | Method B 环境不再是当前主 blocker | 后续默认沿用当前 `.venv-methodb`；如环境再漂移，再按 `docs/environment.md` 重建 |
 | ISSUE-20260319-03 | closed | `fixed_geometry` 下 `jitter` 容易退化为 0，仍可能被误读为“seam 没更新” | 该解释风险已不再阻塞当前主线 | 已通过 `mean_overlap_diff_after / temporal_primary_metric / jitter_scope / seam_snapshot_on_recompute`、正式 Phase 2 compare matrix 与 `visual_summary.md` 固定解释边界 |
-| ISSUE-20260319-06 | deferred | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 若继续依赖旧脚本会造成 Phase 0 收尾不必要拖延 | 已将 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py` 降级为 legacy helpers；正式 experiment driver 在 Phase 3 单独建设 |
+| ISSUE-20260319-06 | closed | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 该问题已不再影响当前主框架 | 已将 `scripts/legacy/ablate_temporal.py`、`scripts/legacy/ablate_seam.py` 移出顶层正式入口，保留为历史探索脚本 |
 | ISSUE-20260319-04 | deferred | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | 属于 advanced 路线，不再阻塞当前 Phase 2 收尾 | 保持当前 OpenCV seam backend 路线；若后续需要 advanced seam，再单独立项 |
 | ISSUE-20260319-05 | closed | `scripts/ablate_crop.py`、`scripts/ablate_video_reuse.py` 的历史文档漂移已不再构成当前主线问题；相关旧描述已移出当前工作流 | 不再影响 Phase 1 / Phase 2 推进 | 保留为历史背景，不再作为活跃 issue 跟踪 |
 | ISSUE-20260319-07 | closed | `run_baseline_video.py` 已通过 `frame_pair_pipeline` 接到结果对象层，视频入口已可使用 Method B backend 配置 | Method B 现在可以复用视频 orchestrator 的现有 seam/crop/blend/cache 路线 | 后续若要继续演进，只需在当前 adapter 基础上补更长时长回归和实验，不再把“未接到结果对象层”视为 issue |
@@ -21,14 +21,14 @@
 | ISSUE-20260323-02 | deferred | seam temporal smoothing 在当前实现下会把 `mean_overlap_diff_after` 压到 `0.0`，导致该指标不再适合拿来比较 smoothing 质量 | 当前已知解释边界清楚，但若未来要把 smoothing 升级为正式主轴，仍需要新 temporal metric | 当前 smoothing 评估优先看 `mean_seam_mask_change_ratio / mean_stitched_delta / approx_fps`；若 Phase 3 需要更深入 temporal 结论，再单独补 smoothing-specific metric |
 | ISSUE-20260323-03 | partial | 在刷新后的 Phase 3 正式方法 compare 中，Method B 已不再“整体偏弱”，但它呈现出清晰 trade-off：`mean_inliers` 更高，而 `mean_inlier_ratio / approx_fps` 仍整体弱于 ORB/SIFT；dynamic seam 的收益也仍具明显 pair-dependence | 会直接影响 final report 的表述方式：不能把 “Method B 更强” 或 “Method B 更弱” 写成单一句子，也不能把 dynamic seam 的平均收益误读为所有 pair 都有效 | 当前应把 Method B 表述为“高内点数量、低内点率/低速度”的替代路线；后续若要进一步解释，可补按数据域的可视化与 plot/export 脚本 |
 | ISSUE-20260323-04 | partial | 多数据域 full-length suite 暴露出本地数据与 manifest 的轻微漂移：`mine_source_leaves_left_right` 当前源文件缺失；DynamicStereo `ignacio / teddy` 的当前可访问帧数分别为 `99 / 99`，与 manifest 元数据 `189 / 218` 不一致 | 影响“全量”和“全帧”的解释边界，也会影响 pair coverage 统计；但不阻塞当前 Phase 3 正式总表，因为 suite 已按当前可访问 source 长度完整跑完 | 当前正式口径统一以 `outputs/phase3/*/pair_coverage.csv` 的实际长度为准；后续若要修复，可补 manifest 校正或恢复缺失源文件 |
-| ISSUE-20260323-05 | closed | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 该问题已不再阻塞 final report 的正式方法结论 | 已用显式 Method B accuracy preset 重跑 `phase3_kitti_methods_acc_v2`、`phase3_dynamicstereo_methods_acc_v2`、`phase3_minesource_methods_acc_v2`，并生成 `phase3_overall_methods_acc_v2` 作为新的正式方法总表 |
-| ISSUE-20260324-01 | partial | fixed-geometry richer metrics 已大部分落地，但 temporal coherence 仍缺少更强的 motion-compensated 指标；当前只实现了 `seam-band flicker` 这一层 | 现在已经能比过去更完整地解释 Method B 的 trade-off，但如果 final report 需要更强的时序论证，单靠 `mean_stitched_delta + seam-band flicker` 仍有限 | 当前先保留 `seam-band flicker` 作为 MVP temporal artefact 指标；若后续需要更强时序论证，再单独补 `flow-compensated temporal residual` |
+| ISSUE-20260323-05 | closed | 旧 Phase 3 Method B compare 使用了旧 implicit preset，且此前 `SuperPoint` preprocess resize 语义存在接入偏差，导致当前 Method B 总表可能低估其能力 | 该问题已不再阻塞 final report 的正式方法结论 | 已先用显式 Method B accuracy preset 重跑 `phase3_*_methods_acc_v2`，随后进一步完成 richer-metrics full-length 重跑并以 `phase3_*_methods_rich_v3` / `phase3_overall_methods_rich_v3` 取代旧方法主表 |
+| ISSUE-20260324-01 | partial | fixed-geometry richer metrics 已完成 full-length 正式重跑与 plot/export，但 temporal coherence 仍缺少更强的 motion-compensated 指标；当前只实现了 `seam-band flicker` 这一层 | 现在已经能用 full-length richer-metrics 正式表更完整地解释 Method B 的 trade-off，但如果 final report 需要更强的时序论证，单靠 `mean_stitched_delta + seam-band flicker` 仍有限 | 当前先保留 `seam-band flicker` 作为 MVP temporal artefact 指标；若后续需要更强时序论证，再单独补 `flow-compensated temporal residual` |
 | ISSUE-20260324-02 | partial | Method B candidate sweep 已完成，`kp3072_v1` 是当前最有希望的安全优化项，但它在 `mine_source_walking_left_right` 上存在明显回退，尚不能替换正式 `accuracy_v1` | 若直接把 candidate 升格为正式 baseline，可能在动态/低纹理场景引入负优化；若完全不继续验证，又无法判断它是否值得进入 final report 的“优化版 Method B” | 保持 `method_b_accuracy_v1` 冻结为正式基线；下一步若继续优化，优先对 `kp3072_v1` 做 full-length 多数据域复验 |
 
 ## 接下来最先做的 3 件事
 1. 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验，判断它能否作为“优化版 Method B”进入正式表格。
 2. 若继续补评测层，优先决定是否真的需要 `flow-compensated temporal residual`；否则当前 `seam-band flicker` 已可支撑 fixed-geometry 的 MVP temporal artefact 解释。
-3. 再补统一 plot/export 脚本，把刷新后的方法主表、dynamic seam 主表和 richer metrics 直接转成 final report 图表。
+3. 若实验部分先收尾，可直接进入 Phase 4 做 GUI thin wrapper，并复用当前正式 suite / figure artefacts。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -56,6 +56,26 @@
     - `max_keypoints=2048`
     - `SuperPoint` package default resize `1024`
     - `LightGlue` adaptive defaults
+
+## 当前脚本入口边界（2026-03-24 更新）
+- 正式工作流优先使用：
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/run_phase3_full_methods_suite.py`
+  - `scripts/build_phase3_report_figures.py`
+- 辅助 / 调试工具：
+  - `scripts/inspect_pair.py`
+  - `scripts/preprocess/split_sbs_stereo.py`
+  - `scripts/run_frame_smoke_suite.py`
+- 历史 / 探索性工具：
+  - `scripts/legacy/ablate_temporal.py`
+  - `scripts/legacy/ablate_seam.py`
+  - `scripts/legacy/run_method_b_preset_sweep.py`
+- 当前 Method B active preset：
+  - `accuracy_v1`
+  - `kp3072_v1`
 
 ## 当前调试建议（2026-03-20 更新）
 - 若你在 `fixed_geometry` 下观察 dynamic seam：
@@ -93,7 +113,7 @@
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。
-- 当前建议直接从“Method B 安全优化小 sweep + fixed-geometry 评测扩展”开始。
+- 当前建议直接从“`kp3072_v1` full-length 多数据域复验”或“Phase 4 GUI thin wrapper”二选一开始。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

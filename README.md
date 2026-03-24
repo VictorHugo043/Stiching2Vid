@@ -28,8 +28,10 @@ The focus is stable panorama generation from overlapping left/right streams, wit
 │  ├─ run_baseline_video.py      # Main video pipeline (video/frames inputs)
 │  ├─ run_baseline_frame.py      # Single-frame baseline
 │  ├─ inspect_pair.py            # I/O sanity check for one pair + frame
-│  ├─ ablate_temporal.py         # Temporal smoothing A/B runs
-│  └─ ablate_seam.py             # Seam/blend A/B/C/D runs
+│  ├─ run_video_compare_suite.py # Formal method compare driver
+│  ├─ run_phase2_dynamic_compare_suite.py
+│  ├─ run_phase3_full_methods_suite.py
+│  └─ legacy/                    # Historical / exploratory helpers
 ├─ src/stitching/
 │  ├─ io.py                      # Manifest parsing + FrameSource abstractions
 │  ├─ features.py                # ORB/SIFT detection
@@ -129,7 +131,7 @@ python3 scripts/run_baseline_frame.py \
   --frame_index 0
 ```
 
-5) Multi-pair single-frame smoke suite:
+5) Auxiliary multi-pair single-frame smoke suite:
 
 ```bash
 python3 scripts/run_frame_smoke_suite.py --method method_a
@@ -157,6 +159,23 @@ Outputs:
 - `outputs/video_compare/<suite_id>/summary.csv`
 - `outputs/video_compare/<suite_id>/summary.json`
 - `outputs/video_compare/<suite_id>/pair_compare.csv`
+
+7) Formal Phase 3 full-length methods suite + richer-metrics figures:
+
+```bash
+source .venv-methodb/bin/activate
+python scripts/run_phase3_full_methods_suite.py \
+  --python_bin .venv-methodb/bin/python \
+  --suite_id phase3_full_methods_rich_v3_parent \
+  --force_cpu \
+  --max_frames 6000 \
+  --snapshot_every 1000
+```
+
+Outputs:
+- `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+- `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
+- `outputs/phase3/phase3_overall_methods_rich_v3/figures/`
 
 ## Side-by-Side Preprocess (mine_source)
 
@@ -278,7 +297,7 @@ Legacy exploratory helpers:
 1) Temporal smoothing ablation
 
 ```bash
-python3 scripts/ablate_temporal.py \
+python3 scripts/legacy/ablate_temporal.py \
   --pair mine_source_autumn_left_right \
   --max_frames 120
 ```
@@ -292,7 +311,7 @@ Current status:
 2) Seam/blend ablation
 
 ```bash
-python3 scripts/ablate_seam.py \
+python3 scripts/legacy/ablate_seam.py \
   --pair mine_source_lake_left_right \
   --max_frames 60
 ```
@@ -328,6 +347,29 @@ Default smoke-suite pairs:
 - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
 - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
 - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
+
+Note:
+- `run_frame_smoke_suite.py` is an auxiliary debug helper, not a formal Phase 2 / Phase 3 experiment entry.
+
+## Current Recommended Scripts
+
+Formal:
+- `scripts/run_baseline_video.py`
+- `scripts/run_baseline_frame.py`
+- `scripts/run_video_compare_suite.py`
+- `scripts/run_phase2_dynamic_compare_suite.py`
+- `scripts/run_phase3_full_methods_suite.py`
+- `scripts/build_phase3_report_figures.py`
+
+Auxiliary / debug:
+- `scripts/inspect_pair.py`
+- `scripts/preprocess/split_sbs_stereo.py`
+- `scripts/run_frame_smoke_suite.py`
+
+Legacy / exploratory:
+- `scripts/legacy/ablate_temporal.py`
+- `scripts/legacy/ablate_seam.py`
+- `scripts/legacy/run_method_b_preset_sweep.py`
 
 Alias:
 - `mysourceindoor2` -> `mine_source_indoor2_left_right`

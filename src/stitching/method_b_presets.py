@@ -27,15 +27,6 @@ METHOD_B_PRESETS: Dict[str, MethodBPreset] = {
         width_confidence=-1.0,
         filter_threshold=0.1,
     ),
-    "no_upsample_v1": MethodBPreset(
-        name="no_upsample_v1",
-        description="Keep high recall but disable SuperPoint upsampling to reduce cost.",
-        max_keypoints=4096,
-        resize_long_edge=0,
-        depth_confidence=-1.0,
-        width_confidence=-1.0,
-        filter_threshold=0.1,
-    ),
     "kp3072_v1": MethodBPreset(
         name="kp3072_v1",
         description="Reduce SuperPoint keypoints while keeping the rest of accuracy preset fixed.",
@@ -44,15 +35,6 @@ METHOD_B_PRESETS: Dict[str, MethodBPreset] = {
         depth_confidence=-1.0,
         width_confidence=-1.0,
         filter_threshold=0.1,
-    ),
-    "filter015_v1": MethodBPreset(
-        name="filter015_v1",
-        description="Tighten LightGlue filtering while keeping the rest of accuracy preset fixed.",
-        max_keypoints=4096,
-        resize_long_edge=1536,
-        depth_confidence=-1.0,
-        width_confidence=-1.0,
-        filter_threshold=0.15,
     ),
 }
 

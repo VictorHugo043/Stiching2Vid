@@ -505,13 +505,14 @@
 ### 2026-03-24 已实现的安全优化机制
 - 已新增：
   - `src/stitching/method_b_presets.py`
-  - `scripts/run_method_b_preset_sweep.py`
-- 当前 candidate preset 命名固定为：
+  - `scripts/legacy/run_method_b_preset_sweep.py`
+- 当前 active preset 命名固定为：
   - `accuracy_v1`
-  - `no_upsample_v1`
   - `kp3072_v1`
+- 当前已移出主框架的 exploratory preset：
+  - `no_upsample_v1`
   - `filter015_v1`
-- 这些 preset 的目标是：
+- 当前 active preset 的目标是：
   - 只做并行验证
   - 不覆盖正式 compare 默认值
   - 先筛选“值得做 full-length 复验的候选项”
@@ -554,21 +555,11 @@
     - `mean_inlier_ratio ≈ 0.374`
     - `approx_fps ≈ 3.68`
     - `mean_reprojection_error ≈ 1.585`
-  - `no_upsample_v1`
-    - `mean_inliers ≈ 429.7`
-    - `mean_inlier_ratio ≈ 0.334`
-    - `approx_fps ≈ 5.70`
-    - `mean_reprojection_error ≈ 1.699`
   - `kp3072_v1`
     - `mean_inliers ≈ 539.7`
     - `mean_inlier_ratio ≈ 0.366`
     - `approx_fps ≈ 5.21`
     - `mean_reprojection_error ≈ 1.492`
-  - `filter015_v1`
-    - `mean_inliers ≈ 562.0`
-    - `mean_inlier_ratio ≈ 0.368`
-    - `approx_fps ≈ 4.57`
-    - `mean_reprojection_error ≈ 1.670`
 
 ### 当前结论
 - 当前正式 baseline 仍保持 `accuracy_v1`。
@@ -580,6 +571,9 @@
 - 但暂不直接升格为正式 baseline，因为：
   - 在 `mine_source_walking_left_right` 上，它的 `mean_inliers` 从 `432` 降到 `272`
   - 说明该 candidate 仍具有明显 data-dependent 风险
+- 其余 exploratory candidate 已移出当前主框架：
+  - 没有形成足够清晰的收益
+  - 且会扩大当前 Method B 配置面
 
 ## 建议配置项
 - `feature_backend`

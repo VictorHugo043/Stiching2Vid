@@ -3053,3 +3053,231 @@
 - 下一步建议：
   - 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验。
   - 若继续收尾 Phase 3，则基于新的 richer metrics 补统一 plot/export 脚本。
+
+## IMP-20260324-04
+- 状态：done
+- 标题：Phase 3 正式全量重跑与 richer-metrics plot/export
+- 本步目标：
+  - 保持 `method_b_accuracy_v1` 为正式默认 preset，不改默认值。
+  - 按既有 full-length 标准和参数重跑 Phase 3 的正式方法 compare，使新指标进入全量结果。
+  - 补统一 plot/export 脚本，把 richer metrics 直接导出为 final report 可用图表。
+- 关联上一步结论：
+  - `DEC-20260324-01`：正式方法 compare 以 `*_methods_acc_v2` 为准，但这批结果尚未包含新 richer metrics 的全量重跑版本。
+  - `DEC-20260324-03`：fixed-geometry compare 需要 richer metrics。
+  - `DEC-20260324-04`：本轮 temporal artefact 先用 `seam-band flicker`，不做 optical flow residual。
+  - `DEC-20260324-05`：`kp3072_v1` 目前只是 candidate，正式 baseline 仍是 `accuracy_v1`。
+- 本步回读文档：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/run_video_compare_suite.py`
+  - `scripts/run_phase3_kitti_compare_suite.py`
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/build_phase3_overall_summary.py`
+- 准备修改文件：
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/build_phase3_overall_summary.py`
+  - `scripts/run_phase3_full_methods_suite.py`
+  - `scripts/build_phase3_report_figures.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 现有 compare driver 已能导出 richer metrics，但 Phase 3 聚合/markdown/figures 还没消费它们。
+  - 需要一个统一正式入口重跑三数据域，避免再次手工拼 suite。
+  - final report 需要直接可用的 plot/export 产物，而不只是 CSV。
+- 风险点：
+  - full-length 全量重跑耗时较长。
+  - figure 脚本若依赖环境中缺失的绘图库会失败。
+  - 过度扩图表范围会拖慢本步收尾。
+- 验收标准：
+  - 生成新的 full-length 正式方法 suite，覆盖 KITTI / DynamicStereo / `mine_source`。
+  - 总表包含 richer metrics。
+  - 输出至少一套 final report 可用 PNG 图表和 manifest / markdown 索引。
+  - 文档回填说明新的正式结果路径与图表路径。
+- 替代方案与不选原因：
+  - 方案：继续沿用旧 `phase3_overall_methods_acc_v2` 结果，只在正文口头补 richer metrics。
+  - 不选原因：这不能形成新的可复现正式 artefact，也不利于 final report 直接引用。
+- 实际修改文件：
+  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/build_phase3_overall_summary.py`
+  - `scripts/run_phase3_full_methods_suite.py`
+  - `scripts/build_phase3_report_figures.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 扩展 `build_phase3_kitti_summary.py` 和 `build_phase3_overall_summary.py`，让 richer metrics 进入正式 Phase 3 汇总表与 markdown。
+  - 新增 `scripts/run_phase3_full_methods_suite.py`，统一重跑 KITTI / DynamicStereo / `mine_source` 的 full-length 正式方法 compare。
+  - 新增 `scripts/build_phase3_report_figures.py`，导出 final report 图表：
+    - `method_core_metrics.png`
+    - `method_runtime_metrics.png`
+    - `method_quality_metrics.png`
+    - `method_temporal_metrics.png`
+    - `method_by_dataset.png`
+  - 保持 `method_b_accuracy_v1` 作为正式默认 Method B preset，不改默认 compare 配置。
+  - 在 plot/export 层明确：
+    - `init_ms_mean / per_frame_ms_mean` 作为运行代价主指标
+    - stage runtime breakdown 仅解释为 geometry-update event 的阶段耗时
+  - 为 matplotlib figure export 增加本地 `MPLCONFIGDIR`，避免权限警告反复污染正式导出。
+- 验证方式：
+  - 运行：
+    - `python3 -m py_compile scripts/build_phase3_kitti_summary.py scripts/build_phase3_overall_summary.py scripts/run_phase3_full_methods_suite.py scripts/build_phase3_report_figures.py`
+    - `python3 scripts/run_phase3_full_methods_suite.py --help`
+    - `python3 scripts/build_phase3_report_figures.py --help`
+  - full-length suite：
+    - `source .venv-methodb/bin/activate && python scripts/run_phase3_full_methods_suite.py --python_bin .venv-methodb/bin/python --suite_id phase3_full_methods_rich_v3_parent --force_cpu --max_frames 6000 --snapshot_every 1000`
+  - figure rebuild：
+    - `source .venv-methodb/bin/activate && python scripts/build_phase3_report_figures.py --suite_id phase3_overall_methods_rich_v3`
+- 运行结果与验证结果：
+  - full-length methods suite 全部通过：
+    - KITTI：`18/18`
+    - DynamicStereo：`9/9`
+    - `mine_source`：`51/51`
+  - 正式 richer-metrics 方法总表：
+    - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+    - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
+  - 正式 overall 结果：
+    - `method_a_orb`
+      - `mean_inliers≈468.38`
+      - `mean_inlier_ratio≈0.767`
+      - `approx_fps≈12.36`
+      - `mean_reprojection_error≈1.052`
+    - `method_a_sift`
+      - `mean_inliers≈645.00`
+      - `mean_inlier_ratio≈0.683`
+      - `approx_fps≈12.63`
+      - `mean_reprojection_error≈0.843`
+    - `method_b`
+      - `mean_inliers≈748.88`
+      - `mean_inlier_ratio≈0.556`
+      - `approx_fps≈7.36`
+      - `mean_reprojection_error≈1.431`
+      - `mean_seam_band_flicker≈7.44`
+  - final report figure artefacts 已生成：
+    - `outputs/phase3/phase3_overall_methods_rich_v3/figures/figure_manifest.csv`
+    - `outputs/phase3/phase3_overall_methods_rich_v3/figures/figures.md`
+- 与原计划相比的偏差：
+  - 没有把 `kp3072_v1` 升格为正式默认，而是严格保持 `accuracy_v1` 不变。
+  - 没有引入 `flow-compensated temporal residual`，当前 richer metrics 仍以 `seam-band flicker` 为 MVP 时序 artefact 指标。
+- 下一步建议：
+  - 若继续优化 Method B，优先对 `kp3072_v1` 做 full-length 多数据域复验。
+  - 若实验部分收尾，下一步可以转向 Phase 4 GUI thin wrapper。
+
+## IMP-20260324-05
+- 状态：done
+- 标题：脚本框架清理与 legacy 迁移
+- 本步目标：
+  - 全面盘点当前 `scripts/` 与相关 `src/stitching` 辅助模块，区分“正式入口 / 辅助调试 / legacy exploratory”。
+  - 将已明确不再属于当前正式框架的 phase 遗留脚本移出顶层主入口。
+  - 保留 `Method B` 的正式基线 `accuracy_v1` 与候选 `kp3072_v1`，移除其他已不打算继续维护的 preset。
+- 关联上一步结论：
+  - `DEC-20260324-06`：当前正式方法主表已经固定为 `phase3_*_methods_rich_v3`，plot/export 已补齐。
+  - 当前用户要求先不做下一步实验，而是先清理脚本框架与 phase 遗留物。
+  - 用户明确表示：`Method B` 除 `phase3` 正式 full-length 路线与 `kp3072` 候选外，其他可视情况不保留。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `README.md`
+  - `docs/environment.md`
+  - `scripts/ablate_temporal.py`
+  - `scripts/ablate_seam.py`
+  - `scripts/run_frame_smoke_suite.py`
+  - `scripts/run_method_b_preset_sweep.py`
+  - `src/stitching/method_b_presets.py`
+- 准备修改文件：
+  - `scripts/ablate_temporal.py`
+  - `scripts/ablate_seam.py`
+  - `scripts/run_method_b_preset_sweep.py`
+  - `src/stitching/method_b_presets.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前顶层 `scripts/` 仍混有多个 phase 遗留脚本，README 也还把部分 legacy 工具列成主入口。
+  - `Method B` preset 里还有已明确不准备继续维护的 exploratory 候选，容易误导后续使用。
+  - 需要把“正式框架”和“历史/探索性工具”明确分层。
+- 风险点：
+  - 直接删除旧脚本会让历史命令和旧文档失效。
+  - 移动脚本目录后，脚本内部的 `repo_root` 路径推断可能失效。
+  - 过度清理可能误删仍有调试价值的辅助工具。
+- 验收标准：
+  - 顶层 `scripts/` 只保留当前正式入口和仍有现实使用价值的辅助工具。
+  - legacy 脚本移到清晰的目录，并在 README / ai-docs 中明确标注。
+  - `Method B` preset 只保留 `accuracy_v1` 与 `kp3072_v1`。
+  - 主入口帮助信息和正式脚本运行不受影响。
+- 替代方案与不选原因：
+  - 方案：只在文档里写“这些脚本已过时”，但不移动不清理。
+  - 不选原因：当前顶层脚本表面仍然混杂，后续很容易继续误用。
+- 实际修改文件：
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `src/stitching/method_b_presets.py`
+  - `scripts/legacy/README.md`
+  - `scripts/legacy/ablate_temporal.py`
+  - `scripts/legacy/ablate_seam.py`
+  - `scripts/legacy/run_method_b_preset_sweep.py`
+- 实际新增 / 调整内容：
+  - 将 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py`、`scripts/run_method_b_preset_sweep.py` 移入 `scripts/legacy/`，并保留可运行性。
+  - 为上述 legacy 脚本补充“历史/探索性”说明，并修正从新目录推断 `repo_root` 的逻辑。
+  - 新增 `scripts/legacy/README.md`，明确 legacy 目录边界与保留原因。
+  - 在 `src/stitching/method_b_presets.py` 中只保留 `accuracy_v1` 与 `kp3072_v1`，移出 `no_upsample_v1` 与 `filter015_v1`。
+  - 在 `README.md` 与 `docs/environment.md` 中明确：
+    - 顶层正式入口
+    - auxiliary / debug helper
+    - `scripts/legacy/` 中的历史探索脚本
+  - 在 `04/05/06/08` 文档中同步更新 legacy 脚本路径与 Method B active preset 范围。
+  - 将 `ISSUE-20260319-06` 的关闭说明与新的脚本分层现状对齐。
+- 验证方式：
+  - `python3 -m py_compile scripts/run_baseline_video.py scripts/run_video_compare_suite.py scripts/run_phase3_full_methods_suite.py scripts/legacy/ablate_temporal.py scripts/legacy/ablate_seam.py scripts/legacy/run_method_b_preset_sweep.py src/stitching/method_b_presets.py`
+  - `python3 scripts/legacy/ablate_temporal.py --help`
+  - `python3 scripts/legacy/run_method_b_preset_sweep.py --help`
+  - `rg` 检查当前 README / ai-docs / docs 中的正式脚本路径与 legacy 路径引用
+- 运行结果与验证结果：
+  - 顶层正式入口脚本语法检查通过。
+  - `scripts/legacy/ablate_temporal.py` 与 `scripts/legacy/run_method_b_preset_sweep.py` 的 CLI help 正常工作，说明迁移后路径逻辑有效。
+  - 当前非历史文档已不再把 `scripts/ablate_temporal.py`、`scripts/ablate_seam.py`、`scripts/run_method_b_preset_sweep.py` 作为顶层正式入口引用。
+  - 当前 Method B active preset 已收敛为：
+    - `accuracy_v1`
+    - `kp3072_v1`
+  - `run_frame_smoke_suite.py` 被保留为 auxiliary debug helper，而不是正式 compare / evaluation 入口。
+- 偏差：
+  - 本步没有继续删除 `run_frame_smoke_suite.py`，因为它仍有现实调试价值。
+  - append-only 历史日志中仍会出现旧路径和已移出的 preset 名称，这属于历史记录保留，不做回写。
+- 下一步建议：
+  - 若后续继续做实验或收尾，统一只从正式入口和 `scripts/legacy/README.md` 中列出的边界出发。
+  - 如需进一步瘦身，可只在未来确认完全不再使用时，再删除 `scripts/legacy/` 中的历史脚本。
