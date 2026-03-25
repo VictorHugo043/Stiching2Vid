@@ -1,71 +1,64 @@
-# Project Title
+# Stiching2Vid
 
-Stiching2Vid: Two-View Overlapping Video Stitching Baseline
+Two-view overlapping video stitching project with:
+- `Method A`: ORB / SIFT + ratio test + RANSAC homography
+- `Method B`: SuperPoint + LightGlue + OpenCV USAC_MAGSAC
+- OpenCV seam-based composition with crop, blending, diagnostics, evaluation, and a desktop GUI thin wrapper
 
 ## Overview
 
-This repository implements a practical two-view stitching pipeline for videos and frame sequences.  
-The focus is stable panorama generation from overlapping left/right streams, with diagnostics for geometry quality, temporal jitter, seam behavior, and runtime.
+This project stitches overlapping left/right videos or frame sequences into a single panorama-style video.
+
+The current pipeline supports:
+- pair management through `data/manifests/pairs.yaml`
+- video and frame-sequence inputs
+- fixed-geometry, keyframe-update, and adaptive-update execution modes
+- fixed / keyframe / trigger seam policies
+- crop-before-seam, OpenCV seam estimation, feather/multiband blending
+- per-run diagnostics and experiment export
 
 ## Features
 
-- Unified input layer for both `video` and `frames` datasets (`pairs.yaml` driven).
-- Baseline feature pipeline: ORB/SIFT -> KNN ratio test -> RANSAC homography.
-- Fixed-canvas two-view warping (`right -> left`) with robust fallback behavior.
-- Temporal stabilization options for homography stream (`none`, `ema`, `window`).
-- Seam pipeline on low resolution with OpenCV seam finders:
-  - `opencv_dp_color`, `opencv_dp_colorgrad`, `opencv_voronoi`
-- Crop-before-seam (Largest Interior Rectangle, LIR) with safe fallback when LIR package is unavailable.
-- Blending modes: `none`, `feather`, `multiband`.
-- Video reuse mode (`frame0` initialization + reuse) to reduce frame-to-frame warp jitter and improve speed.
-- Rich run artifacts: stitched video, transforms, debug JSON, jitter time series, snapshots.
+### Method A
+- ORB / SIFT local features
+- KNN matching with ratio test
+- homography estimation with OpenCV RANSAC
 
-## Repository Structure
+### Method B
+- SuperPoint features
+- LightGlue matching
+- homography estimation with OpenCV `USAC_MAGSAC`
+- formal baseline preset: `accuracy_v1`
 
-```text
-.
-├─ scripts/
-│  ├─ run_baseline_video.py      # Main video pipeline (video/frames inputs)
-│  ├─ run_baseline_frame.py      # Single-frame baseline
-│  ├─ run_stitching_gui.py       # Desktop GUI thin wrapper
-│  ├─ inspect_pair.py            # I/O sanity check for one pair + frame
-│  ├─ eval_method_compare_matrix.py # Flexible method compare driver
-│  ├─ eval_method_compare.py        # Full-length method compare orchestrator
-│  ├─ eval_dynamic_compare.py       # Formal dynamic seam compare driver
-│  ├─ export_dynamic_visuals.py     # Dynamic seam visual export helper
-│  ├─ export_report_figures.py      # Final report figure export helper
-│  ├─ internal/                     # Internal summary builders used by formal drivers
-│  └─ legacy/                    # Historical / exploratory helpers
-├─ src/stitching/
-│  ├─ io.py                      # Manifest parsing + FrameSource abstractions
-│  ├─ features.py                # ORB/SIFT detection
-│  ├─ matching.py                # Descriptor matching + match visualization
-│  ├─ geometry.py                # Homography + warp canvas helpers
-│  ├─ temporal.py                # Homography smoothing + jitter metrics
-│  ├─ seam_opencv.py             # Seam-scale warp, seam finders, mask resize
-│  ├─ cropper.py                 # LIR cropper and safe fallback
-│  ├─ blending.py                # none/feather/multiband blending
-│  ├─ gui_thin_wrapper.py        # Tkinter GUI wrapper around CLI runs
-│  ├─ video_state.py             # Cached state for reuse mode
-│  ├─ video_stitcher.py          # Frame0 initialize + reuse execution
-│  └─ viz.py                     # Snapshot helpers
-├─ data/
-│  ├─ manifests/pairs.yaml       # Pair registry and per-pair metadata
-│  └─ raw/Videos/                # Dataset root expected by manifest paths
-├─ outputs/
-│  ├─ runs/                      # Per-run outputs
-│  └─ ablations/                 # Ablation summaries and comparison images
-├─ ai-docs/current/              # Internal design/quality/evaluation docs
-└─ stitching-0.6.1/              # Local OpenStitching reference source
-```
+### Video composition
+- cached `VideoStitcher` execution
+- crop-before-seam
+- OpenCV seam finders
+- `none / feather / multiband` blending
+- optional homography smoothing
+- seam policy shell on top of the existing OpenCV seam backend
+
+### Outputs
+- stitched video
+- `metrics_preview.json`
+- `debug.json`
+- `transforms.csv`
+- `jitter_timeseries.csv`
+- snapshots and seam/crop diagnostics
+
+### Evaluation
+- Method A vs Method B comparison
+- dynamic seam comparison
+- figure export for final report
+
+### GUI
+- desktop `tkinter` GUI
+- select existing pairs
+- preview left/right first frame
+- upload/register new left/right videos into the manifest
+- start one stitching run and open the resulting run folder
 
 ## Installation
-
-Formal environment documentation:
-- [docs/environment.md](docs/environment.md)
-
-Recommended Python:
-- unified environment: `3.10` to `3.14`
 
 Formal environment:
 
@@ -78,71 +71,168 @@ git clone https://github.com/cvg/LightGlue.git external/LightGlue
 python -m pip install -e external/LightGlue
 ```
 
-OpenCV note:
-- This project uses stitching/detail APIs (for seam and multiband), so `opencv-contrib-python` is required.
+Environment details:
+- the formal environment is `.venv + requirements.txt`
+- `opencv-contrib-python` is required because the project uses stitching/detail APIs
+- on Apple Silicon, the current project code should be treated as `cpu` first; use `--force_cpu` when in doubt
+- `largestinteriorrectangle` is optional in practice because the cropper already has a fallback path
 
-Dependency files:
-- `requirements.txt`: unified formal environment for Method A + Method B + preprocess + GUI
-- `requirements-methodb.txt`: legacy compatibility alias pointing to `requirements.txt`
-
-Important:
-- `largestinteriorrectangle` is optional in practice because the project has a conservative crop fallback path.
-- existing local `.venv` / `.venv-methodb` may drift; if behavior looks inconsistent, recreate `.venv` from the requirements above.
-
-## Quick Start
-
-From repository root.
-
-1) Validate I/O for a pair:
+Method B weights:
+- if `--weights_dir` is omitted, SuperPoint / LightGlue may download package-default weights into `~/.cache/torch/hub/checkpoints/`
+- if SSL download fails on macOS:
 
 ```bash
-python3 scripts/inspect_pair.py --pair campus_sequences_campus4_c0_c1 --frame_index 0
+python -m pip install --upgrade certifi
+export SSL_CERT_FILE="$(python -m certifi)"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
 ```
 
-2) Video-input pair (manifest `input_type: video`):
+More environment notes:
+- [docs/environment.md](docs/environment.md)
+
+## Use the GUI First
+
+Launch:
 
 ```bash
-python3 scripts/run_baseline_video.py \
-  --pair campus_sequences_campus4_c0_c1 \
-  --max_frames 120 \
-  --blend multiband
+source .venv/bin/activate
+python scripts/run_stitching_gui.py
 ```
 
-3) Frames-input pair (manifest `input_type: frames`):
+The GUI currently supports:
+- selecting an existing pair from `pairs.yaml`
+- previewing the first left/right frame
+- registering a new left/right video pair
+- choosing a stitching method and a thin subset of run parameters
+- launching `scripts/run_baseline_video.py`
+- opening the resulting `outputs/runs/<run_id>/` folder
+
+Recommended GUI use:
+- quick qualitative runs
+- choosing an existing pair and testing `method_a_orb`, `method_a_sift`, or `method_b_accuracy_v1`
+- registering your own left/right videos without editing the manifest manually
+
+## CLI Usage
+
+### 1. Check a pair
 
 ```bash
-python3 scripts/run_baseline_video.py \
-  --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right \
-  --max_frames 120 \
-  --fps 30 \
-  --blend multiband
-```
-
-4) Single-frame debug run:
-
-```bash
-python3 scripts/run_baseline_frame.py \
-  --pair campus_sequences_campus4_c0_c1 \
+python scripts/inspect_pair.py \
+  --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 \
   --frame_index 0
 ```
 
-5) Legacy multi-pair single-frame smoke suite:
+Use this when you want to confirm:
+- the pair id exists
+- left/right inputs can be opened
+- frame ordering and resolution look correct
+
+### 2. Run one video stitching job
+
+Method A example:
 
 ```bash
-python3 scripts/legacy/run_frame_smoke_suite.py --method method_a
+python scripts/run_baseline_video.py \
+  --pair mine_source_indoor2_left_right \
+  --feature orb \
+  --feature_backend opencv_orb \
+  --matcher_backend opencv_bf_ratio \
+  --geometry_backend opencv_ransac \
+  --geometry_mode fixed_geometry \
+  --seam_policy fixed \
+  --blend multiband \
+  --max_frames 120 \
+  --run_id demo_method_a_orb
 ```
 
-Method B smoke suite:
+Formal Method B baseline example (`accuracy_v1`):
 
 ```bash
-source .venv/bin/activate
-python scripts/legacy/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
+python scripts/run_baseline_video.py \
+  --pair kitti_raw_data_2011_09_26_drive_0002_image_02_image_03 \
+  --feature_backend superpoint \
+  --matcher_backend lightglue \
+  --geometry_backend opencv_usac_magsac \
+  --geometry_mode fixed_geometry \
+  --seam_policy fixed \
+  --max_keypoints 4096 \
+  --resize_long_edge 1536 \
+  --depth_confidence -1 \
+  --width_confidence -1 \
+  --filter_threshold 0.1 \
+  --blend multiband \
+  --max_frames 120 \
+  --force_cpu \
+  --run_id demo_method_b_accuracy_v1
 ```
 
-6) Formal method comparison matrix (`method_a_orb / method_a_sift / method_b`):
+Frames-input example with explicit fps:
 
 ```bash
-source .venv/bin/activate
+python scripts/run_baseline_video.py \
+  --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right \
+  --fps 10 \
+  --max_frames 120 \
+  --blend multiband \
+  --run_id demo_dynamicstereo
+```
+
+Important video CLI arguments:
+- `--pair`: pair id from `data/manifests/pairs.yaml`
+- `--start`, `--max_frames`, `--stride`: frame range control
+- `--fps`: fps override, mainly useful for frame-directory datasets
+- `--geometry_mode`:
+  - `fixed_geometry`
+  - `keyframe_update`
+  - `adaptive_update`
+- `--keyframe_every`: geometry refresh cadence for `keyframe_update`
+- `--seam_policy`:
+  - `fixed`
+  - `keyframe`
+  - `trigger`
+- `--seam_keyframe_every`: seam cadence for `seam_policy=keyframe`
+- `--seam_trigger_diff_threshold`: main trigger threshold for `seam_policy=trigger`
+- `--seam_trigger_foreground_ratio`: extra foreground-aware trigger threshold
+- `--blend`: `none | feather | multiband`
+- `--feature_backend`, `--matcher_backend`, `--geometry_backend`: choose Method A or Method B route explicitly
+- `--force_cpu`, `--device`, `--weights_dir`: Method B runtime control
+- `--snapshot_every`: snapshot interval
+- `--run_id`: output folder name under `outputs/runs/`
+
+Notes:
+- `--video_mode` is still accepted for legacy compatibility, but new runs should prefer `--geometry_mode`
+- the project still uses the same OpenCV seam backend; seam policy controls when seam is refreshed, not a different seam solver
+
+### 3. Run one single-frame debug job
+
+```bash
+python scripts/run_baseline_frame.py \
+  --pair mine_source_indoor2_left_right \
+  --frame_index 0 \
+  --feature_backend superpoint \
+  --matcher_backend lightglue \
+  --geometry_backend opencv_usac_magsac \
+  --max_keypoints 4096 \
+  --resize_long_edge 1536 \
+  --depth_confidence -1 \
+  --width_confidence -1 \
+  --filter_threshold 0.1 \
+  --force_cpu \
+  --run_id frame_debug_method_b
+```
+
+Use this when you want:
+- a quick one-frame geometry check
+- match / inlier visualization
+- a static compose preview without running a full video
+
+## Formal Evaluation and Export
+
+### Method comparison matrix
+
+Use this for flexible multi-pair Method A / Method B comparison:
+
+```bash
 python scripts/eval_method_compare_matrix.py \
   --python_bin .venv/bin/python \
   --video_mode 1 \
@@ -150,285 +240,98 @@ python scripts/eval_method_compare_matrix.py \
   --force_cpu
 ```
 
-Outputs:
+This driver runs:
+- `method_a_orb`
+- `method_a_sift`
+- `method_b`
+
+and writes:
 - `outputs/video_compare/<suite_id>/summary.csv`
 - `outputs/video_compare/<suite_id>/summary.json`
 - `outputs/video_compare/<suite_id>/pair_compare.csv`
 
-7) Formal full-length methods suite + richer-metrics figures:
+### Full-length formal method suite
 
 ```bash
-source .venv/bin/activate
 python scripts/eval_method_compare.py \
   --python_bin .venv/bin/python \
-  --suite_id phase3_full_methods_rich_v3_parent \
   --force_cpu \
   --max_frames 6000 \
   --snapshot_every 1000
 ```
 
-Outputs:
-- `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
-- `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
-- `outputs/phase3/phase3_overall_methods_rich_v3/figures/`
+This runs the formal full-length method comparison across:
+- KITTI
+- DynamicStereo
+- mine_source
 
-8) Desktop GUI thin wrapper:
+and then builds:
+- dataset summaries under `outputs/phase3/<suite_id>/`
+- overall summary tables under `outputs/phase3/<overall_suite_id>/`
+- final-report figures
+
+### Dynamic seam comparison
 
 ```bash
-source .venv/bin/activate
-python scripts/run_stitching_gui.py
+python scripts/eval_dynamic_compare.py \
+  --python_bin .venv/bin/python \
+  --force_cpu \
+  --max_frames 6000
 ```
 
-Current GUI scope:
-- select an existing pair from `pairs.yaml`
-- preview the first left/right frame for the selected pair
-- register a new left/right video pair by copying files into `data/raw/Videos/gui_uploads/<pair_id>/`
-- configure a thin subset of `run_baseline_video.py` parameters
-- show keyframe-only parameters contextually instead of always displaying them
-- launch one stitching run and stream logs
-- summarize the resulting run bundle under `outputs/runs/<run_id>/`
-- auto-open the finished run directory or open it manually from the GUI
+This compares the formal dynamic seam presets, including:
+- `baseline_fixed`
+- `keyframe_seam10`
+- `trigger_fused_d18_fg008`
+- `adaptive_trigger_fused_d18_fg008`
 
-GUI safety boundary:
-- no web UI
-- no new stitching logic
-- no arbitrary output path selection
-- new uploads are copied into the repo and manifest paths stay repo-relative
-
-## Side-by-Side Preprocess (mine_source)
-
-Use this script to split side-by-side stereo videos (expected `2560x720`) into
-left/right streams and append pair entries to `data/manifests/pairs.yaml`.
+### Export dynamic visuals
 
 ```bash
-python3 scripts/preprocess/split_sbs_stereo.py
+python scripts/export_dynamic_visuals.py \
+  --suite_id <dynamic_suite_id>
 ```
 
-Defaults:
-- Input scan dir: `data/preprocess` (`.avi/.mp4/.mov`)
-- Output root: `data/raw/Videos/mine_source`
-- Manifest: `data/manifests/pairs.yaml`
-- Output naming: `data/raw/Videos/mine_source/<stem>/left|right.<ext>`
-- Output ext: inferred from existing `mine_source` outputs (currently `mp4`)
-
-Common options:
+### Export report figures
 
 ```bash
-python3 scripts/preprocess/split_sbs_stereo.py \
-  --dry_run \
-  --ext mp4 \
-  --overwrite
-```
-
-Notes:
-- Prefers `ffmpeg` crop; falls back to OpenCV if `ffmpeg` is unavailable.
-- Checks input resolution strictly (`2560x720`), otherwise exits with error.
-- Backs up manifest before write to `data/manifests/pairs.yaml.bak`.
-- Rejects pair id conflicts (`mine_source_<stem>_left_right`) to avoid duplicates.
-
-## Data Format
-
-Pair registration is defined in `data/manifests/pairs.yaml` under top-level `pairs`.
-
-Core fields per pair:
-- `id`: unique pair identifier used by CLI `--pair`.
-- `dataset`: dataset name.
-- `input_type`: `video` or `frames`.
-- `left`, `right`: repo-relative paths to video files or frame directories.
-- `calib`: optional calibration file path (metadata only in current pipeline).
-- `meta`: optional fields such as:
-  - `frame_pattern`, `frame_pattern_right`
-  - `index_csv` (used for stable frame ordering)
-  - `fps`, `scene`, `cameras`, frame counts, etc.
-
-Frame ordering for `input_type: frames`:
-- Uses `index_csv` when available (preferred).
-- Falls back to glob + numeric filename sort.
-
-Calibration handling:
-- Calibration paths are stored in manifest.
-- Current baseline pipeline does **not** perform undistortion/rectification from those files (`TODO`).
-
-## Configuration / CLI Arguments
-
-Main script: `scripts/run_baseline_video.py`
-
-Important flags:
-- Data/run control:
-  - `--pair`, `--manifest`, `--start`, `--max_frames`, `--stride`
-- Geometry/matching:
-  - `--keyframe_every`, `--feature`, `--nfeatures`, `--ratio`, `--min_matches`, `--ransac_thresh`
-- Blending:
-  - `--blend none|feather|multiband`, `--mb_levels`
-- Seam:
-  - `--seam none|opencv_dp_color|opencv_dp_colorgrad|opencv_voronoi`
-  - `--seam_megapix`, `--seam_dilate`
-- Crop before seam:
-  - `--crop` / `--no_crop`
-  - `--lir_method auto|lir|fallback`
-  - `--lir_erode`, `--crop_debug`
-- Temporal smoothing:
-  - `--smooth_h none|ema|window`
-  - `--smooth_alpha`, `--smooth_window`
-- Video reuse mode:
-  - `--video_mode 0|1`
-  - `--reuse_mode frame0_all|frame0_geom|frame0_seam|emaH`
-  - `--reinit_every`, `--reinit_on_low_overlap_ratio`
-- Output/fps:
-  - `--fps`, `--snapshot_every`, `--out_dir`, `--run_id`
-
-Example: stable frame0 reuse mode
-
-```bash
-python3 scripts/run_baseline_video.py \
-  --pair mine_source_lake_left_right \
-  --max_frames 120 \
-  --video_mode 1 \
-  --reuse_mode frame0_all \
-  --blend multiband
+python scripts/export_report_figures.py \
+  --suite_id <overall_method_suite_id>
 ```
 
 ## Outputs
 
-Default output path:
+Single-run outputs:
 - `outputs/runs/<run_id>/`
 
-Main artifacts:
+Typical files:
 - `stitched.mp4`
-- `transforms.csv`
 - `metrics_preview.json`
 - `debug.json`
+- `transforms.csv`
 - `jitter_timeseries.csv`
-- `logs.txt`
 - `snapshots/`
 
-Common snapshot files:
-- periodic frame snapshots: left/right/stitched/overlay
-- keyframe seam diagnostics: seam masks, overlays, overlap diff
-- crop diagnostics: panorama mask, LIR overlay, cropped previews
-- video reuse init snapshots: `frame0_*` seam/crop/warp visualization
+Evaluation outputs:
+- `outputs/video_compare/<suite_id>/...`
+- `outputs/phase3/<suite_id>/...`
 
-## Experiments / Ablations
+Pair registry:
+- `data/manifests/pairs.yaml`
 
-Legacy exploratory helpers:
+## Current Formal Baselines
 
-1) Temporal smoothing ablation
+### Method A
+- `method_a_orb`
+- `method_a_sift`
 
-```bash
-python3 scripts/legacy/ablate_temporal.py \
-  --pair mine_source_autumn_left_right \
-  --max_frames 120
-```
+### Method B
+- formal baseline: `accuracy_v1`
+- retained candidate: `kp3072_v1`
 
-Current status:
-- `outputs/ablations/<pair_id>/summary_temporal.csv`
-- `outputs/ablations/<pair_id>/compare/`
-- kept for exploratory use only
-- not the formal Phase 1 compare entry
-
-2) Seam/blend ablation
-
-```bash
-python3 scripts/legacy/ablate_seam.py \
-  --pair mine_source_lake_left_right \
-  --max_frames 60
-```
-
-Current status:
-- `outputs/ablations/<pair_id>/seam/summary_seam.csv`
-- `outputs/ablations/<pair_id>/seam/compare/`
-- kept for exploratory use only
-- not the formal Phase 1 compare entry
-
-Formal method comparison entry:
-- `scripts/eval_method_compare_matrix.py`
-- fixed compare preset:
-  - `method_a_orb`
-  - `method_a_sift`
-  - `method_b`
-  - `video_mode=1`
-  - `reuse_mode=frame0_all`
-  - `max_frames=6000`
-
-Planned for later phases:
-- dedicated crop/dynamic seam experiment driver
-- richer evaluation / plotting automation
-
-## Legacy Smoke Helpers
-
-The repository now includes:
-- `scripts/legacy/run_frame_smoke_suite.py`
-- `scripts/eval_method_compare_matrix.py`
-
-Default smoke-suite pairs:
-- `mine_source_indoor2_left_right`
-- `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
-- `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
-- `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
-
-Note:
-- `scripts/legacy/run_frame_smoke_suite.py` is an auxiliary debug helper, not a formal evaluation entry.
-
-## Current Recommended Scripts
-
-Formal:
-- `scripts/run_baseline_video.py`
-- `scripts/run_baseline_frame.py`
-- `scripts/run_stitching_gui.py`
-- `scripts/eval_method_compare_matrix.py`
-- `scripts/eval_method_compare.py`
-- `scripts/eval_dynamic_compare.py`
-- `scripts/export_dynamic_visuals.py`
-- `scripts/export_report_figures.py`
-
-Auxiliary / debug:
-- `scripts/inspect_pair.py`
-- `scripts/preprocess/split_sbs_stereo.py`
-
-Internal:
-- `scripts/internal/summarize_method_compare_dataset.py`
-- `scripts/internal/summarize_method_compare_overall.py`
-
-Legacy / exploratory:
-- `scripts/legacy/ablate_temporal.py`
-- `scripts/legacy/ablate_seam.py`
-- `scripts/legacy/run_method_b_preset_sweep.py`
-- `scripts/legacy/run_frame_smoke_suite.py`
-- `scripts/legacy/run_phase2_trigger_calibration.py`
-- `scripts/legacy/run_phase2_seam_smoothing_suite.py`
-- `scripts/legacy/run_phase3_kitti_compare_suite.py`
-
-Alias:
-- `mysourceindoor2` -> `mine_source_indoor2_left_right`
-
-## Development Notes
-
-- Keep pipeline modules under `src/stitching/` focused and composable (I/O, geometry, seam, crop, blend, temporal).
-- When adding a new dataset/pair, update `data/manifests/pairs.yaml` and verify with `scripts/inspect_pair.py`.
-- For frame datasets, prefer adding `meta.index_csv` for deterministic ordering.
-- Keep docs synchronized in:
-  - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
-  - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
-  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
-
-## Troubleshooting
-
-- Not enough matches / homography fails:
-  - Increase texture content, try `--feature sift`, tune `--ratio`/`--min_matches`.
-- Severe black borders or seam artifacts:
-  - Ensure crop is enabled (`--crop`), inspect crop/seam snapshots in `snapshots/`.
-- Large rectangle ghosting:
-  - Check seam mode is not `none`; inspect seam mask and overlap debug images.
-- FPS or timing mismatch:
-  - Verify `meta.fps` or pass `--fps` explicitly for frame sequences.
-- OpenCV API errors for seam/blender:
-  - Use `opencv-contrib-python` and verify installed OpenCV includes `cv2.detail_*`.
-- I/O issues (missing files, frame mismatch):
-  - Run `scripts/inspect_pair.py` first; confirm manifest paths and frame patterns.
-
-## Roadmap
-
-- Integrate calibration-aware preprocessing (undistortion/rectification).
-- Phase 2: dynamic seam + meaningful temporal evaluation.
-- Phase 3: richer evaluation metrics and reporting automation.
-- Phase 4: desktop GUI thin wrapper MVP completed; optional polish remains.
+Current Method B formal baseline parameters:
+- `max_keypoints=4096`
+- `resize_long_edge=1536`
+- `depth_confidence=-1`
+- `width_confidence=-1`
+- `filter_threshold=0.1`

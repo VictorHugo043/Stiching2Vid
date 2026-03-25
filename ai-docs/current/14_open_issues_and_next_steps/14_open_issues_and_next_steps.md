@@ -67,6 +67,14 @@
   - `.venv + requirements.txt + docs/environment.md` 是唯一正式环境入口。
   - 若本机仍保留历史 `.venv-methodb` 目录，只视为旧本地目录名，不再对应单独的依赖文件。
 
+## 当前对外文档入口（2026-03-25 更新）
+- `README.md`
+  - 面向使用者，只保留项目介绍、功能、安装、GUI/CLI 使用和正式评测/图表导出入口
+- `docs/environment.md`
+  - 只负责正式环境安装与运行时说明
+- `ai-docs/current/*`
+  - 继续承载设计、阶段记录、决策、实验和工作流，不再把这些开发过程信息堆进 README
+
 ## 当前脚本入口边界（2026-03-25 更新）
 - 正式工作流优先使用：
   - `scripts/run_baseline_video.py`

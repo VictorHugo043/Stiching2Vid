@@ -4430,3 +4430,82 @@
   - README 仍按用户要求留到最后再对齐。
 - 下一步建议：
   - 如果后续还做最终收尾，只剩 README 与是否要统一历史结果引用口径。
+
+## IMP-20260325-05
+- 状态：done
+- 标题：收敛 README 为面向使用者的正式入口文档
+- 本步目标：
+  - 重写 README，只保留项目介绍、功能、安装、GUI 优先的使用方式、CLI 使用与正式评测/图表导出入口。
+  - 不展示仓库结构、预处理脚本、legacy helper、开发流程、troubleshooting、roadmap 等开发期内容。
+  - 保证 README 与当前正式脚本和环境口径一致。
+- 关联上一步结论：
+  - `IMP-20260325-04` 已完成 formal compare/export 命名收敛。
+  - 用户明确要求 README 最后单独收敛，并去掉开发导向信息。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `docs/environment.md`
+- 本步回读代码：
+  - `scripts/run_stitching_gui.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/export_report_figures.py`
+  - `scripts/export_dynamic_visuals.py`
+- 准备修改文件：
+  - `README.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - README 是最后一个仍带开发期噪音的对外文档，需要独立收敛。
+  - ai-docs 需要记录新的 README 口径，避免以后再次漂移。
+- 风险点：
+  - 不能删掉用户真正需要的正式运行入口。
+  - 不能把当前正式环境、GUI、CLI 或 compare/export 口径写错。
+  - 不能重新把开发工作流塞回 README。
+- 验收标准：
+  - README 不再包含仓库结构、legacy、开发流程、roadmap、troubleshooting 等开发期内容。
+  - README 仍能覆盖安装、GUI、CLI、正式评测和图表导出。
+  - README 与当前正式脚本、环境和 Method B baseline 口径一致。
+- 替代方案与不选原因：
+  - 方案：仅删部分章节，保留现有 README 主体。
+  - 不选原因：旧 README 的信息组织仍以开发期演进为中心，不适合最终用户入口。
+- 实际修改文件：
+  - `README.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - README 重写为用户导向文档：
+    - 项目简介
+    - 功能
+    - 安装
+    - GUI 优先使用
+    - CLI 使用
+    - 正式评测与图表导出
+    - 输出说明
+  - 移除了仓库结构、预处理、legacy smoke、开发说明、troubleshooting、roadmap 等章节。
+  - 保留并对齐了当前正式 Method B baseline `accuracy_v1` 的 CLI 示例。
+  - 补充了 README 与 `docs/environment.md`、`ai-docs/current/*` 的职责边界说明到 current truth 文档。
+- 验证方式：
+  - `rg` 检查 README 中是否还残留 `Repository Structure / split_sbs_stereo / Legacy Smoke Helpers / Current Recommended Scripts / Development Notes / Troubleshooting / Roadmap`
+  - 人工核对 README 中的正式脚本命令与当前 `--help` 输出
+- 运行结果与验证结果：
+  - README 中已不再包含上述开发期章节与关键词。
+  - README 里的正式命令和参数口径已对齐当前正式脚本。
+- 偏差：
+  - 本步没有修改 `docs/environment.md`，只让 README 与它分工更清楚。
+  - 没有引入新的开发者说明章节，相关内容继续留在 `ai-docs/current/`。
+- 下一步建议：
+  - 如果还要继续收尾，当前主要只剩选择是否进一步统一历史 frozen outputs 的引用口径；否则对外文档已经基本闭环。

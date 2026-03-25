@@ -80,6 +80,9 @@
 - 当前 formal compare/export 命名口径：
   - 新生成的 suite id、summary filename 和 markdown/figure 标题不再使用 `phase2 / phase3` 前缀。
   - 历史 `outputs/video_compare/phase2_*` 与 `outputs/phase3/phase3_*` 目录继续保留为冻结结果，不做回写重命名。
+- 当前对外文档口径：
+  - `README.md` 现已收敛为面向使用者的入口文档，只保留项目介绍、功能、安装、GUI/CLI 使用和正式评测导出入口。
+  - 开发过程、历史脚本分层和内部工作流继续放在 `ai-docs/current/` 与 `docs/environment.md`，不再放进 README 主体。
 
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts
