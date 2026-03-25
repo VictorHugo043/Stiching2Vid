@@ -1,9 +1,9 @@
 # Environment Setup
 
 ## Scope
-- This document formalizes the install and usage paths for the environments currently used in this repository.
+- This document defines the current formal install and usage path for the repository.
 - It covers:
-  - the unified formal environment for `Method A` and `Method B`
+  - the single formal environment for `Method A` and `Method B`
   - preprocess helpers such as `split_sbs_stereo.py`
   - legacy smoke helpers retained for debugging
 
@@ -12,11 +12,11 @@
 | --- | --- | --- | --- | --- |
 | system `python3` | quick local inspection on this machine | current local interpreter | ad-hoc / machine-local | not reproducible; do not treat as the formal project environment |
 | `.venv` | recommended formal environment for the whole project | `3.10` to `3.14` | `requirements.txt` + LightGlue install | use for `Method A`, `Method B`, compare/export scripts, GUI, preprocess |
-| `.venv-methodb` | legacy compatibility environment name | `3.10` to `3.14` | `requirements-methodb.txt` + LightGlue install | no longer the recommended formal path; only keep if you already have it and do not want to recreate `.venv` yet |
 
 ## Important Reality Check
-- Do not assume the existing local `.venv` or `.venv-methodb` directories are clean or complete.
-- If behavior looks inconsistent, recreate or reinstall from the requirements files below.
+- Do not assume the existing local `.venv` directory is clean or complete.
+- If behavior looks inconsistent, recreate or reinstall from the formal steps below.
+- If you still have a historical local `.venv-methodb` directory from earlier phases, treat it only as an old local environment name, not as a separate documented install path.
 - `largestinteriorrectangle` is optional in practice because `src/stitching/cropper.py` already contains a conservative fallback path.
 
 ## Unified Formal Environment (`.venv`)
@@ -37,25 +37,11 @@ Recommended use cases:
 - `python scripts/run_baseline_video.py --pair <pair_id> --max_frames 120`
 - `python scripts/eval_method_compare_matrix.py ...`
 - `python scripts/eval_method_compare.py ...`
+- `python scripts/eval_dynamic_compare.py ...`
+- `python scripts/export_dynamic_visuals.py ...`
+- `python scripts/export_report_figures.py ...`
 - `python scripts/run_stitching_gui.py`
 - `python scripts/preprocess/split_sbs_stereo.py --dry_run`
-
-## Legacy Compatibility Environment (`.venv-methodb`)
-If you already have a separate `.venv-methodb` and do not want to rebuild yet,
-it can still be used as a compatibility alias:
-
-```bash
-python3 -m venv .venv-methodb
-source .venv-methodb/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements-methodb.txt
-git clone https://github.com/cvg/LightGlue.git external/LightGlue
-python -m pip install -e external/LightGlue
-```
-
-Notes:
-- `requirements-methodb.txt` is now only a thin compatibility shim that points to `requirements.txt`.
-- The recommended formal path is to use `.venv` instead.
 
 Current runtime guidance on Apple Silicon:
 - use `--device cpu` or `--force_cpu`
@@ -138,7 +124,7 @@ Default pairs:
 Notes:
 - user shorthand `mysourceindoor2` maps to the real manifest id `mine_source_indoor2_left_right`
 - the suite launches `scripts/run_baseline_frame.py` once per pair and writes a summary bundle under `outputs/frame_smoke/<suite_id>/`
-- the suite is not part of the current formal Phase 2 / Phase 3 experiment workflow
+- the suite is not part of the current formal experiment workflow
 
 Run Method A smoke suite:
 
@@ -178,5 +164,5 @@ Notes:
 
 ## Which Environment Should I Use?
 - Formal recommendation: use `.venv` for the whole project.
-- If you already have `.venv-methodb`, it still works, but it is no longer the recommended primary path.
+- Historical local `.venv-methodb` directories, if they still exist on your machine, should be treated as leftover compatibility artifacts rather than a separate documented environment.
 - If you are just checking a pair quickly on this machine and do not want to recreate environments yet, system `python3` can still be used for limited inspection, but it is not the documented reproducible path.

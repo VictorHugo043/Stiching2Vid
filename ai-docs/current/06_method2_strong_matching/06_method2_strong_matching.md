@@ -264,7 +264,6 @@
     - 兼容官方 LightGlue compact 输出中 `matches / scores` 为 batch-wise list 的情况
   - 新增正式环境入口：
     - root `requirements.txt`
-    - root `requirements-methodb.txt`（兼容 alias）
     - `docs/environment.md`
   - 新增多 pair 单帧回归入口：
     - `scripts/legacy/run_frame_smoke_suite.py`
@@ -630,10 +629,9 @@
   - 规避：兼容保留旧 bundle 字段，在 `debug.json` 里新增 Method B 专属字段
 
 ## 验收标准(DoD)
-- 已有正式环境文档，能清楚区分 baseline env 与 Method B env 的安装和使用方式。
+- 已有正式环境文档，能清楚说明统一正式环境、LightGlue 额外安装步骤和 Method B 的使用方式。
 - root requirements 已固定：
   - `requirements.txt`
-  - `requirements-methodb.txt`（兼容 alias）
 - 单帧 smoke / regression 已有正式入口：
   - `scripts/run_baseline_frame.py`
   - `scripts/legacy/run_frame_smoke_suite.py`

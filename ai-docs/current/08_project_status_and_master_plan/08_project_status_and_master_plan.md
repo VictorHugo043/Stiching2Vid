@@ -185,7 +185,6 @@
   - 当前统一正式环境下真实 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 单帧成功 smoke
   - 正式环境入口：
     - `requirements.txt`
-    - `requirements-methodb.txt`（兼容 alias）
     - `docs/environment.md`
   - 默认多 pair 单帧 smoke suite：
     - `scripts/legacy/run_frame_smoke_suite.py`
@@ -235,8 +234,8 @@
 ### 风险与规避
 - 风险：环境缺依赖。
   - 规避：optional dependency、lazy import、fallback。
-- 风险：本地已有 `.venv` / `.venv-methodb` 与正式 requirements 漂移。
-  - 规避：把 `.venv + requirements.txt + docs/environment.md` 作为唯一正式环境入口；`.venv-methodb` 仅作为兼容实例；必要时重建虚拟环境。
+- 风险：本地已有历史 `.venv-methodb` 目录或旧依赖状态与当前正式 requirements 漂移。
+  - 规避：把 `.venv + requirements.txt + docs/environment.md` 作为唯一正式环境入口；历史本地目录仅视为兼容遗留；必要时直接重建 `.venv`。
 - 风险：为了补单帧 seam/crop parity，直接复制 `run_baseline_video.py` 的内联质量链路逻辑。
   - 规避：若要做 `frame_quality_preview`，应优先抽共享 helper / adapter，而不是复制大段视频脚本。
 

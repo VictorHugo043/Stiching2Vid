@@ -4247,3 +4247,94 @@
 - 下一步建议：
   - 后续如无特殊需要，统一只维护 `.venv` 这一路径。
   - 若还要继续收尾，可考虑把 compare/export 示例命令里的旧 `phase3_*` suite id 也逐步去 phase 化。
+
+## IMP-20260325-03
+- 状态：done
+- 标题：删除旧 Method B 兼容依赖文件并完成当前 truth 文档对齐
+- 本步目标：
+  - 删除 `requirements-methodb.txt`。
+  - 将当前 truth 文档统一到单一正式环境：`.venv + requirements.txt`。
+  - 复盘当前代码与脚本结构，记录不改逻辑前提下的 review 发现。
+  - 按用户要求暂不修改 README。
+- 关联上一步结论：
+  - `DEC-20260325-02` 已把正式环境口径收敛到 `.venv + requirements.txt`，但仍保留了兼容文件与部分 current truth 残留引用。
+  - 用户这一步明确要求删除旧依赖文件，并继续做不改逻辑的全仓 review。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码/配置：
+  - `docs/environment.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+  - `src/stitching/method_b_presets.py`
+  - `src/stitching/method_b_runtime.py`
+  - `scripts/run_stitching_gui.py`
+- 准备修改文件：
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这一步的核心是删掉已经不需要的兼容依赖文件，并把 current truth 文档收敛到当前真实状态。
+  - review 结论也需要通过日志和 open issues 记录下来，避免后续重新判断。
+- 风险点：
+  - 删除兼容文件后，不能让 current truth 文档仍然指向旧安装路径。
+  - 不能误清洗 append-only 历史记录。
+  - 不能为了收尾去改已有正式实验逻辑或输出语义。
+- 验收标准：
+  - 仓库根目录不再存在 `requirements-methodb.txt`。
+  - `docs/environment.md` 与 ai-docs current truth 不再把 `requirements-methodb.txt` 当作正式或兼容依赖入口。
+  - 完成一次不改逻辑的全仓 review，并把主要发现记录下来。
+- 替代方案与不选原因：
+  - 方案：继续保留 `requirements-methodb.txt` 作为纯兼容 shim。
+  - 不选原因：当前项目已经收尾，这个文件只会增加误导；历史本地环境目录即使存在，也不需要继续配套维护第二份依赖入口。
+- 实际修改文件：
+  - 删除 `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 删除 `requirements-methodb.txt`。
+  - `docs/environment.md` 改为只保留 `.venv + requirements.txt` 这一条正式安装路径。
+  - `06 / 08 / 14` current truth 文档全部去除了对 `requirements-methodb.txt` 的当前引用。
+  - 在 `14_open_issues_and_next_steps` 中补记了一个非阻塞 review 发现：部分 formal compare/export 脚本和结果文件名仍有 `phase2 / phase3` 命名残留。
+- review 发现：
+  - 当前没有发现需要立即修复的核心逻辑回归风险。
+  - formal compare/export 脚本仍存在部分 `phase2 / phase3` 命名残留：
+    - `scripts/eval_dynamic_compare.py`
+    - `scripts/internal/summarize_method_compare_dataset.py`
+    - `scripts/internal/summarize_method_compare_overall.py`
+    - `scripts/export_dynamic_visuals.py`
+  - 这些属于命名/收尾问题，不影响当前正式结果和逻辑。
+  - 仓库里仍有生成物残留，如 `__pycache__` 与 `.DS_Store`；本步未清理，避免引入无关 destructive 变更。
+- 验证方式：
+  - `find src scripts -name '*.py' | sort`
+  - `find src scripts -name '*.py' -print0 | xargs -0 python3 -m py_compile`
+  - `rg` 检查 current truth 文档中是否仍残留 `requirements-methodb.txt` 与 `.venv-methodb` 的正式引用
+- 运行结果与验证结果：
+  - `requirements-methodb.txt` 已从仓库根目录删除。
+  - 全仓 `src/` 与 `scripts/` Python 文件 `py_compile` 通过。
+  - current truth 文档中已不再把 `requirements-methodb.txt` 作为当前环境入口；`.venv-methodb` 仅在必要处保留为历史本地目录名说明。
+- 偏差：
+  - 按用户要求，本步没有更新 README。
+  - 没有处理 phase-labeled 输出目录名和 markdown 标题，只把它们记录为非阻塞收尾项。
+- 下一步建议：
+  - 若后续继续做最终收尾，优先统一 README 和 formal compare/export 的 phase-labeled 输出命名。
+  - 若不再继续收尾，当前代码与文档已经足以支撑现有正式工作流。

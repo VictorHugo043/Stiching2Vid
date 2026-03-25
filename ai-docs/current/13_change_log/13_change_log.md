@@ -51,6 +51,7 @@
 | CHG-20260324-15 | 2026-03-24 | code+docs | 修复 Phase 4 GUI 动态参数区的错位：放弃错父容器的 `pack` 方案，改为在 `dynamic_options_frame` 上直接使用与主表单一致的 `grid` 布局重建 `keyframe / trigger` 字段 | 影响 GUI 表单显示协调性；不改变任何 CLI 透传或核心 stitching pipeline 语义 | 本次是纯布局实现修复，目标是让动态字段和主表单完全对齐 |
 | CHG-20260325-01 | 2026-03-25 | scripts+docs | 完成脚本入口体系收尾：将正式顶层脚本重命名为稳定 final 名称，新增 `scripts/internal/` 作为内部汇总层，把 phase-specific helper 迁入 `scripts/legacy/`，并同步更新 README、环境文档与 ai-docs current truth 文档 | 影响当前正式入口的命名、脚本目录分层和所有当前使用文档；不改变核心 stitching / evaluation 算法行为，也不回写历史结果目录 | 旧正式脚本名只保留在 append-only 历史日志和既有输出目录中；后续新工作流应统一使用 `eval_* / export_* / scripts/internal/*` 命名 |
 | CHG-20260325-02 | 2026-03-25 | config+docs | 合并正式依赖文件：`requirements.txt` 升级为统一正式环境，`requirements-methodb.txt` 降级为兼容 alias；同步把 README、环境文档和 current truth 的正式环境口径统一成 `.venv` | 影响正式安装路径、依赖入口和用户使用说明；不改变核心 stitching / evaluation 算法行为 | `.venv-methodb` 和 `requirements-methodb.txt` 仍保留以兼容已有本地环境，但不再作为正式主路径 |
+| CHG-20260325-03 | 2026-03-25 | config+docs+review | 删除 `requirements-methodb.txt`，将 current truth 文档统一到 `.venv + requirements.txt`，并完成一次不改逻辑的全仓 review 记录 | 影响正式环境入口与当前文档口径；不改变核心 stitching / evaluation 算法行为 | README 按用户要求暂未在本步更新；formal compare/export 的 phase 命名残留已记录为非阻塞收尾项 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |

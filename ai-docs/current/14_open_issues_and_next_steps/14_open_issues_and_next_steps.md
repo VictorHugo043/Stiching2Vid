@@ -7,8 +7,8 @@
 ## 当前 open issues
 | ID | 状态 | 问题 | 影响 | 处理建议 |
 | --- | --- | --- | --- | --- |
-| ISSUE-20260319-01 | closed | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 已补 root `requirements.txt`、`requirements-methodb.txt` 与 `docs/environment.md` |
-| ISSUE-20260319-02 | closed | 当前 Method B 正式环境已经按 `requirements-methodb.txt` 安装并验证通过；`.venv-methodb` 已在多 pair 单帧、多帧抽样和短视频 smoke 上跑通 | Method B 环境不再是当前主 blocker | 后续默认沿用当前 `.venv-methodb`；如环境再漂移，再按 `docs/environment.md` 重建 |
+| ISSUE-20260319-01 | closed | 根仓库缺少正式依赖文件（无 `requirements.txt / pyproject.toml / environment.yml`） | Method B 与 GUI 的环境复现成本高 | 已补 root `requirements.txt` 与 `docs/environment.md` |
+| ISSUE-20260319-02 | closed | 当前 Method B 已并入统一正式环境，历史 `.venv-methodb` 仅作为本机兼容目录名保留 | Method B 环境不再是当前主 blocker | 后续统一按 `.venv + requirements.txt + docs/environment.md` 安装与重建 |
 | ISSUE-20260319-03 | closed | `fixed_geometry` 下 `jitter` 容易退化为 0，仍可能被误读为“seam 没更新” | 该解释风险已不再阻塞当前主线 | 已通过 `mean_overlap_diff_after / temporal_primary_metric / jitter_scope / seam_snapshot_on_recompute`、正式 Phase 2 compare matrix 与 `visual_summary.md` 固定解释边界 |
 | ISSUE-20260319-06 | closed | 旧 ablation 脚本尚未统一消费 `geometry_mode / jitter_meaningful` 新字段 | 该问题已不再影响当前主框架 | 已将 `scripts/legacy/ablate_temporal.py`、`scripts/legacy/ablate_seam.py` 移出顶层正式入口，保留为历史探索脚本 |
 | ISSUE-20260319-04 | deferred | 当前 seam 模块是 OpenCV mask 风格，无法直接承载 object-centered MRF seam | 属于 advanced 路线，不再阻塞当前 Phase 2 收尾 | 保持当前 OpenCV seam backend 路线；若后续需要 advanced seam，再单独立项 |
@@ -25,6 +25,7 @@
 | ISSUE-20260324-01 | partial | fixed-geometry richer metrics 已完成 full-length 正式重跑与 plot/export，但 temporal coherence 仍缺少更强的 motion-compensated 指标；当前只实现了 `seam-band flicker` 这一层 | 现在已经能用 full-length richer-metrics 正式表更完整地解释 Method B 的 trade-off，但如果 final report 需要更强的时序论证，单靠 `mean_stitched_delta + seam-band flicker` 仍有限 | 当前先保留 `seam-band flicker` 作为 MVP temporal artefact 指标；若后续需要更强时序论证，再单独补 `flow-compensated temporal residual` |
 | ISSUE-20260324-02 | closed | `kp3072_v1` 的 full-length 多数据域复验已完成；它虽然略微改善了 overall `inlier_ratio / fps / reprojection`，但 `mean_inliers` 从约 `748.88` 降到约 `609.58`，且在 `mine_source` 上明显回退，因此不能替换正式 `accuracy_v1` | 该问题已不再阻塞当前正式 baseline 选择 | 继续保持 `accuracy_v1` 为正式默认；把 `kp3072_v1` 仅作为候选复验与方法讨论材料保留在 `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/` |
 | ISSUE-20260324-03 | partial | Phase 4 GUI thin wrapper 已补齐 existing pair 首帧预览、条件显示且已重排的 keyframe 参数、注册弹窗和 run 目录打开能力，但范围仍只覆盖桌面 `tkinter` 单 run 流程：新 pair 注册仅支持左右视频文件，不支持 frame directory / batch compare / figure export | 当前可用性已明显提升，但仍不应被误解为完整实验工作台 | 当前先由用户在本机完成一次真实交互确认；后续如继续做 GUI，只做错误提示和 artefact 预览等 polish，不回头侵入核心 pipeline |
+| ISSUE-20260325-01 | deferred | 正式 compare/export 脚本与部分结果文件名仍保留 `phase2 / phase3` 命名残留 | 不影响当前逻辑和正式结论，但会让最终打包与口径看起来不够收敛 | 当前先保持输出兼容；如后续还做最终收尾，再统一清理 suite id、summary filename 和 markdown 标题 |
 
 ## 接下来最先做的 3 件事
 1. 若继续优化 Method B，优先探索新的安全候选或新的参数方向；`kp3072_v1` 的 full-length 复验已完成，当前不值得升格为正式默认。
@@ -62,11 +63,9 @@
 - 正式推荐：
   - `.venv`
   - `requirements.txt`
-- 兼容保留：
-  - `.venv-methodb`
-  - `requirements-methodb.txt`
 - 当前口径：
-  - `.venv-methodb` 不再是正式主路径，只作为兼容环境名保留。
+  - `.venv + requirements.txt + docs/environment.md` 是唯一正式环境入口。
+  - 若本机仍保留历史 `.venv-methodb` 目录，只视为旧本地目录名，不再对应单独的依赖文件。
 
 ## 当前脚本入口边界（2026-03-25 更新）
 - 正式工作流优先使用：
