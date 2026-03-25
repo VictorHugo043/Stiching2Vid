@@ -65,9 +65,9 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run(repo_root: Path, phase3_dir: Path, name: str, cmd: Sequence[str]) -> int:
-    stdout_path = phase3_dir / f"{name}.stdout.txt"
-    stderr_path = phase3_dir / f"{name}.stderr.txt"
+def _run(repo_root: Path, suite_dir: Path, name: str, cmd: Sequence[str]) -> int:
+    stdout_path = suite_dir / f"{name}.stdout.txt"
+    stderr_path = suite_dir / f"{name}.stderr.txt"
     completed = subprocess.run(list(cmd), cwd=str(repo_root), text=True, capture_output=True)
     stdout_path.write_text(completed.stdout, encoding="utf-8")
     stderr_path.write_text(completed.stderr, encoding="utf-8")
@@ -140,14 +140,14 @@ def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parents[1]
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    suite_id = args.suite_id or f"{timestamp}_phase3_methods_rich"
-    phase3_dir = repo_root / "outputs" / "phase3" / suite_id
-    phase3_dir.mkdir(parents=True, exist_ok=True)
+    suite_id = args.suite_id or f"{timestamp}_method_compare_full"
+    suite_dir = repo_root / "outputs" / "phase3" / suite_id
+    suite_dir.mkdir(parents=True, exist_ok=True)
 
     dataset_specs = [
-        ("kitti", "phase3_kitti_methods_rich_v3", KITTI_PAIRS, 10.0),
-        ("dynamicstereo", "phase3_dynamicstereo_methods_rich_v3", DYNAMICSTEREO_PAIRS, 10.0),
-        ("minesource", "phase3_minesource_methods_rich_v3", MINESOURCE_PAIRS, 30.0),
+        ("kitti", "kitti_method_compare_rich_v3", KITTI_PAIRS, 10.0),
+        ("dynamicstereo", "dynamicstereo_method_compare_rich_v3", DYNAMICSTEREO_PAIRS, 10.0),
+        ("minesource", "minesource_method_compare_rich_v3", MINESOURCE_PAIRS, 30.0),
     ]
 
     overall_rc = 0
@@ -156,13 +156,13 @@ def main() -> int:
     for dataset_key, child_suite_id, pairs, fps_value in dataset_specs:
         method_suite_id = f"{child_suite_id}__methods"
         compare_cmd = _build_compare_cmd(args, method_suite_id, pairs, fps_value)
-        rc = _run(repo_root, phase3_dir, f"{dataset_key}_method_compare", compare_cmd)
+        rc = _run(repo_root, suite_dir, f"{dataset_key}_method_compare", compare_cmd)
         overall_rc = rc or overall_rc
         if rc != 0 and not args.continue_on_error:
             return rc
 
         summary_cmd = _build_summary_cmd(args, child_suite_id, method_suite_id, pairs, fps_value)
-        rc = _run(repo_root, phase3_dir, f"{dataset_key}_build_summary", summary_cmd)
+        rc = _run(repo_root, suite_dir, f"{dataset_key}_build_summary", summary_cmd)
         overall_rc = rc or overall_rc
         if rc != 0 and not args.continue_on_error:
             return rc
@@ -178,7 +178,7 @@ def main() -> int:
             }
         )
 
-    overall_suite_id = "phase3_overall_methods_rich_v3"
+    overall_suite_id = "overall_method_compare_rich_v3"
     overall_cmd = [
         str(args.python_bin),
         "scripts/internal/summarize_method_compare_overall.py",
@@ -187,7 +187,7 @@ def main() -> int:
         "--source_suites",
         *source_suites,
     ]
-    rc = _run(repo_root, phase3_dir, "build_overall_summary", overall_cmd)
+    rc = _run(repo_root, suite_dir, "build_overall_summary", overall_cmd)
     overall_rc = rc or overall_rc
     if rc != 0 and not args.continue_on_error:
         return rc
@@ -199,12 +199,12 @@ def main() -> int:
             "--suite_id",
             overall_suite_id,
         ]
-        rc = _run(repo_root, phase3_dir, "build_figures", figure_cmd)
+        rc = _run(repo_root, suite_dir, "build_figures", figure_cmd)
         overall_rc = rc or overall_rc
         if rc != 0 and not args.continue_on_error:
             return rc
 
-    (phase3_dir / "suite_manifest.json").write_text(
+    (suite_dir / "suite_manifest.json").write_text(
         json.dumps(
             {
                 "suite_id": suite_id,
@@ -222,7 +222,7 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    print(f"phase3_parent_suite={suite_id}")
+    print(f"parent_suite={suite_id}")
     print(f"source_suites={','.join(source_suites)}")
     print(f"overall_suite={overall_suite_id}")
     return overall_rc

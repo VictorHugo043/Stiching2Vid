@@ -106,9 +106,9 @@ def _build_markdown(
     rows: Sequence[Dict[str, object]],
 ) -> str:
     lines: List[str] = []
-    lines.append(f"# Phase 2 Visual Summary: {suite_id}")
+    lines.append(f"# Dynamic Visual Summary: {suite_id}")
     lines.append("")
-    lines.append("本文件汇总正式 Phase 2 dynamic seam 对比矩阵的代表性图像。")
+    lines.append("本文件汇总正式 dynamic seam 对比矩阵的代表性图像。")
     lines.append("")
 
     pair_ids = sorted({str(row["pair_id"]) for row in rows})

@@ -124,7 +124,7 @@ def _save_core_metrics(
         ax.set_title(title)
         ax.tick_params(axis="x", rotation=15)
         ax.grid(axis="y", alpha=0.25)
-    fig.suptitle("Phase 3 Method Compare: Core Metrics")
+    fig.suptitle("Method Compare: Core Metrics")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -171,7 +171,7 @@ def _save_runtime_metrics(
     axes[1].grid(axis="y", alpha=0.25)
     axes[1].legend()
 
-    fig.suptitle("Phase 3 Method Compare: Runtime")
+    fig.suptitle("Method Compare: Runtime")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -196,7 +196,7 @@ def _save_quality_metrics(
         ax.set_title(title)
         ax.tick_params(axis="x", rotation=15)
         ax.grid(axis="y", alpha=0.25)
-    fig.suptitle("Phase 3 Method Compare: Geometry / Seam Quality")
+    fig.suptitle("Method Compare: Geometry / Seam Quality")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -219,7 +219,7 @@ def _save_temporal_metrics(
         ax.set_title(title)
         ax.tick_params(axis="x", rotation=15)
         ax.grid(axis="y", alpha=0.25)
-    fig.suptitle("Phase 3 Method Compare: Temporal Artefacts")
+    fig.suptitle("Method Compare: Temporal Artefacts")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -253,14 +253,14 @@ def _save_dataset_breakdown(
         ax.set_xticklabels(datasets, rotation=15)
         ax.grid(axis="y", alpha=0.25)
     axes[0, 0].legend()
-    fig.suptitle("Phase 3 Method Compare: By-dataset Breakdown")
+    fig.suptitle("Method Compare: By-dataset Breakdown")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
 
 
 def _write_markdown(path: Path, figure_rows: Sequence[Dict[str, object]]) -> None:
-    lines = ["# Phase 3 Report Figures", ""]
+    lines = ["# Report Figures", ""]
     lines.append("## Figure List")
     lines.append("")
     for row in figure_rows:

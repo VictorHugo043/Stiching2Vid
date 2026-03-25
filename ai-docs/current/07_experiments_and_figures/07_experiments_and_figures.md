@@ -55,6 +55,15 @@
   - `scripts/internal/summarize_method_compare_dataset.py`
   - `scripts/internal/summarize_method_compare_overall.py`
 
+## 当前命名口径（2026-03-25 更新）
+- formal compare/export 脚本新生成的 suite id、summary filename 和 markdown/figure 标题不再使用 `phase2 / phase3` 前缀。
+- 当前文档里仍引用的大量 `outputs/video_compare/phase2_*` 与 `outputs/phase3/phase3_*` 路径，都是已经冻结的历史正式结果目录。
+- 新生成 artefact 的默认 summary 命名：
+  - dataset-level：`dataset_summary.md`
+  - overall：`overall_summary.md`
+  - dynamic visuals：`visual_summary.md`
+  - report figures：`figures.md`
+
 ## 当前正式推荐素材（2026-03-23）
 - Phase 1 方法对比正式入口：
   - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`

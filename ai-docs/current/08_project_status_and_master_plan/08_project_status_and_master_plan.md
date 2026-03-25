@@ -77,6 +77,9 @@
 - Method B preset 当前只保留：
   - `accuracy_v1`
   - `kp3072_v1`
+- 当前 formal compare/export 命名口径：
+  - 新生成的 suite id、summary filename 和 markdown/figure 标题不再使用 `phase2 / phase3` 前缀。
+  - 历史 `outputs/video_compare/phase2_*` 与 `outputs/phase3/phase3_*` 目录继续保留为冻结结果，不做回写重命名。
 
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts

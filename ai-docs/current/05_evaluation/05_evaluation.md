@@ -186,6 +186,9 @@
 ### Phase 2 正式 dynamic seam compare（2026-03-23 收尾）
 - 正式入口：
   - `scripts/eval_dynamic_compare.py`
+- 当前命名口径：
+  - 新生成的 formal dynamic compare suite 默认不再使用 `phase2_*` 前缀。
+  - 下列 `phase2_dynamic_compare_full_v1` 仅作为历史冻结结果目录保留。
 - 正式 suite：
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
@@ -439,6 +442,9 @@
 ### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）
 - 正式入口：
   - `scripts/legacy/run_phase3_kitti_compare_suite.py`
+- 当前命名口径：
+  - 新生成的 formal method/export suite 默认不再使用 `phase3_*` 前缀。
+  - 下列 `phase3_*` 目录继续只作为历史冻结结果保留。
   - `scripts/internal/summarize_method_compare_dataset.py`
 - 当前正式 suite：
   - `outputs/phase3/phase3_kitti_full_v1/phase3_kitti_summary.md`

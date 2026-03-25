@@ -52,7 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--suite_id", required=True, help="Parent suite id under outputs/phase3/")
     parser.add_argument("--method_suite_id", default=None, help="Method compare suite id under outputs/video_compare/")
     parser.add_argument("--dynamic_suite_id", default=None, help="Dynamic compare suite id under outputs/video_compare/")
-    parser.add_argument("--pairs", nargs="*", default=None, help="Pairs included in the Phase 3 suite")
+    parser.add_argument("--pairs", nargs="*", default=None, help="Pairs included in the dataset suite")
     parser.add_argument("--fps", type=float, default=10.0, help="Nominal fps used for the suite")
     parser.add_argument("--max_frames", type=int, default=6000, help="Nominal max_frames used for the suite")
     return parser
@@ -173,7 +173,7 @@ def _build_markdown(
     out_dir: Path,
 ) -> str:
     lines: List[str] = []
-    lines.append(f"# Phase 3 KITTI Summary: {suite_id}")
+    lines.append(f"# Dataset Summary: {suite_id}")
     lines.append("")
     lines.append("## 配置")
     lines.append("")
@@ -299,8 +299,8 @@ def main() -> int:
         dynamic_visual_summary=dynamic_visual_summary,
         out_dir=out_dir,
     )
-    (out_dir / "phase3_kitti_summary.md").write_text(overview_md, encoding="utf-8")
-    print(f"phase3_summary={_rel(repo_root, out_dir / 'phase3_kitti_summary.md')}")
+    (out_dir / "dataset_summary.md").write_text(overview_md, encoding="utf-8")
+    print(f"dataset_summary={_rel(repo_root, out_dir / 'dataset_summary.md')}")
     return 0
 
 

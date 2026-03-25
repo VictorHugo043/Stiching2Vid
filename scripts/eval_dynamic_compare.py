@@ -469,7 +469,7 @@ def main() -> int:
     pairs = _resolve_pairs(args.pairs)
     presets = _resolve_presets(args.presets)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    suite_id = args.suite_id or f"{timestamp}_phase2_dynamic_compare"
+    suite_id = args.suite_id or f"{timestamp}_dynamic_compare"
     suite_dir = repo_root / "outputs" / "video_compare" / suite_id
     suite_dir.mkdir(parents=True, exist_ok=True)
 

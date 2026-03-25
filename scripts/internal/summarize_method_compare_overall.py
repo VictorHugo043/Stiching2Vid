@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--source_suites",
         nargs="+",
         required=True,
-        help="Source Phase 3 suite ids under outputs/phase3/",
+        help="Source dataset suite ids under outputs/phase3/",
     )
     return parser
 
@@ -189,7 +189,7 @@ def _build_markdown(
     overall_dynamic_rows: Sequence[Dict[str, object]],
 ) -> str:
     lines: List[str] = []
-    lines.append(f"# Phase 3 Overall Summary: {out_dir.name}")
+    lines.append(f"# Overall Summary: {out_dir.name}")
     lines.append("")
     lines.append("## Source Suites")
     lines.append("")
@@ -347,11 +347,11 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    (out_dir / "phase3_overall_summary.md").write_text(
+    (out_dir / "overall_summary.md").write_text(
         _build_markdown(out_dir, source_manifest_rows, overall_method_rows, overall_dynamic_rows),
         encoding="utf-8",
     )
-    print(f"phase3_overall_summary={_rel(repo_root, out_dir / 'phase3_overall_summary.md')}")
+    print(f"overall_summary={_rel(repo_root, out_dir / 'overall_summary.md')}")
     return 0
 
 

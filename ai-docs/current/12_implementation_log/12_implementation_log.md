@@ -4338,3 +4338,95 @@
 - 下一步建议：
   - 若后续继续做最终收尾，优先统一 README 和 formal compare/export 的 phase-labeled 输出命名。
   - 若不再继续收尾，当前代码与文档已经足以支撑现有正式工作流。
+
+## IMP-20260325-04
+- 状态：done
+- 标题：收敛 formal compare/export 的阶段命名残留
+- 本步目标：
+  - 将 formal compare/export 脚本中新生成 artefact 的默认 suite id、summary filename 与 markdown/figure 标题去 phase 化。
+  - 保持历史 `outputs/video_compare/phase2_*` 与 `outputs/phase3/phase3_*` 目录不变。
+  - 对齐 current truth 文档口径，但按用户要求暂不修改 README。
+- 关联上一步结论：
+  - `IMP-20260325-03` 已确认 formal compare/export 仍有 `phase2 / phase3` 命名残留，且该问题已记录为非阻塞收尾项。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+- 本步回读代码：
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+- 准备修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前正式脚本名已经收敛，但新生成 artefact 仍带阶段命名，容易和历史 phase 结果混淆。
+  - 这一步只改 formal compare/export 的命名口径，不动算法和历史结果目录。
+- 风险点：
+  - 不能破坏脚本间对子 summary filename 的依赖关系。
+  - 不能误改历史输出路径引用，导致当前 frozen results 文档失真。
+  - 不能顺手修改 README，避免偏离当前用户要求。
+- 验收标准：
+  - 新生成的 formal dynamic/method/export suite 默认不再使用 `phase2 / phase3` 前缀。
+  - 新生成的 dataset/overall summary markdown 文件不再叫 `phase3_*_summary.md`。
+  - current truth 文档明确区分“新口径”和“历史 phase 输出目录”。
+- 替代方案与不选原因：
+  - 方案：只在文档里解释，不改脚本默认命名。
+  - 不选原因：用户要求收敛 formal compare/export 的阶段命名，仅靠文档解释仍会继续生成新的 `phase*` artefact。
+- 实际修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `eval_dynamic_compare.py` 默认 suite id 改为中性 `dynamic_compare` 风格。
+  - `eval_method_compare.py` 默认 parent suite、dataset child suite、overall suite 改为中性 `*_method_compare_*` 风格。
+  - dataset summary 改为输出 `dataset_summary.md`。
+  - overall summary 改为输出 `overall_summary.md`。
+  - dynamic visuals 和 report figures 的 markdown/figure 标题去掉 `Phase 2 / Phase 3` 前缀。
+  - current truth 文档补充说明：现有 `phase*` 路径是历史冻结结果，新生成 artefact 不再沿用该前缀。
+- 验证方式：
+  - `python3 -m py_compile scripts/eval_method_compare.py scripts/eval_dynamic_compare.py scripts/internal/summarize_method_compare_dataset.py scripts/internal/summarize_method_compare_overall.py scripts/export_dynamic_visuals.py scripts/export_report_figures.py`
+  - `python3 scripts/eval_method_compare.py --help`
+  - `python3 scripts/eval_dynamic_compare.py --help`
+  - `python3 scripts/export_dynamic_visuals.py --help`
+  - `python3 scripts/export_report_figures.py --help`
+  - `rg` 检查 formal compare/export 脚本中的 `phase2 / phase3` 残留
+- 运行结果与验证结果：
+  - formal compare/export 脚本编译通过，`--help` 通过。
+  - 脚本中的 formal 默认命名已去 phase 化。
+  - current truth 文档已同步说明历史 phase 输出目录与新 formal 命名之间的关系。
+- 偏差：
+  - 没有改动历史 `outputs/phase*` 目录，也没有重跑实验。
+  - README 仍按用户要求留到最后再对齐。
+- 下一步建议：
+  - 如果后续还做最终收尾，只剩 README 与是否要统一历史结果引用口径。
