@@ -4054,3 +4054,196 @@
   - 自动化环境仍未进行真实窗口截图级验证，需以用户本机体验为准。
 - 下一步建议：
   - 由用户直接确认当前动态参数区是否已经和主表单对齐。
+
+## IMP-20260325-01
+- 状态：done
+- 标题：收尾阶段脚本命名与入口体系收敛
+- 本步目标：
+  - 盘点当前 `scripts/` 的正式入口、辅助工具和历史探索脚本。
+  - 将仍带 `phase2 / phase3` 临时语义、但已经成为最终框架一部分的脚本改成更稳定的命名。
+  - 将不再属于主框架的 phase-specific exploratory helper 移入 `scripts/legacy/` 或其他更合适的位置。
+  - 保留并明确：
+    - 主视频入口
+    - GUI 入口
+    - Method A vs Method B 正式 evaluation compare
+    - final report plot / export
+- 关联上一步结论：
+  - 当前项目主框架和 GUI 已基本完成，用户希望做一次整体命名与入口收尾。
+  - `scripts/` 里仍混有多个 Phase 2 / Phase 3 临时命名入口，容易让正式工作流与历史实验脚本混在一起。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码：
+  - `scripts/*`
+  - `README.md`
+  - `docs/environment.md`
+- 准备修改文件：
+  - `scripts/` 下正式入口和 legacy 脚本
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 本步的核心是入口命名和职责边界收敛，主影响面就在脚本目录和使用文档。
+  - 需要把新的正式入口清单和 legacy 边界同步记录到 ai-docs。
+- 风险点：
+  - 直接重命名脚本会打断 README、环境文档、GUI/实验脚本之间的相互引用。
+  - `phase2 / phase3` 脚本里可能有部分是正式 compare 依赖，不能误移到 legacy。
+  - append-only 历史日志会保留旧路径，必须接受这种历史痕迹，不做回写清洗。
+- 验收标准：
+  - `scripts/` 顶层只保留最终正式入口和仍有现实价值的辅助工具。
+  - Method A/B compare 与 plot/export 入口保留且命名更稳定。
+  - 被移入 `legacy/` 的脚本不再出现在 README 的正式入口清单里。
+  - 所有重命名后的正式入口 `--help` 和 `py_compile` 正常。
+- 替代方案与不选原因：
+  - 方案：只改 README，不动脚本命名。
+  - 不选原因：当前脚本名本身已经带有明显临时阶段语义，只改文档不足以完成真正收尾。
+- 实际修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/README.md`
+  - `scripts/legacy/README.md`
+  - `scripts/legacy/run_frame_smoke_suite.py`
+  - `scripts/legacy/run_phase2_trigger_calibration.py`
+  - `scripts/legacy/run_phase2_seam_smoothing_suite.py`
+  - `scripts/legacy/run_phase3_kitti_compare_suite.py`
+  - `README.md`
+  - `docs/environment.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/09_dynamic_seam_and_temporal_eval/09_dynamic_seam_and_temporal_eval.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 顶层正式脚本改名：
+    - `run_video_compare_suite.py -> eval_method_compare_matrix.py`
+    - `run_phase3_full_methods_suite.py -> eval_method_compare.py`
+    - `run_phase2_dynamic_compare_suite.py -> eval_dynamic_compare.py`
+    - `build_phase2_visual_summary.py -> export_dynamic_visuals.py`
+    - `build_phase3_report_figures.py -> export_report_figures.py`
+  - 内部汇总脚本收敛到 `scripts/internal/`：
+    - `build_phase3_kitti_summary.py -> scripts/internal/summarize_method_compare_dataset.py`
+    - `build_phase3_overall_summary.py -> scripts/internal/summarize_method_compare_overall.py`
+  - 历史 / phase-specific helper 移入 `scripts/legacy/`：
+    - `run_frame_smoke_suite.py`
+    - `run_phase2_trigger_calibration.py`
+    - `run_phase2_seam_smoothing_suite.py`
+    - `run_phase3_kitti_compare_suite.py`
+  - 更新 formal 脚本内部对子脚本路径的调用。
+  - README、环境文档和 ai-docs 的 current truth 文档全部切换到新命名。
+  - 新增 `scripts/internal/README.md`，明确 internal 脚本只用于 formal driver 的 summary rebuild。
+- 验证方式：
+  - `python3 -m py_compile` 覆盖 formal / internal / legacy 以及 preprocess 相关脚本
+  - `python3 scripts/eval_method_compare.py --help`
+  - `python3 scripts/eval_method_compare_matrix.py --help`
+  - `python3 scripts/eval_dynamic_compare.py --help`
+  - `python3 scripts/export_report_figures.py --help`
+  - `python3 scripts/export_dynamic_visuals.py --help`
+  - `rg` 检查 README、environment 与 ai-docs current truth 文档中是否还残留旧正式脚本名
+- 运行结果与验证结果：
+  - 所有正式、内部和已迁移 legacy 脚本的 `py_compile` 均通过。
+  - 5 个 formal 入口的 `--help` 均正常。
+  - README、环境文档和 ai-docs 的 current truth 文档已不再引用旧的正式脚本名。
+  - append-only 历史日志中的旧路径保留不动，符合工作流要求。
+- 偏差：
+  - 没有重命名历史输出目录和既有实验结果目录，避免影响已冻结结果引用。
+  - 没有删除 `__pycache__` 等生成物；本步只做入口和文档层收敛。
+- 下一步建议：
+  - 当前脚本体系已完成收尾。
+  - 若后续继续，应优先做算法、评测或 report polish，而不是继续改脚本入口命名。
+
+## IMP-20260325-02
+- 状态：done
+- 标题：环境收尾：合并正式依赖文件并降级 `.venv-methodb`
+- 本步目标：
+  - 将 Method B 依赖并入正式 `requirements.txt`。
+  - 把 `.venv-methodb / requirements-methodb.txt` 从正式文档路径中降级为兼容保留项。
+  - 更新 README 与 `docs/environment.md`，让正式使用口径统一为 `.venv`。
+- 关联上一步结论：
+  - `DEC-20260325-01` 已完成脚本入口层的 formal/internal/legacy 收尾。
+  - 当前项目结构已稳定，Method B 不再是旁路实验能力，继续保留双正式环境只会增加使用分叉。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 本步回读代码/配置：
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `README.md`
+- 准备修改文件：
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `README.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这一步是正式环境口径收敛，核心影响面就是依赖文件和对外/对内使用文档。
+  - ai-docs 需要同步记录新的正式环境边界。
+- 风险点：
+  - 不能破坏已有 `requirements-methodb.txt` 用户的兼容性。
+  - 不能让文档误导成“LightGlue 也已经进主 requirements 自动安装”。
+  - 不能把 append-only 历史日志里的 `.venv-methodb` 旧记录当成需要清洗的内容。
+- 验收标准：
+  - `requirements.txt` 包含 Method B 正式运行所需的 Python 依赖。
+  - `requirements-methodb.txt` 退化为兼容 alias，而不是第二套正式依赖来源。
+  - README 与环境文档的正式推荐路径统一成 `.venv`。
+  - current truth 文档不再把 `.venv-methodb` 当正式主路径。
+- 替代方案与不选原因：
+  - 方案：继续保留 `.venv` 与 `.venv-methodb` 两套正式环境。
+  - 不选原因：当前项目已经收尾，这只会增加使用分叉和文档负担。
+- 实际修改文件：
+  - `requirements.txt`
+  - `requirements-methodb.txt`
+  - `docs/environment.md`
+  - `README.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `requirements.txt` 已升级为统一正式依赖文件，包含 `torch / torchvision / kornia / matplotlib / certifi`。
+  - `requirements-methodb.txt` 现在只保留为兼容 alias，内部直接引用 `requirements.txt`。
+  - README 与 `docs/environment.md` 的正式推荐安装路径统一为 `.venv`。
+  - `.venv-methodb` 被降级为“已有环境不想重建时可暂时沿用”的兼容路径。
+  - current truth 文档中与 Method B 环境相关的表述已同步切换到统一正式环境口径。
+- 验证方式：
+  - `python3 -m py_compile scripts/run_baseline_frame.py scripts/run_baseline_video.py scripts/run_stitching_gui.py scripts/eval_method_compare.py scripts/eval_method_compare_matrix.py`
+  - `rg` 检查 README、`docs/environment.md` 与 ai-docs current truth 是否仍把 `.venv-methodb` 当成正式主路径
+  - `python3 -m pip install --dry-run -r requirements.txt`
+- 运行结果与验证结果：
+  - `py_compile` 通过。
+  - README、环境文档与 current truth 已统一为 `.venv` 正式路径；`.venv-methodb` 只剩兼容说明。
+  - `pip --dry-run` 未实际安装依赖，但在当前受限网络环境下对镜像索引访问失败，因此只能确认文件语法与解析流程已触发，不能据此完成联网安装验证。
+- 偏差：
+  - 本步没有删除 `.venv-methodb` 相关历史记录，也没有删除 `requirements-methodb.txt` 文件。
+  - LightGlue 仍保留为单独安装步骤，没有强行改成 `requirements.txt` 中的网络依赖。
+- 下一步建议：
+  - 后续如无特殊需要，统一只维护 `.venv` 这一路径。
+  - 若还要继续收尾，可考虑把 compare/export 示例命令里的旧 `phase3_*` suite id 也逐步去 phase 化。

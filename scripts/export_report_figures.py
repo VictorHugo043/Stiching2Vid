@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build final-report figures from Phase 3 overall summary tables."""
+"""Build final-report figures from the formal overall method summary tables."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Dict, Iterable, List, Sequence
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Export richer Phase 3 method figures for the final report."
+        description="Export richer method-compare figures for the final report."
     )
     parser.add_argument(
         "--suite_id",
@@ -282,7 +282,7 @@ def main() -> int:
     by_dataset_rows = _read_csv(suite_dir / "overall_method_by_dataset.csv")
     if not overall_rows or not by_dataset_rows:
         raise SystemExit(
-            f"Missing required overall CSVs in {suite_dir}; build_phase3_overall_summary.py must run first."
+            f"Missing required overall CSVs in {suite_dir}; scripts/internal/summarize_method_compare_overall.py must run first."
         )
 
     plt = _require_matplotlib(suite_dir / "figures" / ".mplconfig")

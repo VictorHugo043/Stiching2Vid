@@ -99,7 +99,7 @@
   - 已验证：
     - 缺依赖 fail-fast
     - fallback 路径
-    - `.venv-methodb` 环境下的真实 `SuperPoint / LightGlue` 单帧成功路径
+    - 当前统一正式环境下的真实 `SuperPoint / LightGlue` 单帧成功路径
 
 ### 2. 再视频
 - 视频层继续复用：
@@ -144,7 +144,7 @@
     - Phase 1 已不再只停留在单帧与短视频 smoke，Method B 已在 3 条 60 帧视频回归上跑通。
     - Phase 1 后续重点应从“是否能跑”转向“正式视频级比较结果如何解释”和“何时切入 Phase 2”。
   - 当前正式视频级 compare 入口已落地：
-    - `scripts/run_video_compare_suite.py`
+    - `scripts/eval_method_compare_matrix.py`
     - 正式 preset：
       - `method_a_orb`
       - `method_a_sift`
@@ -264,10 +264,10 @@
     - 兼容官方 LightGlue compact 输出中 `matches / scores` 为 batch-wise list 的情况
   - 新增正式环境入口：
     - root `requirements.txt`
-    - root `requirements-methodb.txt`
+    - root `requirements-methodb.txt`（兼容 alias）
     - `docs/environment.md`
   - 新增多 pair 单帧回归入口：
-    - `scripts/run_frame_smoke_suite.py`
+    - `scripts/legacy/run_frame_smoke_suite.py`
     - 默认 smoke pair：
       - `mine_source_indoor2_left_right`
       - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
@@ -450,18 +450,31 @@
 - 因而 `resize_long_edge=1536` 对这些数据实际上是上采样，而不是单纯“保留更多原始细节”。
 - 这解释了为什么当前 preset 能把内点数抬得很高，但也可能拖慢速度、引入更多低质量 keypoints/matches，从而压低 `inlier_ratio`。
 
-### 推荐的安全优化候选项
-- 候选 1：`no_upsample`
-  - 核心想法：
-    - 不再把 `1242x375 / 1280x720` 输入上采样到 `1536`
-    - 可通过 `resize_long_edge=0` 或新增 “no upsample / clamp to source long edge” 语义实现
-  - 预期收益：
-    - feature runtime 降低
-    - 低质量上采样 keypoints 减少
-    - `inlier_ratio` 可能改善
-  - 风险：
-    - `mean_inliers` 可能下滑
-- 候选 2：`max_keypoints=3072` 或 `3584`
+### 历史候选项复盘
+- 已探索过但未保留在当前主框架中的方向：
+  - `no_upsample`
+  - 更严格的 `filter_threshold=0.15`
+  - moderate `LightGlue` adaptivity
+- 当前保留的唯一活跃候选：
+  - `kp3072_v1`
+    - 核心想法：
+      - 在保持 accuracy 路线的前提下，将 `max_keypoints` 从 `4096` 下调到 `3072`
+    - 预期收益：
+      - matching runtime 降低
+      - 低置信度尾部 matches 减少
+    - 风险：
+      - 极纹理场景和 `mine_source` 真实视频上可能出现 `mean_inliers` 明显下降
+
+### 历史候选项为何未继续保留
+- `no_upsample`
+  - 风险是 `mean_inliers` 下滑幅度不可控，且当前主框架目标是保留稳定的正式 compare baseline。
+- `filter_threshold=0.15`
+  - 更容易直接丢掉有效 matches，当前没有形成比 `accuracy_v1` 更稳的跨数据域收益。
+- moderate `LightGlue` adaptivity
+  - 速度收益有吸引力，但最容易把当前高内点数优势压回去，因此不作为当前主框架内的活跃候选。
+
+### 当前唯一保留的安全候选项
+- 候选：`max_keypoints=3072`
   - 核心想法：
     - 保持较高召回，但减少 LightGlue 输入规模
   - 预期收益：
@@ -469,33 +482,12 @@
     - 低置信度尾部 matches 减少
   - 风险：
     - 极纹理场景的 `mean_inliers` 可能下降
-- 候选 3：更严格的 `filter_threshold`
-  - 核心想法：
-    - 从 `0.1` 提高到 `0.15` 或 `0.2`
-  - 预期收益：
-    - 可能提高 `inlier_ratio`
-    - 可能减少后续 MAGSAC 输入噪声
-  - 风险：
-    - 如果阈值过高，会直接损失有效 matches
-- 候选 4：适度恢复 LightGlue adaptivity
-  - 核心想法：
-    - 不回到旧 implicit preset，但可尝试温和 adaptive 版本，例如：
-      - `depth_confidence=0.95`
-      - `width_confidence=0.99`
-  - 预期收益：
-    - matching runtime 下降最明显
-  - 风险：
-    - 容易把当前高内点数量的优势再压回去
-    - 风险高于前 3 个候选项
 
 ### 当前推荐的执行顺序
-- 第一优先级：
-  - `no_upsample`
-  - `max_keypoints=3072`
-- 第二优先级：
-  - `filter_threshold=0.15`
-- 第三优先级：
-  - moderate LightGlue adaptivity
+- 当前主框架内只保留：
+  - `kp3072_v1`
+- 其余探索项：
+  - 已移出主框架，仅保留为历史讨论材料
 - 不建议当前优先做：
   - 重新训练 SuperPoint / LightGlue
   - 重写 matcher 边界
@@ -641,10 +633,10 @@
 - 已有正式环境文档，能清楚区分 baseline env 与 Method B env 的安装和使用方式。
 - root requirements 已固定：
   - `requirements.txt`
-  - `requirements-methodb.txt`
+  - `requirements-methodb.txt`（兼容 alias）
 - 单帧 smoke / regression 已有正式入口：
   - `scripts/run_baseline_frame.py`
-  - `scripts/run_frame_smoke_suite.py`
+  - `scripts/legacy/run_frame_smoke_suite.py`
 - 单帧能在 Method A / Method B 间切换。
 - 视频路径能复用同一套 seam/crop/blend/diagnostics。
 - 依赖缺失、权重缺失、GPU 不可用时有明确错误或 fallback 记录。

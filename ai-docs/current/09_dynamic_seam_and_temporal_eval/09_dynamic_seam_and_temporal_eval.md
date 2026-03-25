@@ -321,8 +321,8 @@
 
 ## Phase 2 正式收尾矩阵（2026-03-23）
 ### 正式入口
-- `scripts/run_phase2_dynamic_compare_suite.py`
-- `scripts/build_phase2_visual_summary.py`
+- `scripts/eval_dynamic_compare.py`
+- `scripts/export_dynamic_visuals.py`
 
 ### 正式 suite
 - `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
@@ -417,7 +417,7 @@
 
 ### 当前 calibration suite
 - 入口：
-  - `scripts/run_phase2_trigger_calibration.py`
+  - `scripts/legacy/run_phase2_trigger_calibration.py`
 - 正式 suite：
   - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2`
 - 覆盖 pairs：

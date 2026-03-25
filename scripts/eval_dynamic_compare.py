@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the formal Phase 2 dynamic seam comparison suite."""
+"""Run the formal dynamic seam comparison suite."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ PRESET_BY_ID: Dict[str, Dict[str, object]] = {str(preset["preset_id"]): preset f
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the formal Phase 2 dynamic seam comparison suite "
+            "Run the formal dynamic seam comparison suite "
             "by invoking scripts/run_baseline_video.py on representative pairs."
         )
     )
@@ -111,14 +111,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pairs",
         nargs="*",
         default=None,
-        help="Optional pair ids or aliases; default uses the formal Phase 2 pairs",
+        help="Optional pair ids or aliases; default uses the built-in dynamic compare pairs",
     )
     parser.add_argument(
         "--presets",
         nargs="*",
         default=None,
         choices=sorted(PRESET_BY_ID),
-        help="Optional preset ids; default uses the formal Phase 2 preset set",
+        help="Optional preset ids; default uses the built-in dynamic compare preset set",
     )
     parser.add_argument(
         "--manifest",

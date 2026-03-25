@@ -137,7 +137,7 @@
 ### Phase 0 / Phase 1
 - `Method A vs Method B`
 - 固定：
-  - 正式视频级 compare 入口：`scripts/run_video_compare_suite.py`
+  - 正式视频级 compare 入口：`scripts/eval_method_compare_matrix.py`
   - 方法集合：
     - `method_a_orb`
     - `method_a_sift`
@@ -185,7 +185,7 @@
 
 ### Phase 2 正式 dynamic seam compare（2026-03-23 收尾）
 - 正式入口：
-  - `scripts/run_phase2_dynamic_compare_suite.py`
+  - `scripts/eval_dynamic_compare.py`
 - 正式 suite：
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/summary.csv`
   - `outputs/video_compare/phase2_dynamic_compare_full_v1/preset_summary.csv`
@@ -230,7 +230,7 @@
 
 ### Phase 2 smoothing ablation（2026-03-23 更新）
 - 当前 smoothing 对比入口：
-  - `scripts/run_phase2_seam_smoothing_suite.py`
+  - `scripts/legacy/run_phase2_seam_smoothing_suite.py`
 - 固定前提：
   - `geometry_mode=fixed_geometry`
   - `seam_policy=trigger`
@@ -438,8 +438,8 @@
 
 ### Phase 3 正式 KITTI color stereo full-length suite（2026-03-23）
 - 正式入口：
-  - `scripts/run_phase3_kitti_compare_suite.py`
-  - `scripts/build_phase3_kitti_summary.py`
+  - `scripts/legacy/run_phase3_kitti_compare_suite.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
 - 当前正式 suite：
   - `outputs/phase3/phase3_kitti_full_v1/phase3_kitti_summary.md`
   - `outputs/phase3/phase3_kitti_full_v1/method_summary.csv`
@@ -636,7 +636,7 @@
 
 ### Phase 3 统一总表（2026-03-24，richer metrics 全量重跑）
 - 总表入口：
-  - `scripts/build_phase3_overall_summary.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
 - 当前正式方法总表：
   - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
   - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_by_dataset.csv`
@@ -701,7 +701,7 @@
 
 ## 当前 Phase 2 calibration 入口（2026-03-23）
 - calibration driver：
-  - `scripts/run_phase2_trigger_calibration.py`
+  - `scripts/legacy/run_phase2_trigger_calibration.py`
 - 当前正式 suite：
   - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2/summary.csv`
   - `outputs/video_calibration/phase2_trigger_adaptive_minesource_calib_v2/preset_summary.csv`
@@ -739,7 +739,7 @@
 
 ## 当前 Phase 1 正式 compare 产物（2026-03-20）
 - compare driver：
-  - `scripts/run_video_compare_suite.py`
+  - `scripts/eval_method_compare_matrix.py`
 - 当前正式 suite：
   - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
   - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.json`

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build formal Phase 3 KITTI summaries from method and dynamic compare suites."""
+"""Build dataset-level summaries from method and dynamic compare suites."""
 
 from __future__ import annotations
 
@@ -45,11 +45,11 @@ METHOD_NUMERIC_FIELDS: List[str] = [
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Aggregate Phase 3 KITTI method and dynamic compare suite outputs into "
+            "Aggregate dataset-level method and dynamic compare suite outputs into "
             "formal summary tables and an overview markdown."
         )
     )
-    parser.add_argument("--suite_id", required=True, help="Phase 3 parent suite id under outputs/phase3/")
+    parser.add_argument("--suite_id", required=True, help="Parent suite id under outputs/phase3/")
     parser.add_argument("--method_suite_id", default=None, help="Method compare suite id under outputs/video_compare/")
     parser.add_argument("--dynamic_suite_id", default=None, help="Dynamic compare suite id under outputs/video_compare/")
     parser.add_argument("--pairs", nargs="*", default=None, help="Pairs included in the Phase 3 suite")
@@ -230,7 +230,7 @@ def _build_markdown(
 
 def main() -> int:
     args = _build_parser().parse_args()
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     out_dir = repo_root / "outputs" / "phase3" / args.suite_id
     out_dir.mkdir(parents=True, exist_ok=True)
 

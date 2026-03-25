@@ -49,7 +49,11 @@
 - `outputs/phase3/<suite_id>/pair_coverage.csv`
 - `outputs/ablations/<pair_id>/seam/`
 - `outputs/ablations/<pair_id>/...`
-- 后续统一 summary CSV / plot 脚本
+- 正式导出入口：
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
 
 ## 当前正式推荐素材（2026-03-23）
 - Phase 1 方法对比正式入口：

@@ -29,9 +29,12 @@ The focus is stable panorama generation from overlapping left/right streams, wit
 │  ├─ run_baseline_frame.py      # Single-frame baseline
 │  ├─ run_stitching_gui.py       # Desktop GUI thin wrapper
 │  ├─ inspect_pair.py            # I/O sanity check for one pair + frame
-│  ├─ run_video_compare_suite.py # Formal method compare driver
-│  ├─ run_phase2_dynamic_compare_suite.py
-│  ├─ run_phase3_full_methods_suite.py
+│  ├─ eval_method_compare_matrix.py # Flexible method compare driver
+│  ├─ eval_method_compare.py        # Full-length method compare orchestrator
+│  ├─ eval_dynamic_compare.py       # Formal dynamic seam compare driver
+│  ├─ export_dynamic_visuals.py     # Dynamic seam visual export helper
+│  ├─ export_report_figures.py      # Final report figure export helper
+│  ├─ internal/                     # Internal summary builders used by formal drivers
 │  └─ legacy/                    # Historical / exploratory helpers
 ├─ src/stitching/
 │  ├─ io.py                      # Manifest parsing + FrameSource abstractions
@@ -62,25 +65,15 @@ Formal environment documentation:
 - [docs/environment.md](docs/environment.md)
 
 Recommended Python:
-- baseline / preprocess: `3.10` to `3.14`
-- Method B: `3.10` to `3.14`
+- unified environment: `3.10` to `3.14`
 
-Baseline environment:
+Formal environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
-```
-
-Method B environment:
-
-```bash
-python3 -m venv .venv-methodb
-source .venv-methodb/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements-methodb.txt
 git clone https://github.com/cvg/LightGlue.git external/LightGlue
 python -m pip install -e external/LightGlue
 ```
@@ -89,12 +82,12 @@ OpenCV note:
 - This project uses stitching/detail APIs (for seam and multiband), so `opencv-contrib-python` is required.
 
 Dependency files:
-- `requirements.txt`: Method A + preprocess baseline
-- `requirements-methodb.txt`: Method B extras on top of baseline
+- `requirements.txt`: unified formal environment for Method A + Method B + preprocess + GUI
+- `requirements-methodb.txt`: legacy compatibility alias pointing to `requirements.txt`
 
 Important:
 - `largestinteriorrectangle` is optional in practice because the project has a conservative crop fallback path.
-- existing local `.venv` / `.venv-methodb` may drift; if behavior looks inconsistent, reinstall from the requirements files above.
+- existing local `.venv` / `.venv-methodb` may drift; if behavior looks inconsistent, recreate `.venv` from the requirements above.
 
 ## Quick Start
 
@@ -133,25 +126,25 @@ python3 scripts/run_baseline_frame.py \
   --frame_index 0
 ```
 
-5) Auxiliary multi-pair single-frame smoke suite:
+5) Legacy multi-pair single-frame smoke suite:
 
 ```bash
-python3 scripts/run_frame_smoke_suite.py --method method_a
+python3 scripts/legacy/run_frame_smoke_suite.py --method method_a
 ```
 
 Method B smoke suite:
 
 ```bash
-source .venv-methodb/bin/activate
-python scripts/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
+source .venv/bin/activate
+python scripts/legacy/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
 ```
 
-6) Formal Phase 1 video comparison suite (`method_a_orb / method_a_sift / method_b`):
+6) Formal method comparison matrix (`method_a_orb / method_a_sift / method_b`):
 
 ```bash
-source .venv-methodb/bin/activate
-python scripts/run_video_compare_suite.py \
-  --python_bin .venv-methodb/bin/python \
+source .venv/bin/activate
+python scripts/eval_method_compare_matrix.py \
+  --python_bin .venv/bin/python \
   --video_mode 1 \
   --max_frames 6000 \
   --force_cpu
@@ -162,12 +155,12 @@ Outputs:
 - `outputs/video_compare/<suite_id>/summary.json`
 - `outputs/video_compare/<suite_id>/pair_compare.csv`
 
-7) Formal Phase 3 full-length methods suite + richer-metrics figures:
+7) Formal full-length methods suite + richer-metrics figures:
 
 ```bash
-source .venv-methodb/bin/activate
-python scripts/run_phase3_full_methods_suite.py \
-  --python_bin .venv-methodb/bin/python \
+source .venv/bin/activate
+python scripts/eval_method_compare.py \
+  --python_bin .venv/bin/python \
   --suite_id phase3_full_methods_rich_v3_parent \
   --force_cpu \
   --max_frames 6000 \
@@ -182,7 +175,7 @@ Outputs:
 8) Desktop GUI thin wrapper:
 
 ```bash
-source .venv-methodb/bin/activate
+source .venv/bin/activate
 python scripts/run_stitching_gui.py
 ```
 
@@ -347,8 +340,8 @@ Current status:
 - kept for exploratory use only
 - not the formal Phase 1 compare entry
 
-Formal Phase 1 comparison entry:
-- `scripts/run_video_compare_suite.py`
+Formal method comparison entry:
+- `scripts/eval_method_compare_matrix.py`
 - fixed compare preset:
   - `method_a_orb`
   - `method_a_sift`
@@ -361,11 +354,11 @@ Planned for later phases:
 - dedicated crop/dynamic seam experiment driver
 - richer evaluation / plotting automation
 
-## Frame Smoke Suite
+## Legacy Smoke Helpers
 
 The repository now includes:
-- `scripts/run_frame_smoke_suite.py`
-- `scripts/run_video_compare_suite.py`
+- `scripts/legacy/run_frame_smoke_suite.py`
+- `scripts/eval_method_compare_matrix.py`
 
 Default smoke-suite pairs:
 - `mine_source_indoor2_left_right`
@@ -374,7 +367,7 @@ Default smoke-suite pairs:
 - `dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right`
 
 Note:
-- `run_frame_smoke_suite.py` is an auxiliary debug helper, not a formal Phase 2 / Phase 3 experiment entry.
+- `scripts/legacy/run_frame_smoke_suite.py` is an auxiliary debug helper, not a formal evaluation entry.
 
 ## Current Recommended Scripts
 
@@ -382,20 +375,28 @@ Formal:
 - `scripts/run_baseline_video.py`
 - `scripts/run_baseline_frame.py`
 - `scripts/run_stitching_gui.py`
-- `scripts/run_video_compare_suite.py`
-- `scripts/run_phase2_dynamic_compare_suite.py`
-- `scripts/run_phase3_full_methods_suite.py`
-- `scripts/build_phase3_report_figures.py`
+- `scripts/eval_method_compare_matrix.py`
+- `scripts/eval_method_compare.py`
+- `scripts/eval_dynamic_compare.py`
+- `scripts/export_dynamic_visuals.py`
+- `scripts/export_report_figures.py`
 
 Auxiliary / debug:
 - `scripts/inspect_pair.py`
 - `scripts/preprocess/split_sbs_stereo.py`
-- `scripts/run_frame_smoke_suite.py`
+
+Internal:
+- `scripts/internal/summarize_method_compare_dataset.py`
+- `scripts/internal/summarize_method_compare_overall.py`
 
 Legacy / exploratory:
 - `scripts/legacy/ablate_temporal.py`
 - `scripts/legacy/ablate_seam.py`
 - `scripts/legacy/run_method_b_preset_sweep.py`
+- `scripts/legacy/run_frame_smoke_suite.py`
+- `scripts/legacy/run_phase2_trigger_calibration.py`
+- `scripts/legacy/run_phase2_seam_smoothing_suite.py`
+- `scripts/legacy/run_phase3_kitti_compare_suite.py`
 
 Alias:
 - `mysourceindoor2` -> `mine_source_indoor2_left_right`
@@ -408,6 +409,7 @@ Alias:
 - Keep docs synchronized in:
   - `ai-docs/current/03_baseline_video_pipeline/03_baseline_video_pipeline.md`
   - `ai-docs/current/04_quality_improvement/04_quality_improvement.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
 
 ## Troubleshooting
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build representative visualization manifest for a Phase 2 compare suite."""
+"""Build representative visualization manifest for a dynamic compare suite."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Sequence
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Collect representative stitched/seam snapshots from a Phase 2 compare suite "
+            "Collect representative stitched/seam snapshots from a dynamic compare suite "
             "and write visual_manifest.csv plus visual_summary.md."
         )
     )

@@ -3,67 +3,59 @@
 ## Scope
 - This document formalizes the install and usage paths for the environments currently used in this repository.
 - It covers:
-  - baseline `Method A` development and execution
-  - `Method B` single-frame development and validation
+  - the unified formal environment for `Method A` and `Method B`
   - preprocess helpers such as `split_sbs_stereo.py`
-  - the auxiliary frame smoke suite added in Phase 1
+  - legacy smoke helpers retained for debugging
 
 ## Environment Matrix
 | Environment | Purpose | Recommended Python | Install Source | Current Notes |
 | --- | --- | --- | --- | --- |
-| system `python3` | quick local `Method A` runs on this machine | current local interpreter | ad-hoc / machine-local | works for baseline inspection on this machine, but not reproducible and missing Method B deps |
-| `.venv` | recommended reproducible baseline env | `3.10` to `3.14` | `requirements.txt` | use for `run_baseline_video.py`, `run_baseline_frame.py`, `inspect_pair.py`, preprocess |
-| `.venv-methodb` | `Method B` env for `SuperPoint + LightGlue + USAC_MAGSAC` | `3.10` to `3.14` | `requirements-methodb.txt` + LightGlue install | use for single-frame Method B validation first; current code path should be run with `--device cpu` / `--force_cpu` on Apple Silicon until `mps` support is added |
+| system `python3` | quick local inspection on this machine | current local interpreter | ad-hoc / machine-local | not reproducible; do not treat as the formal project environment |
+| `.venv` | recommended formal environment for the whole project | `3.10` to `3.14` | `requirements.txt` + LightGlue install | use for `Method A`, `Method B`, compare/export scripts, GUI, preprocess |
+| `.venv-methodb` | legacy compatibility environment name | `3.10` to `3.14` | `requirements-methodb.txt` + LightGlue install | no longer the recommended formal path; only keep if you already have it and do not want to recreate `.venv` yet |
 
 ## Important Reality Check
 - Do not assume the existing local `.venv` or `.venv-methodb` directories are clean or complete.
 - If behavior looks inconsistent, recreate or reinstall from the requirements files below.
 - `largestinteriorrectangle` is optional in practice because `src/stitching/cropper.py` already contains a conservative fallback path.
 
-## Baseline Environment (`.venv`)
-Create a clean baseline environment:
+## Unified Formal Environment (`.venv`)
+Create a clean formal environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+git clone https://github.com/cvg/LightGlue.git external/LightGlue
+python -m pip install -e external/LightGlue
 ```
 
 Recommended use cases:
 - `python scripts/inspect_pair.py --pair <pair_id> --frame_index 0`
 - `python scripts/run_baseline_frame.py --pair <pair_id> --frame_index 0`
 - `python scripts/run_baseline_video.py --pair <pair_id> --max_frames 120`
+- `python scripts/eval_method_compare_matrix.py ...`
+- `python scripts/eval_method_compare.py ...`
+- `python scripts/run_stitching_gui.py`
 - `python scripts/preprocess/split_sbs_stereo.py --dry_run`
 
-## Method B Environment (`.venv-methodb`)
-Create a clean Method B environment:
+## Legacy Compatibility Environment (`.venv-methodb`)
+If you already have a separate `.venv-methodb` and do not want to rebuild yet,
+it can still be used as a compatibility alias:
 
 ```bash
 python3 -m venv .venv-methodb
 source .venv-methodb/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements-methodb.txt
-```
-
-Install LightGlue after the requirements file.
-
-Option A: local editable clone under this repo
-
-```bash
 git clone https://github.com/cvg/LightGlue.git external/LightGlue
 python -m pip install -e external/LightGlue
 ```
 
-Option B: direct install from GitHub
-
-```bash
-python -m pip install git+https://github.com/cvg/LightGlue.git
-```
-
-Recommended use cases:
-- single-frame Method B validation
-- future Phase 1 video-path adapter work
+Notes:
+- `requirements-methodb.txt` is now only a thin compatibility shim that points to `requirements.txt`.
+- The recommended formal path is to use `.venv` instead.
 
 Current runtime guidance on Apple Silicon:
 - use `--device cpu` or `--force_cpu`
@@ -121,7 +113,7 @@ python scripts/run_baseline_frame.py --pair mine_source_indoor2_left_right --fra
 Method B single-frame verification:
 
 ```bash
-source .venv-methodb/bin/activate
+source .venv/bin/activate
 python scripts/run_baseline_frame.py \
   --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right \
   --frame_index 0 \
@@ -133,9 +125,9 @@ python scripts/run_baseline_frame.py \
   --run_id envcheck_methodb_nikita
 ```
 
-## Frame Smoke Suite
+## Legacy Frame Smoke Suite
 The repo includes a multi-pair frame smoke suite as an auxiliary debug tool:
-- `scripts/run_frame_smoke_suite.py`
+- `scripts/legacy/run_frame_smoke_suite.py`
 
 Default pairs:
 - `mine_source_indoor2_left_right`
@@ -152,14 +144,14 @@ Run Method A smoke suite:
 
 ```bash
 source .venv/bin/activate
-python scripts/run_frame_smoke_suite.py --method method_a
+python scripts/legacy/run_frame_smoke_suite.py --method method_a
 ```
 
 Run Method B smoke suite:
 
 ```bash
-source .venv-methodb/bin/activate
-python scripts/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
+source .venv/bin/activate
+python scripts/legacy/run_frame_smoke_suite.py --method method_b --device cpu --force_cpu
 ```
 
 ## Desktop GUI Thin Wrapper
@@ -169,7 +161,7 @@ Current GUI entry:
 Launch:
 
 ```bash
-source .venv-methodb/bin/activate
+source .venv/bin/activate
 python scripts/run_stitching_gui.py
 ```
 
@@ -185,7 +177,6 @@ Notes:
 - after a run finishes, the GUI can auto-open that run directory in the system file manager
 
 ## Which Environment Should I Use?
-- If you only need baseline video/frame stitching now, use `.venv`.
-- If you are touching `superpoint`, `lightglue`, or Method B diagnostics, use `.venv-methodb`.
-- If you want to use the desktop GUI with Method B presets, use `.venv-methodb`.
-- If you are just checking a pair quickly on this machine and do not want to recreate environments yet, system `python3` can still be used for limited Method A inspection, but it is not the documented reproducible path.
+- Formal recommendation: use `.venv` for the whole project.
+- If you already have `.venv-methodb`, it still works, but it is no longer the recommended primary path.
+- If you are just checking a pair quickly on this machine and do not want to recreate environments yet, system `python3` can still be used for limited inspection, but it is not the documented reproducible path.

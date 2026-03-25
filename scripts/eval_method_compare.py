@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run full-length Phase 3 method compare across KITTI, DynamicStereo, and mine_source."""
+"""Run the formal full-length Method A vs Method B compare across all datasets."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ MINESOURCE_PAIRS: List[str] = [
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the formal Phase 3 full-length method compare with richer metrics."
+        description="Run the formal full-length Method A vs Method B compare with richer metrics."
     )
     parser.add_argument("--python_bin", default=sys.executable, help="Python executable for child scripts")
     parser.add_argument("--suite_id", default=None, help="Parent suite id under outputs/phase3/")
@@ -82,7 +82,7 @@ def _build_compare_cmd(
 ) -> List[str]:
     cmd = [
         str(args.python_bin),
-        "scripts/run_video_compare_suite.py",
+        "scripts/eval_method_compare_matrix.py",
         "--python_bin",
         str(args.python_bin),
         "--manifest",
@@ -122,7 +122,7 @@ def _build_summary_cmd(
 ) -> List[str]:
     return [
         str(args.python_bin),
-        "scripts/build_phase3_kitti_summary.py",
+        "scripts/internal/summarize_method_compare_dataset.py",
         "--suite_id",
         suite_id,
         "--method_suite_id",
@@ -181,7 +181,7 @@ def main() -> int:
     overall_suite_id = "phase3_overall_methods_rich_v3"
     overall_cmd = [
         str(args.python_bin),
-        "scripts/build_phase3_overall_summary.py",
+        "scripts/internal/summarize_method_compare_overall.py",
         "--suite_id",
         overall_suite_id,
         "--source_suites",
@@ -195,7 +195,7 @@ def main() -> int:
     if not args.skip_figures:
         figure_cmd = [
             str(args.python_bin),
-            "scripts/build_phase3_report_figures.py",
+            "scripts/export_report_figures.py",
             "--suite_id",
             overall_suite_id,
         ]

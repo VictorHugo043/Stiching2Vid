@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a unified Phase 3 summary across multiple dataset-specific suites."""
+"""Build a unified overall summary across multiple dataset-specific suites."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Aggregate multiple outputs/phase3/<suite_id> directories into one unified "
-            "Phase 3 summary for final report usage."
+            "overall summary for final report usage."
         )
     )
     parser.add_argument(
@@ -246,7 +246,7 @@ def _build_markdown(
 
 def main() -> int:
     args = _build_parser().parse_args()
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     out_dir = repo_root / "outputs" / "phase3" / args.suite_id
     out_dir.mkdir(parents=True, exist_ok=True)
 

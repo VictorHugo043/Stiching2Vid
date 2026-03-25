@@ -50,22 +50,30 @@
 - 当前 `jitter` 在固定几何路径下会系统性失真。
 - 当前 seam backend 是 OpenCV seam mask 风格，不支持 object-centered seam energy。
 
-### 4. 当前脚本框架分层（2026-03-24）
+### 4. 当前脚本框架分层（2026-03-25）
 - 正式入口保留在顶层 `scripts/`：
   - `run_baseline_video.py`
   - `run_baseline_frame.py`
-  - `run_video_compare_suite.py`
-  - `run_phase2_dynamic_compare_suite.py`
-  - `run_phase3_full_methods_suite.py`
-  - `build_phase3_report_figures.py`
+  - `run_stitching_gui.py`
+  - `eval_method_compare_matrix.py`
+  - `eval_method_compare.py`
+  - `eval_dynamic_compare.py`
+  - `export_dynamic_visuals.py`
+  - `export_report_figures.py`
 - 辅助 / 调试工具仍保留在顶层：
   - `inspect_pair.py`
   - `preprocess/split_sbs_stereo.py`
-  - `run_frame_smoke_suite.py`
+- 内部汇总脚本：
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
 - 历史 / 探索性工具已移入 `scripts/legacy/`：
   - `ablate_temporal.py`
   - `ablate_seam.py`
   - `run_method_b_preset_sweep.py`
+  - `run_frame_smoke_suite.py`
+  - `run_phase2_trigger_calibration.py`
+  - `run_phase2_seam_smoothing_suite.py`
+  - `run_phase3_kitti_compare_suite.py`
 - Method B preset 当前只保留：
   - `accuracy_v1`
   - `kp3072_v1`
@@ -174,13 +182,13 @@
   - `FeatureResult / MatchResult / GeometryResult`
   - 单帧 `frame_quality_preview`
   - 单帧 Method B dependency probe / lazy import / failure diagnostics / fallback 骨架
-  - `.venv-methodb` 环境下真实 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 单帧成功 smoke
+  - 当前统一正式环境下真实 `SuperPoint + LightGlue + OpenCV USAC_MAGSAC` 单帧成功 smoke
   - 正式环境入口：
     - `requirements.txt`
-    - `requirements-methodb.txt`
+    - `requirements-methodb.txt`（兼容 alias）
     - `docs/environment.md`
   - 默认多 pair 单帧 smoke suite：
-    - `scripts/run_frame_smoke_suite.py`
+    - `scripts/legacy/run_frame_smoke_suite.py`
     - 当前已验证 Method B 默认 suite 跑通：
       - `mine_source_indoor2_left_right`
       - `kitti_raw_data_2011_09_28_drive_0119_image_02_image_03`
@@ -201,7 +209,7 @@
     - `mine_source_pujiang1_left_right`
     - `kitti_raw_data_2011_09_26_drive_0005_image_02_image_03`
   - 正式视频级 compare 入口：
-    - `scripts/run_video_compare_suite.py`
+    - `scripts/eval_method_compare_matrix.py`
   - 正式 Phase 1 compare suite：
     - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/summary.csv`
     - `outputs/video_compare/phase1_video_compare_fixedgeom_full_v1/pair_compare.csv`
@@ -228,7 +236,7 @@
 - 风险：环境缺依赖。
   - 规避：optional dependency、lazy import、fallback。
 - 风险：本地已有 `.venv` / `.venv-methodb` 与正式 requirements 漂移。
-  - 规避：把 root requirements 和 `docs/environment.md` 作为唯一正式环境入口；必要时重建虚拟环境。
+  - 规避：把 `.venv + requirements.txt + docs/environment.md` 作为唯一正式环境入口；`.venv-methodb` 仅作为兼容实例；必要时重建虚拟环境。
 - 风险：为了补单帧 seam/crop parity，直接复制 `run_baseline_video.py` 的内联质量链路逻辑。
   - 规避：若要做 `frame_quality_preview`，应优先抽共享 helper / adapter，而不是复制大段视频脚本。
 
@@ -379,7 +387,7 @@
 - 已完成第一个正式 Phase 3 block：
   - 新增 Phase 3 KITTI color stereo full-length 正式入口：
     - `scripts/run_phase3_kitti_compare_suite.py`
-    - `scripts/build_phase3_kitti_summary.py`
+    - `scripts/internal/summarize_method_compare_dataset.py`
   - 当前正式 suite：
     - `outputs/phase3/phase3_kitti_full_v1`
   - 当前正式 KITTI pairs：
@@ -518,11 +526,14 @@
 - 当前 Method B 不再需要“推翻重做”，而是需要：
   - 保持 `method_b_accuracy_v1` 作为正式基线
   - 在此之上做小范围、安全的候选 preset sweep
-- 当前优先候选项：
-  - `no_upsample`
+- 当前唯一保留的活跃候选项：
   - `max_keypoints=3072`
+  - 即 `kp3072_v1`
+- 其余探索项：
+  - `no_upsample`
   - `filter_threshold=0.15`
   - moderate `LightGlue` adaptivity
+  - 均已移出当前主框架，只保留为历史讨论材料
 - 当前不建议直接做：
   - 训练新模型
   - 替换 seam backend
@@ -539,7 +550,7 @@
 - 已实现：
   - `src/stitching/method_b_presets.py`
   - `scripts/legacy/run_method_b_preset_sweep.py`
-  - `run_baseline_video.py` / `run_video_compare_suite.py` richer metrics 导出
+  - `run_baseline_video.py` / `eval_method_compare_matrix.py` richer metrics 导出
 - 已落地的 fixed-geometry 指标：
   - 运行代价：
     - `init_ms_mean`

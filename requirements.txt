@@ -1,10 +1,20 @@
-# Core runtime for Method A, video/frame pipelines, manifest I/O, and preprocess.
+# Unified formal runtime for Method A, Method B, video/frame pipelines,
+# manifest I/O, GUI usage, and preprocess helpers.
 numpy>=2.0
 opencv-contrib-python>=4.10
 PyYAML>=6.0
 ruamel.yaml>=0.18
+torch>=2.10.0
+torchvision>=0.25.0
+kornia>=0.8.2
+matplotlib>=3.10
+certifi>=2025.10.5
 
 # Optional crop acceleration package. The project already has a safe fallback path,
 # so this dependency is only installed automatically on Python versions where it is
 # known to be usable in the current project setup.
 largestinteriorrectangle>=0.2.1; python_version < "3.14"
+
+# LightGlue is still installed separately after the requirements file:
+#   git clone https://github.com/cvg/LightGlue.git external/LightGlue
+#   python -m pip install -e external/LightGlue

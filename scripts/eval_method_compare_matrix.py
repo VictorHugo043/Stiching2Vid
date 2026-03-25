@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a multi-pair Method A(ORB/SIFT) vs Method B video comparison suite."""
+"""Run a flexible multi-pair Method A(ORB/SIFT) vs Method B video comparison suite."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ DEFAULT_METHOD_B_FILTER_THRESHOLD = 0.1
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the formal Phase 1 Method A(ORB/SIFT) vs Method B video comparison suite "
+            "Run a Method A(ORB/SIFT) vs Method B video comparison suite "
             "by invoking scripts/run_baseline_video.py once per pair and method."
         )
     )
@@ -45,7 +45,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pairs",
         nargs="*",
         default=None,
-        help="Optional pair ids or aliases; default uses the formal Phase 1 compare pairs",
+        help="Optional pair ids or aliases; default uses the built-in formal compare pairs",
     )
     parser.add_argument(
         "--methods",
@@ -84,7 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         choices=[0, 1],
-        help="Video mode preset for the suite; formal Phase 1 compare uses 1",
+        help="Video mode preset for the suite; formal fixed-geometry compare uses 1",
     )
     parser.add_argument(
         "--reuse_mode",
@@ -96,7 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max_frames",
         type=int,
         default=6000,
-        help="Maximum number of frames to process; formal Phase 1 compare uses 6000",
+        help="Maximum number of frames to process; formal full-length compare uses 6000",
     )
     parser.add_argument(
         "--start",

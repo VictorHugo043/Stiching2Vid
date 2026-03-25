@@ -58,23 +58,40 @@
     - `SuperPoint` package default resize `1024`
     - `LightGlue` adaptive defaults
 
-## 当前脚本入口边界（2026-03-24 更新）
+## 当前环境入口（2026-03-25 更新）
+- 正式推荐：
+  - `.venv`
+  - `requirements.txt`
+- 兼容保留：
+  - `.venv-methodb`
+  - `requirements-methodb.txt`
+- 当前口径：
+  - `.venv-methodb` 不再是正式主路径，只作为兼容环境名保留。
+
+## 当前脚本入口边界（2026-03-25 更新）
 - 正式工作流优先使用：
   - `scripts/run_baseline_video.py`
   - `scripts/run_baseline_frame.py`
   - `scripts/run_stitching_gui.py`
-  - `scripts/run_video_compare_suite.py`
-  - `scripts/run_phase2_dynamic_compare_suite.py`
-  - `scripts/run_phase3_full_methods_suite.py`
-  - `scripts/build_phase3_report_figures.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_dynamic_compare.py`
+  - `scripts/export_dynamic_visuals.py`
+  - `scripts/export_report_figures.py`
 - 辅助 / 调试工具：
   - `scripts/inspect_pair.py`
   - `scripts/preprocess/split_sbs_stereo.py`
-  - `scripts/run_frame_smoke_suite.py`
+- 内部脚本：
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
 - 历史 / 探索性工具：
   - `scripts/legacy/ablate_temporal.py`
   - `scripts/legacy/ablate_seam.py`
   - `scripts/legacy/run_method_b_preset_sweep.py`
+  - `scripts/legacy/run_frame_smoke_suite.py`
+  - `scripts/legacy/run_phase2_trigger_calibration.py`
+  - `scripts/legacy/run_phase2_seam_smoothing_suite.py`
+  - `scripts/legacy/run_phase3_kitti_compare_suite.py`
 - 当前 Method B active preset：
   - `accuracy_v1`
   - `kp3072_v1`
@@ -127,7 +144,10 @@
   - `09_dynamic_seam_and_temporal_eval`
   - `10_execution_workflow`
 - 再以 `IMP-*` 的形式写下一步最小实施计划。
-- 当前建议直接从“Method B 新候选优化”或“GUI polish（若确有必要）”二选一开始。
+- 当前脚本命名与入口体系已经收尾完成。
+- 若后续继续：
+  - 优先做算法或评测层面的新增工作，而不是继续改入口命名。
+  - 仅在确有必要时做 GUI polish 或 report/export polish。
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |
