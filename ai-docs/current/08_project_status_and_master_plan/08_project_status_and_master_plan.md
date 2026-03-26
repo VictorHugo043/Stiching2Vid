@@ -42,6 +42,22 @@
   - `accuracy_v1` 继续保持为正式 Method B baseline。
   - `kp3072_v1` 的 full-length 多数据域复验已完成，但由于在 `mine_source` 上存在明显负优化，不升格为正式默认。
   - `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/` 保留为候选复验与方法讨论目录。
+  - 早先一轮带 `mps` 标记的 full-length suite 运行在 sandbox 内，实际发生了 `mps -> cpu` fallback：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/`
+    - 该目录现在只保留为历史 artefact，不再作为真实 GPU 结论来源。
+  - 当前 authoritative 的 real-MPS full-length suite：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/`
+  - 当前已完成 preserved CPU vs real MPS 的 device 对照 artefact：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/`
+  - 当前结论：
+    - Method A 没有跑 GPU；设备层对照只重跑了 Method B。
+    - preserved CPU vs real MPS 的 overall 对照显示：
+      - `mean_inliers`：`748.88 -> 737.54`
+      - `mean_inlier_ratio`：`0.5558 -> 0.5498`
+      - `approx_fps`：`7.355 -> 12.826`
+      - `mean_reprojection_error`：`1.4309 -> 1.4215`
+    - 这组 delta 不能被解释成纯 device 差异，因为 real-MPS suite 同时带入了当前的 `SuperPoint` 安全预处理优化。
+    - same-code 代表性回归显示 CPU / MPS 质量一致，而 real MPS 明显更快。
 
 ### 3. 当前最关键的限制点与耦合点
 - `scripts/run_baseline_video.py` 为单体 orchestrator，承载过多职责。
@@ -87,6 +103,11 @@
   - runtime 已正式支持 `mps`
   - `auto` 解析顺序固定为 `cuda -> mps -> cpu`
   - GUI 已暴露 `Device (Method B / GPU)` 下拉框供用户直接选择 `auto / cpu / mps / cuda`
+  - formal bundle / compare summary 现已支持导出：
+    - `method_b_requested_device`
+    - `method_b_resolved_device`
+    - `method_b_device_resolution_reason`
+    - `avg_geometry_event_total_ms`
 
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts

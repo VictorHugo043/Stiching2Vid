@@ -124,6 +124,29 @@
     - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_temporal_metrics.png`
     - `outputs/phase3/phase3_overall_methods_rich_v3/figures/method_by_dataset.png`
 
+## 补充素材：Method B CPU vs MPS（2026-03-26）
+- 当前 authoritative 的 real-MPS full-length 方法表：
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_summary.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_by_dataset.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_summary.md`
+- preserved CPU vs real MPS 对照表与图：
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/overall_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/by_dataset_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/method_b_device_delta.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_core_metrics.png`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_quality_metrics.png`
+- same-code 代表性 run bundle：
+  - `outputs/runs/methodb_cpu_postgray_kitti0002_v1/`
+  - `outputs/runs/methodb_mps_real_postgray_kitti0002_v1/`
+  - `outputs/runs/methodb_cpu_postgray_walking120_v1/`
+  - `outputs/runs/methodb_mps_real_postgray_walking120_v1/`
+- 建议在 final report 中的用途：
+  - 可作为“Method B 部署层优化”补充图，而不是主方法对比表的替代。
+  - 重点强调：
+    - Method A 没有跑 GPU，本组对照是“preserved CPU 方法表 + real MPS Method B”
+    - preserved CPU vs real MPS 的 overall 表可展示部署收益
+    - same-code CPU vs MPS run bundle 可证明质量一致、MPS 更快
+
 ## 结果组织建议
 - 所有正式图表必须能追溯到具体 `run_id`。
 - 正式表格只引用冻结协议下生成的 run bundle。

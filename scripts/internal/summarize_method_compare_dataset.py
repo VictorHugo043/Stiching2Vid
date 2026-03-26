@@ -37,6 +37,7 @@ METHOD_NUMERIC_FIELDS: List[str] = [
     "avg_feature_runtime_ms_right",
     "avg_matching_runtime_ms",
     "avg_geometry_runtime_ms",
+    "avg_geometry_event_total_ms",
     "warnings_count",
     "errors_count",
 ]
@@ -116,6 +117,9 @@ def _aggregate_method_rows(rows: Sequence[Dict[str, str]]) -> List[Dict[str, obj
             "feature_backend_effective": base.get("feature_backend_effective"),
             "matcher_backend_effective": base.get("matcher_backend_effective"),
             "geometry_backend_effective": base.get("geometry_backend_effective"),
+            "method_b_requested_device": base.get("method_b_requested_device"),
+            "method_b_resolved_device": base.get("method_b_resolved_device"),
+            "method_b_device_resolution_reason": base.get("method_b_device_resolution_reason"),
         }
         for field in METHOD_NUMERIC_FIELDS:
             summary[field] = _mean(_safe_float(row.get(field)) for row in method_rows)

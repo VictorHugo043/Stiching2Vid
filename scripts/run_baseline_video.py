@@ -1310,7 +1310,22 @@ def main() -> int:
         "feature_runtime_ms_right": None,
         "matching_runtime_ms": None,
         "geometry_runtime_ms": None,
+        "geometry_event_total_ms": None,
+        "method_b_requested_device": None,
+        "method_b_resolved_device": None,
+        "method_b_device_resolution_reason": None,
     }
+
+    def _extract_method_b_device_info(feature_stage, matching_stage):
+        candidates = [
+            (matching_stage or {}).get("meta", {}).get("device_info"),
+            (feature_stage or {}).get("left", {}).get("meta", {}).get("device_info"),
+            (feature_stage or {}).get("right", {}).get("meta", {}).get("device_info"),
+        ]
+        for info in candidates:
+            if isinstance(info, dict) and info.get("resolved_device") is not None:
+                return info
+        return None
 
     def _update_last_stats_from_pair_result(pair_result) -> None:
         feature_left = getattr(pair_result, "feature_left", None)
@@ -1372,6 +1387,33 @@ def main() -> int:
             if geometry_stage.get("runtime_ms") is not None
             else None
         )
+        runtime_parts = [
+            last_stats["feature_runtime_ms_left"],
+            last_stats["feature_runtime_ms_right"],
+            last_stats["matching_runtime_ms"],
+            last_stats["geometry_runtime_ms"],
+        ]
+        last_stats["geometry_event_total_ms"] = (
+            float(sum(float(v) for v in runtime_parts if v is not None))
+            if any(v is not None for v in runtime_parts)
+            else None
+        )
+        device_info = _extract_method_b_device_info(feature_stage, matching_stage)
+        last_stats["method_b_requested_device"] = (
+            str(device_info.get("requested_device"))
+            if isinstance(device_info, dict) and device_info.get("requested_device") is not None
+            else None
+        )
+        last_stats["method_b_resolved_device"] = (
+            str(device_info.get("resolved_device"))
+            if isinstance(device_info, dict) and device_info.get("resolved_device") is not None
+            else None
+        )
+        last_stats["method_b_device_resolution_reason"] = (
+            str(device_info.get("resolution_reason"))
+            if isinstance(device_info, dict) and device_info.get("resolution_reason") is not None
+            else None
+        )
 
     def _record_pair_result_debug(pair_result, frame_idx: int) -> None:
         if getattr(pair_result, "feature_backend_effective", None):
@@ -1386,6 +1428,14 @@ def main() -> int:
             debug["last_matching_stage"] = pair_result.matching_stage
         if getattr(pair_result, "geometry_stage", None):
             debug["last_geometry_stage"] = pair_result.geometry_stage
+        if last_stats["method_b_requested_device"] is not None:
+            debug["method_b_requested_device"] = last_stats["method_b_requested_device"]
+        if last_stats["method_b_resolved_device"] is not None:
+            debug["method_b_resolved_device"] = last_stats["method_b_resolved_device"]
+        if last_stats["method_b_device_resolution_reason"] is not None:
+            debug["method_b_device_resolution_reason"] = last_stats["method_b_device_resolution_reason"]
+        if last_stats["geometry_event_total_ms"] is not None:
+            debug["last_geometry_event_total_ms"] = float(last_stats["geometry_event_total_ms"])
         for event in getattr(pair_result, "fallback_events", []) or []:
             enriched = dict(event)
             enriched["frame_idx"] = int(frame_idx)
@@ -1456,6 +1506,7 @@ def main() -> int:
     feature_runtime_right_values: List[float] = []
     matching_runtime_values: List[float] = []
     geometry_runtime_values: List[float] = []
+    geometry_event_total_values: List[float] = []
     seam_band_ratio_values: List[float] = []
     seam_band_illuminance_values: List[float] = []
     seam_band_gradient_values: List[float] = []
@@ -1508,6 +1559,15 @@ def main() -> int:
             matching_runtime_values.append(float(matching_stage["runtime_ms"]))
         if geometry_stage.get("runtime_ms") is not None:
             geometry_runtime_values.append(float(geometry_stage["runtime_ms"]))
+        runtime_parts = [
+            feature_stage.get("left", {}).get("runtime_ms"),
+            feature_stage.get("right", {}).get("runtime_ms"),
+            matching_stage.get("runtime_ms"),
+            geometry_stage.get("runtime_ms"),
+        ]
+        filtered_parts = [float(v) for v in runtime_parts if v is not None]
+        if filtered_parts:
+            geometry_event_total_values.append(float(sum(filtered_parts)))
 
     processed_idx = 0
     source_idx = int(args.start)
@@ -3232,6 +3292,11 @@ def main() -> int:
         if geometry_runtime_values
         else 0.0
     )
+    geometry_event_total_mean = (
+        float(sum(geometry_event_total_values) / len(geometry_event_total_values))
+        if geometry_event_total_values
+        else 0.0
+    )
     seam_band_ratio_mean = (
         float(sum(seam_band_ratio_values) / len(seam_band_ratio_values))
         if seam_band_ratio_values
@@ -3283,6 +3348,7 @@ def main() -> int:
         "avg_feature_runtime_ms_right": float(feature_runtime_right_mean),
         "avg_matching_runtime_ms": float(matching_runtime_mean),
         "avg_geometry_runtime_ms": float(geometry_runtime_mean),
+        "avg_geometry_event_total_ms": float(geometry_event_total_mean),
         "mean_seam_band_ratio": float(seam_band_ratio_mean),
         "mean_seam_band_illuminance_diff": float(seam_band_illuminance_mean),
         "mean_seam_band_gradient_disagreement": float(seam_band_gradient_mean),
@@ -3371,6 +3437,7 @@ def main() -> int:
         "avg_feature_runtime_ms_right": feature_runtime_right_mean,
         "avg_matching_runtime_ms": matching_runtime_mean,
         "avg_geometry_runtime_ms": geometry_runtime_mean,
+        "avg_geometry_event_total_ms": geometry_event_total_mean,
         "mean_seam_band_ratio": seam_band_ratio_mean,
         "mean_seam_band_illuminance_diff": seam_band_illuminance_mean,
         "mean_seam_band_gradient_disagreement": seam_band_gradient_mean,
@@ -3419,6 +3486,10 @@ def main() -> int:
         "feature_backend_effective": debug.get("feature_backend_effective"),
         "matcher_backend_effective": debug.get("matcher_backend_effective"),
         "geometry_backend_effective": debug.get("geometry_backend_effective"),
+        "method_b_requested_device": debug.get("method_b_requested_device"),
+        "method_b_resolved_device": debug.get("method_b_resolved_device"),
+        "method_b_device_resolution_reason": debug.get("method_b_device_resolution_reason"),
+        "avg_geometry_event_total_ms": geometry_event_total_mean,
     }
 
     _write_json(metrics_path, metrics_preview)

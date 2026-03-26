@@ -165,6 +165,37 @@
       - `LightGlue` adaptive defaults（`depth_confidence=0.95`, `width_confidence=0.99`）
     - 因此旧 Phase 3 方法表目前只能作为“旧 preset 下的实验事实”，不能再直接当 final report 的最终 Method B 结论
 
+### Phase 3 补充：Method B CPU vs real-MPS device compare（2026-03-26）
+- 当前 authoritative 的 real-MPS full-length suite：
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_summary.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_by_dataset.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_summary.md`
+- preserved-CPU vs real-MPS 对照 artefact：
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/overall_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/by_dataset_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/method_b_device_delta.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_core_metrics.png`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_quality_metrics.png`
+- 解释口径：
+  - `method_a_orb / method_a_sift / method_b_accuracy_v1_cpu` 来自之前已冻结的 CPU 正式 suite：
+    - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+  - `method_b_accuracy_v1_mps` 来自这次在 real MPS 上重新跑完的 full-length suite。
+  - Method A 没有在 MPS 上重跑；这次设备对照只重跑 Method B。
+- 当前结论：
+  - preserved CPU vs real MPS 的 overall 对照为：
+    - `mean_inliers`: `748.88 -> 737.54`
+    - `mean_inlier_ratio`: `0.5558 -> 0.5498`
+    - `approx_fps`: `7.355 -> 12.826`
+    - `mean_reprojection_error`: `1.4309 -> 1.4215`
+  - 这组 overall delta 不能直接解释成“纯 device 差异”，因为 real-MPS suite 同时包含了本轮安全优化后的 `SuperPoint` 预处理路径。
+  - 真正的 same-code CPU vs MPS 代表性回归应看：
+    - `outputs/runs/methodb_cpu_postgray_kitti0002_v1/metrics_preview.json`
+    - `outputs/runs/methodb_mps_real_postgray_kitti0002_v1/metrics_preview.json`
+    - `outputs/runs/methodb_cpu_postgray_walking120_v1/metrics_preview.json`
+    - `outputs/runs/methodb_mps_real_postgray_walking120_v1/metrics_preview.json`
+  - 在上述 same-code 代表性回归里，CPU / MPS 的质量指标一致，而 MPS 明显更快。
+  - 因此当前仍应把 `MPS` 视作运行时 device variant，而不是新的算法方法。
+
 ### Phase 2
 - 在最佳方法下比较：
   - `fixed seam vs keyframe seam vs trigger seam`

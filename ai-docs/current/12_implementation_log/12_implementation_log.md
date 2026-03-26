@@ -4611,3 +4611,247 @@
   - GUI 仍保留 `Force CPU` 复选框，作为与现有行为兼容的显式覆盖开关。
 - 下一步建议：
   - 若用户后续要继续打磨 GUI，可考虑让 `Method A` 选中时弱化或禁用 `Device (Method B / GPU)` 的视觉强调；当前版本已满足“可以从 GUI 选 GPU 跑 Method B”的最小目标。
+
+## IMP-20260326-02
+- 状态：done
+- 标题：使用 MPS 对 `Method B accuracy_v1` 执行 full-length 正式 compare，并输出 CPU vs MPS 对照表与图
+- 本步目标：
+  - 在当前 Mac 环境下使用 GPU（`mps`）对 `Method B accuracy_v1` 重跑正式 full-length `Method A vs Method B` compare。
+  - 保留现有 CPU 正式结果，并输出 `Method B CPU vs MPS` 对照表和对照图。
+  - 不改 `Method B` 正式 baseline 参数，不影响现有 CPU formal result。
+- 关联上一步结论：
+  - `IMP-20260326-01` 已完成 `mps` 自动探测和 GUI device 入口。
+  - 用户已确认当前 `.venv` 中 `torch.backends.mps.is_available() == True`。
+  - 当前正式 CPU rich-metrics 方法总表仍保留在历史 suite 中，可作为对照基线。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+- 本步回读代码：
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_method_compare.py`
+  - `scripts/export_report_figures.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+- 准备修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `eval_method_compare.py` 当前 child/overall suite id 固定，不利于为 MPS full-length compare 生成明确、独立、可保留的 suite 名称。
+  - 需要一个最小汇总脚本把旧 CPU Method B 和新 MPS Method B 拉到同一张表和图里，而不破坏现有 formal overall summary。
+  - current truth 文档需要记录新的正式 MPS compare 结果和推荐解读口径。
+- 风险点：
+  - full-length MPS compare 运行时间较长，不能误覆盖现有 CPU formal outputs。
+  - 不能在比较脚本里误改 Method A 的正式口径。
+  - 对照图必须清楚区分“Method A current rerun”与“Method B CPU reference / MPS rerun”。
+- 验收标准：
+  - 生成一套独立的 MPS full-length formal methods suite，覆盖 KITTI / DynamicStereo / mine_source。
+  - 生成新的 MPS method summary、overall summary 和 report figures。
+  - 生成一个 CPU vs MPS 对照目录，至少包含：
+    - overall compare CSV
+    - by-dataset compare CSV
+    - markdown summary
+    - 至少 1 张对照图
+  - ai-docs current truth 文档同步记录新的正式结果位置和核心结论。
+- 替代方案与不选原因：
+  - 方案：直接复用现有 formal suite id 重跑 MPS。
+  - 不选原因：会覆盖现有 CPU formal result，不满足“保留 CPU 数据”的要求。
+  - 方案：不新增对照脚本，只口头比较 CPU / MPS。
+  - 不选原因：用户明确要求输出结果与图表。
+- 实际修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `eval_method_compare.py` 新增 `--suite_tag`，用于给 dataset / overall full-length methods suite 增加独立后缀。
+  - 新增 `scripts/internal/compare_method_device_variants.py`，负责把 preserved CPU Method B 和新 device variant Method B 拉到同一张表和图里。
+  - 完成一轮全量 MPS `Method A vs Method B accuracy_v1` compare：
+    - parent suite:
+      - `outputs/phase3/20260326_method_compare_mps_accuracy_v1_parent/`
+    - source suites:
+      - `outputs/phase3/kitti_method_compare_rich_v3_mps_accuracy_v1/`
+      - `outputs/phase3/dynamicstereo_method_compare_rich_v3_mps_accuracy_v1/`
+      - `outputs/phase3/minesource_method_compare_rich_v3_mps_accuracy_v1/`
+    - overall suite:
+      - `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/`
+  - 生成 CPU vs MPS 对照 artefact：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_v1/`
+- 验证方式：
+  - `python3 -m py_compile scripts/eval_method_compare.py scripts/internal/compare_method_device_variants.py`
+  - `python3 scripts/eval_method_compare.py --help`
+  - `python3 scripts/internal/compare_method_device_variants.py --help`
+  - `.venv/bin/python scripts/eval_method_compare.py --python_bin .venv/bin/python --device mps --suite_id 20260326_method_compare_mps_accuracy_v1_parent --suite_tag mps_accuracy_v1`
+  - `.venv/bin/python scripts/internal/compare_method_device_variants.py --suite_id method_b_accuracy_v1_cpu_vs_mps_v1 --cpu_suite_id phase3_overall_methods_rich_v3 --device_suite_id overall_method_compare_rich_v3_mps_accuracy_v1 --device_label mps`
+- 运行结果与验证结果：
+  - full-length MPS formal suite 已完整完成：
+    - KITTI `18/18`
+    - DynamicStereo `9/9`
+    - `mine_source` `51/51`
+  - 新 MPS overall 方法总表：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/overall_method_summary.csv`
+  - CPU vs MPS 对照总表：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_v1/overall_method_compare.csv`
+  - 当前结果：
+    - `Method B accuracy_v1` 的质量指标在 CPU / MPS 上一致：
+      - `mean_inliers`: `748.88 -> 748.88`
+      - `mean_inlier_ratio`: `0.5558 -> 0.5558`
+      - `mean_reprojection_error`: `1.4309 -> 1.4309`
+    - overall `approx_fps` 仅小幅变化：
+      - `7.3554 -> 7.4301`
+    - 分数据域：
+      - KITTI：`13.6755 -> 13.3480`
+      - DynamicStereo：`5.1862 -> 5.0729`
+      - `mine_source`：`5.5076 -> 5.7574`
+- 遇到的错误和修复：
+  - 初次运行 `compare_method_device_variants.py` 时误用了 system `python3`，导致 `ModuleNotFoundError: No module named 'matplotlib'`。
+  - 修复方式：改用正式环境 `.venv/bin/python` 执行该脚本。
+- 偏差：
+  - 现有 formal method summary 仍不会显式写出 `requested_device / resolved_device`，因此本次 CPU / MPS 对照主要依靠：
+    - 独立 suite id
+    - 调用命令
+    - device compare artefact
+- 下一步建议：
+  - 如果还要继续做设备层工作，优先把 `device_info` 显式导出到 method compare summary 层。
+  - 如果不继续扩设备层，则当前 CPU / MPS 结论已经足够用于 final report 的部署层补充说明。
+
+## IMP-20260326-03
+- 状态：done
+- 标题：复盘 `Method B` 的 CPU vs MPS 运行差异，并在不覆盖 `accuracy_v1` 的前提下优化 MPS 路径
+- 本步目标：
+  - 明确 Method A / Method B / MPS Method B 的正确 compare 口径，并把 device 信息显式导出到正式 artefact。
+  - 复盘 `SuperPoint / LightGlue` 接入路径，解释为什么 MPS 没有明显快于 CPU。
+  - 在不修改 `accuracy_v1` 正式 baseline 参数的前提下，对 MPS 路径做安全优化并完成代表性验证。
+- 关联上一步结论：
+  - `IMP-20260326-02` 已完成全量 MPS compare，并确认 Method A 没有走 GPU、Method B 的 CPU/MPS 质量指标一致。
+  - 当前正式 summary 仍未显式导出 `requested_device / resolved_device`。
+  - 当前 `accuracy_v1` 必须保持为正式 baseline，不允许被设备优化候选覆盖。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+- 本步回读代码：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/method_b_presets.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+- 准备修改文件：
+  - `src/stitching/features.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `src/stitching/method_b_presets.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `features.py` 是当前 `SuperPoint` 预处理与 device 数据搬运的真实热点。
+  - `run_baseline_video.py` 与 summarize 脚本决定了正式 compare 能否显式解释 device 和 geometry-event 成本。
+  - `method_b_presets.py` 可承载不覆盖 `accuracy_v1` 的设备优化候选。
+  - current truth 文档必须记录新的 compare 口径、优化结论和是否升格为正式 preset。
+- 风险点：
+  - 若直接修改 `accuracy_v1` 参数，会污染已冻结的正式 baseline。
+  - 若只优化 MPS 而不导出 device / timing 解释字段，后续结论仍然不可审计。
+  - 若采用影响匹配结果的激进参数，可能以速度换来明显质量回退。
+- 验收标准：
+  - 正式 artefact 能显式区分 CPU Method A / CPU Method B / MPS Method B。
+  - run bundle 与 method summary 至少新增 `requested_device / resolved_device` 和 geometry-event 总耗时解释字段。
+  - `SuperPoint` 路径完成一项不改变算法语义的性能优化，并给出 CPU/MPS 代表性回归结果。
+  - 若新增 MPS 候选 preset，必须以不覆盖 `accuracy_v1` 为前提，并给出清晰升格与否结论。
+- 替代方案与不选原因：
+  - 方案：直接把 `accuracy_v1` 改成更快参数。
+  - 不选原因：会破坏已经冻结的正式方法对比基线。
+  - 方案：只口头解释 GPU 为什么慢，不改代码与 artefact。
+  - 不选原因：当前 summary 缺 device 维度和真实 geometry-event 代价，解释仍不完整。
+- 实际修改文件：
+  - `src/stitching/features.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在 `features.py` 中把 `SuperPoint` 的输入预处理改成 OpenCV 侧灰度化 + 1-channel tensor，上屏设备前不再做 3-channel 搬运。
+  - 在 `run_baseline_video.py` 和 formal summary 层新增：
+    - `method_b_requested_device`
+    - `method_b_resolved_device`
+    - `method_b_device_resolution_reason`
+    - `avg_geometry_event_total_ms`
+  - 修复 `compare_method_device_variants.py` 的 CSV schema 兼容问题，使 CPU preserved rows 与新的 MPS rows 可同表导出。
+  - 生成并固定新的 real-device artefact：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/`
+  - 将旧 `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/` 降级为历史 artefact，不再用于正式 GPU 结论。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/features.py scripts/run_baseline_video.py scripts/eval_method_compare_matrix.py scripts/internal/summarize_method_compare_dataset.py scripts/internal/summarize_method_compare_overall.py scripts/internal/compare_method_device_variants.py`
+  - 代表性 same-code 回归：
+    - `outputs/runs/methodb_cpu_postgray_kitti0002_v1/`
+    - `outputs/runs/methodb_mps_real_postgray_kitti0002_v1/`
+    - `outputs/runs/methodb_cpu_postgray_walking120_v1/`
+    - `outputs/runs/methodb_mps_real_postgray_walking120_v1/`
+  - full-length real-MPS suite：
+    - KITTI `6/6`
+    - DynamicStereo `3/3`
+    - `mine_source` `17/17`
+  - 汇总 artefact：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_summary.csv`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/summary.md`
+- 运行结果与验证结果：
+  - 当前确认：Method A 没有跑 MPS；设备层对照只重跑了 Method B。
+  - preserved CPU vs real MPS 的 overall 对照结果为：
+    - `mean_inliers`: `748.88 -> 737.54`
+    - `mean_inlier_ratio`: `0.5558 -> 0.5498`
+    - `approx_fps`: `7.355 -> 12.826`
+    - `mean_reprojection_error`: `1.4309 -> 1.4215`
+  - same-code 代表性回归显示 CPU / MPS 质量一致，而 MPS 明显更快：
+    - KITTI 0002：`fps 9.21 -> 11.56`
+    - `mine_source_walking` 120 帧：`fps 5.66 -> 9.69`
+- 偏差：
+  - preserved CPU vs real MPS 的 overall 表并不是纯 device-isolated 对照，因为 real-MPS suite 同时包含了本轮 `SuperPoint` 安全预处理优化。
+  - 若后续需要最严格的 same-code full-length CPU vs MPS 表，还需在当前代码上补一轮 CPU rich-v3 复跑。
+- 下一步建议：
+  - 若后续还做设备层实验，直接复用新的 device 字段和 `compare_method_device_variants.py`。
+  - 若只需要当前结论，正式图表与报告应统一引用 `method_b_accuracy_v1_cpu_vs_mps_real_v1`。

@@ -60,6 +60,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", default=None, help="Optional Method B device override")
     parser.add_argument("--force_cpu", action="store_true", help="Force Method B to CPU")
     parser.add_argument("--weights_dir", default=None, help="Optional Method B weights dir")
+    parser.add_argument(
+        "--suite_tag",
+        default=None,
+        help="Optional suffix tag appended to dataset-level and overall suite ids, e.g. mps_accuracy_v1",
+    )
     parser.add_argument("--continue_on_error", action="store_true", help="Continue after child-suite failures")
     parser.add_argument("--skip_figures", action="store_true", help="Skip figure export step")
     return parser
@@ -136,6 +141,13 @@ def _build_summary_cmd(
     ]
 
 
+def _tagged(base: str, tag: str | None) -> str:
+    clean = (tag or "").strip()
+    if not clean:
+        return base
+    return f"{base}_{clean}"
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -143,6 +155,7 @@ def main() -> int:
     suite_id = args.suite_id or f"{timestamp}_method_compare_full"
     suite_dir = repo_root / "outputs" / "phase3" / suite_id
     suite_dir.mkdir(parents=True, exist_ok=True)
+    suite_tag = (args.suite_tag or "").strip()
 
     dataset_specs = [
         ("kitti", "kitti_method_compare_rich_v3", KITTI_PAIRS, 10.0),
@@ -154,31 +167,32 @@ def main() -> int:
     source_suites: List[str] = []
     manifest_rows: List[Dict[str, object]] = []
     for dataset_key, child_suite_id, pairs, fps_value in dataset_specs:
-        method_suite_id = f"{child_suite_id}__methods"
+        tagged_child_suite_id = _tagged(child_suite_id, suite_tag)
+        method_suite_id = f"{tagged_child_suite_id}__methods"
         compare_cmd = _build_compare_cmd(args, method_suite_id, pairs, fps_value)
         rc = _run(repo_root, suite_dir, f"{dataset_key}_method_compare", compare_cmd)
         overall_rc = rc or overall_rc
         if rc != 0 and not args.continue_on_error:
             return rc
 
-        summary_cmd = _build_summary_cmd(args, child_suite_id, method_suite_id, pairs, fps_value)
+        summary_cmd = _build_summary_cmd(args, tagged_child_suite_id, method_suite_id, pairs, fps_value)
         rc = _run(repo_root, suite_dir, f"{dataset_key}_build_summary", summary_cmd)
         overall_rc = rc or overall_rc
         if rc != 0 and not args.continue_on_error:
             return rc
 
-        source_suites.append(child_suite_id)
+        source_suites.append(tagged_child_suite_id)
         manifest_rows.append(
             {
                 "dataset_key": dataset_key,
-                "suite_id": child_suite_id,
+                "suite_id": tagged_child_suite_id,
                 "method_suite_id": method_suite_id,
                 "pair_count": len(pairs),
                 "fps": fps_value,
             }
         )
 
-    overall_suite_id = "overall_method_compare_rich_v3"
+    overall_suite_id = _tagged("overall_method_compare_rich_v3", suite_tag)
     overall_cmd = [
         str(args.python_bin),
         "scripts/internal/summarize_method_compare_overall.py",

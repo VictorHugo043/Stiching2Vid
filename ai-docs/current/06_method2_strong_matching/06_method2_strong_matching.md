@@ -632,6 +632,37 @@
   - `Device (Method B / GPU)`
   - 供用户直接选择 `auto / cpu / mps / cuda`
 
+## 2026-03-26 MPS 复盘与安全优化
+- 当前有一个必须固定的事实：
+  - 早先带 `mps` 标记的一轮 full-length suite 运行在 sandbox 内，实际发生了 `requested_device=mps -> resolved_device=cpu` 的 fallback。
+  - 因此旧 `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/` 不能再用来支持“真实 MPS 表现”的结论，只保留为历史 artefact。
+- 当前 authoritative 的 real-MPS suite 是：
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/`
+- 当前 formal bundle / summary 已新增：
+  - `method_b_requested_device`
+  - `method_b_resolved_device`
+  - `method_b_device_resolution_reason`
+  - `avg_geometry_event_total_ms`
+- 本轮对 `SuperPoint` 的安全优化：
+  - 旧路径先把 BGR 图像转成 3-channel tensor，再交给官方 `SuperPoint` 在内部转灰度。
+  - 新路径先在 OpenCV 侧直接转成灰度，再以 1-channel tensor 送入 `SuperPoint.extract()`。
+  - 该改动不改变算法本意，因为官方 `SuperPoint` 本就会把 RGB 输入转成灰度；它减少的是多余的通道搬运和 device 侧预处理开销。
+- 代表性 same-code CPU vs MPS 回归：
+  - KITTI 0002：
+    - CPU：`outputs/runs/methodb_cpu_postgray_kitti0002_v1/metrics_preview.json`
+    - MPS：`outputs/runs/methodb_mps_real_postgray_kitti0002_v1/metrics_preview.json`
+    - 结论：质量一致，`fps 9.21 -> 11.56`
+  - `mine_source_walking` 120 帧：
+    - CPU：`outputs/runs/methodb_cpu_postgray_walking120_v1/metrics_preview.json`
+    - MPS：`outputs/runs/methodb_mps_real_postgray_walking120_v1/metrics_preview.json`
+    - 结论：质量一致，`fps 5.66 -> 9.69`
+- 当前解释：
+  - “GPU 比 CPU 慢”并不是当前代码的真实结论。
+  - 之前之所以出现这种印象，主要是：
+    - 旧 `mps` suite 在 sandbox 内实际 fallback 到 CPU；
+    - `fixed_geometry + frame0_all` 的总 `fps` 混合了大量 CPU compose 开销，不等于纯 `SuperPoint / LightGlue` 吞吐；
+    - 旧 `SuperPoint` 预处理路径本身存在不必要的数据搬运。
+
 ## 风险与规避
 - 风险：依赖复杂、环境不可用
   - 规避：optional dependency + fail-fast diagnostics

@@ -163,9 +163,12 @@ def _extract_superpoint_features(
     import numpy as np  # type: ignore
     import torch  # type: ignore
 
-    rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    tensor = torch.from_numpy(rgb.astype(np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
-    tensor = tensor.to(str(resolved_device))
+    # SuperPoint converts RGB inputs to grayscale internally. Precomputing grayscale
+    # here preserves the effective input while avoiding a 3-channel host->device copy.
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    tensor = torch.from_numpy(np.ascontiguousarray(gray)).unsqueeze(0).unsqueeze(0)
+    tensor = tensor.to(device=str(resolved_device), dtype=torch.float32)
+    tensor.div_(255.0)
     preprocess_resize = _resolve_superpoint_resize(resize_long_edge)
     extract_kwargs = {}
     if preprocess_resize is not _USE_SUPERPOINT_DEFAULT_RESIZE:
@@ -200,6 +203,7 @@ def _extract_superpoint_features(
             if preprocess_resize is _USE_SUPERPOINT_DEFAULT_RESIZE
             else preprocess_resize
         ),
+        "preprocess_input_channels": 1,
         "payload_image_size": tuple(int(v) for v in pred["image_size"].reshape(-1).tolist())
         if "image_size" in pred
         else None,
