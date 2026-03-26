@@ -66,6 +66,11 @@
 - 当前口径：
   - `.venv + requirements.txt + docs/environment.md` 是唯一正式环境入口。
   - 若本机仍保留历史 `.venv-methodb` 目录，只视为旧本地目录名，不再对应单独的依赖文件。
+- 当前 Method B 设备支持（2026-03-26 更新）：
+  - 正式支持 `cpu / cuda / mps`
+  - `auto` 当前按 `cuda -> mps -> cpu` 顺序自动解析
+  - GUI 已提供 `Device (Method B / GPU)` 下拉框；若用户显式选择非 `cpu` 设备，界面会自动取消 `Force CPU`
+  - 实际能否使用 `mps` 仍取决于本机 `torch.backends.mps.is_available()`
 
 ## 当前对外文档入口（2026-03-25 更新）
 - `README.md`
@@ -111,6 +116,8 @@
   - 与现有 pair 重名会被拒绝
 - 注册成功写入 `pairs.yaml` 时，当前默认采用文本级局部插入，尽量只追加新增 block，不重排整份 manifest。
 - `Run Config` 里只有 `Snapshot Every / Force CPU` 是稳定显示字段。
+- `Run Config` 里当前还稳定显示：
+  - `Device (Method B / GPU)`
 - `Keyframe Every / Seam Keyframe Every / Trigger Diff / FG Ratio` 都属于动态参数区，会根据 `geometry_mode / seam_policy` 条件显示。
 - 动态参数区当前应与主表单共用 `grid` 风格对齐；若后续仍出现视觉错位，应优先检查 widget 父容器和布局管理器是否一致。
 - `run_id` 仍允许 GUI 自动生成默认值，这与 `pair_id` 的强制显式填写是两套不同规则。

@@ -49,6 +49,15 @@ METHOD_CHOICES: List[MethodChoice] = [
     MethodChoice("method_b_kp3072_v1", "Method B / kp3072_v1"),
 ]
 
+DEVICE_CHOICES: List[tuple[str, str]] = [
+    ("auto", "auto (prefer GPU if available)"),
+    ("cpu", "cpu"),
+    ("mps", "mps (Mac GPU)"),
+    ("cuda", "cuda (NVIDIA GPU)"),
+]
+DEVICE_VALUE_TO_LABEL = {value: label for value, label in DEVICE_CHOICES}
+DEVICE_LABEL_TO_VALUE = {label: value for value, label in DEVICE_CHOICES}
+
 PREVIEW_SIZE = (320, 180)
 
 
@@ -264,6 +273,7 @@ class StitchingGuiApp:
         self.seam_trigger_diff_var = tk.StringVar(value="18")
         self.seam_trigger_foreground_ratio_var = tk.StringVar(value="0.08")
         self.snapshot_every_var = tk.StringVar(value="1000")
+        self.device_var = tk.StringVar(value=DEVICE_VALUE_TO_LABEL["auto"])
         self.force_cpu_var = tk.BooleanVar(value=True)
         self.auto_open_run_dir_var = tk.BooleanVar(value=True)
         self.status_var = tk.StringVar(value="idle")
@@ -279,6 +289,7 @@ class StitchingGuiApp:
         self.refresh_pairs()
         self.geometry_mode_var.trace_add("write", self._on_mode_visibility_changed)
         self.seam_policy_var.trace_add("write", self._on_mode_visibility_changed)
+        self.device_var.trace_add("write", self._on_device_changed)
         self._update_mode_visibility()
         self.root.after(200, self._poll_runner)
 
@@ -343,6 +354,13 @@ class StitchingGuiApp:
             grid,
             2,
             1,
+            "Device (Method B / GPU)",
+            self._build_choice_combo(grid, self.device_var, [label for _value, label in DEVICE_CHOICES]),
+        )
+        self._grid_labeled_widget(
+            grid,
+            2,
+            2,
             "Force CPU",
             ttk.Checkbutton(grid, text="Enabled", variable=self.force_cpu_var),
         )
@@ -443,6 +461,11 @@ class StitchingGuiApp:
 
     def _on_mode_visibility_changed(self, *_args) -> None:
         self._update_mode_visibility()
+
+    def _on_device_changed(self, *_args) -> None:
+        selected = DEVICE_LABEL_TO_VALUE.get(self.device_var.get().strip(), "auto")
+        if selected != "cpu":
+            self.force_cpu_var.set(False)
 
     def _update_mode_visibility(self) -> None:
         for child in self.dynamic_options_frame.winfo_children():
@@ -765,6 +788,7 @@ class StitchingGuiApp:
         else:
             preset_name = "accuracy_v1" if method_key == "method_b_accuracy_v1" else "kp3072_v1"
             preset = get_method_b_preset(preset_name)
+            device_value = DEVICE_LABEL_TO_VALUE.get(self.device_var.get().strip(), "auto")
             cmd.extend(
                 [
                     "--feature_backend",
@@ -773,6 +797,8 @@ class StitchingGuiApp:
                     "lightglue",
                     "--geometry_backend",
                     "opencv_usac_magsac",
+                    "--device",
+                    device_value,
                     "--max_keypoints",
                     str(preset.max_keypoints),
                 ]
@@ -805,6 +831,7 @@ class StitchingGuiApp:
             "start": self.start_var.get().strip() or "0",
             "stride": self.stride_var.get().strip() or "1",
             "fps": self.fps_var.get().strip() or None,
+            "device": DEVICE_LABEL_TO_VALUE.get(self.device_var.get().strip(), "auto"),
             "keyframe_every": self.keyframe_every_var.get().strip() or None,
             "seam_keyframe_every": self.seam_keyframe_every_var.get().strip() or None,
             "seam_trigger_diff_threshold": self.seam_trigger_diff_var.get().strip() or None,

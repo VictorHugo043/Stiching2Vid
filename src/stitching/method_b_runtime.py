@@ -41,6 +41,8 @@ def resolve_method_b_device(
         "resolution_reason": None,
         "torch_available": False,
         "cuda_available": False,
+        "mps_built": False,
+        "mps_available": False,
     }
     deps = probe_method_b_dependencies()
     diagnostics["torch_available"] = bool(deps["torch"]["available"])
@@ -57,19 +59,34 @@ def resolve_method_b_device(
     import torch  # type: ignore
 
     cuda_available = bool(torch.cuda.is_available())
+    mps_backend = getattr(torch.backends, "mps", None)
+    mps_built = bool(mps_backend.is_built()) if mps_backend is not None else False
+    mps_available = bool(mps_backend.is_available()) if mps_backend is not None else False
     diagnostics["cuda_available"] = cuda_available
+    diagnostics["mps_built"] = mps_built
+    diagnostics["mps_available"] = mps_available
 
     requested = (requested_device or "auto").strip().lower()
     if requested == "auto":
-        diagnostics["resolved_device"] = "cuda" if cuda_available else "cpu"
-        diagnostics["resolution_reason"] = (
-            "auto_cuda" if cuda_available else "auto_cpu"
-        )
+        if cuda_available:
+            diagnostics["resolved_device"] = "cuda"
+            diagnostics["resolution_reason"] = "auto_cuda"
+        elif mps_available:
+            diagnostics["resolved_device"] = "mps"
+            diagnostics["resolution_reason"] = "auto_mps"
+        else:
+            diagnostics["resolved_device"] = "cpu"
+            diagnostics["resolution_reason"] = "auto_cpu"
         return diagnostics
 
     if requested.startswith("cuda") and not cuda_available:
         diagnostics["resolved_device"] = "cpu"
         diagnostics["resolution_reason"] = "cuda_unavailable_fallback_cpu"
+        return diagnostics
+
+    if requested == "mps" and not mps_available:
+        diagnostics["resolved_device"] = "cpu"
+        diagnostics["resolution_reason"] = "mps_unavailable_fallback_cpu"
         return diagnostics
 
     diagnostics["resolved_device"] = requested_device or requested

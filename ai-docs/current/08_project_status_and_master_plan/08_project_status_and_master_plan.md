@@ -83,6 +83,10 @@
 - 当前对外文档口径：
   - `README.md` 现已收敛为面向使用者的入口文档，只保留项目介绍、功能、安装、GUI/CLI 使用和正式评测导出入口。
   - 开发过程、历史脚本分层和内部工作流继续放在 `ai-docs/current/` 与 `docs/environment.md`，不再放进 README 主体。
+- 当前 Method B 设备口径（2026-03-26）：
+  - runtime 已正式支持 `mps`
+  - `auto` 解析顺序固定为 `cuda -> mps -> cpu`
+  - GUI 已暴露 `Device (Method B / GPU)` 下拉框供用户直接选择 `auto / cpu / mps / cuda`
 
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts

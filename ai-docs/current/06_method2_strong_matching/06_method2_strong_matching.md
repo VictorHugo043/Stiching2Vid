@@ -619,6 +619,18 @@
   - `weights`
   - `fallback_used`
   - `failure_stage`
+  - `device_info.cuda_available / mps_available / resolution_reason`
+
+## 当前运行时口径（2026-03-26 更新）
+- Method B 当前正式支持：
+  - `cpu`
+  - `cuda`
+  - `mps`
+- `resolve_method_b_device()` 的 `auto` 选择顺序固定为：
+  - `cuda -> mps -> cpu`
+- GUI 已暴露：
+  - `Device (Method B / GPU)`
+  - 供用户直接选择 `auto / cpu / mps / cuda`
 
 ## 风险与规避
 - 风险：依赖复杂、环境不可用

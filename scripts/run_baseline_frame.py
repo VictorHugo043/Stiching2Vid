@@ -51,7 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--device",
         default=None,
-        help="Optional Method B device override (auto/cpu/cuda/cuda:0)",
+        help="Optional Method B device override (auto/cpu/mps/cuda/cuda:0)",
     )
     parser.add_argument(
         "--force_cpu",

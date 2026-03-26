@@ -4509,3 +4509,105 @@
   - 没有引入新的开发者说明章节，相关内容继续留在 `ai-docs/current/`。
 - 下一步建议：
   - 如果还要继续收尾，当前主要只剩选择是否进一步统一历史 frozen outputs 的引用口径；否则对外文档已经基本闭环。
+
+## IMP-20260326-01
+- 状态：done
+- 标题：为 Method B 正式补齐 `mps` 自动探测并在 GUI 暴露 Device 选择
+- 本步目标：
+  - 让 Method B runtime 在 `auto` 模式下正式支持 Apple Silicon 的 `mps` 自动探测。
+  - 在 GUI 中新增明确标注“Method B / GPU”用途的 `Device` 下拉框，使用户可直接选择 `auto / cpu / mps / cuda`。
+  - 保持现有 Method A / Method B、GUI、CLI 和 bundle 语义兼容，不做无关 UI 或算法修改。
+- 关联上一步结论：
+  - 当前正式环境已收敛到 `.venv + requirements.txt`。
+  - 当前代码里 Method B runtime 仅自动解析 `cuda / cpu`，GUI 只有 `Force CPU`，不能直接从 GUI 使用 Mac GPU。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `docs/environment.md`
+- 准备修改文件：
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `docs/environment.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - `method_b_runtime.py` 是正式 device 解析边界，必须在这里补齐 `mps` 自动探测。
+  - `gui_thin_wrapper.py` 是当前桌面 GUI 的唯一运行入口，需要把 `device` 透传到正式 CLI。
+  - `run_baseline_video.py / run_baseline_frame.py` 的 help 需要对齐新的正式支持口径。
+  - `docs/environment.md` 与 current truth 文档需要同步更新，避免继续写成“Mac 只用 CPU”。
+- 风险点：
+  - 不能破坏现有 `cuda` / `cpu` 行为。
+  - GUI 需要避免让 Method A 路径因新增 device 选项而出现语义混乱。
+  - 不能把 `auto` 改成过于激进的设备选择，导致已有环境行为意外漂移。
+- 验收标准：
+  - `resolve_method_b_device()` 在 Apple Silicon 上可在 `auto` 模式下解析到 `mps`。
+  - CLI help 明确 `mps` 是受支持的 device 选项。
+  - GUI 出现明确标注 GPU 用途的 `Device` 选择，并能将其透传到 Method B 运行命令。
+  - 相关脚本 `py_compile` 通过，GUI 入口 `--help` 通过。
+- 替代方案与不选原因：
+  - 方案：只允许 CLI 显式 `--device mps`，不做 auto 探测。
+  - 不选原因：用户明确要求正式支持 `mps` 自动探测。
+  - 方案：只改 runtime，不改 GUI。
+  - 不选原因：用户明确要求 GUI 可直接选择 GPU 跑 Method B。
+- 实际修改文件：
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/gui_thin_wrapper.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/run_baseline_frame.py`
+  - `docs/environment.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - `resolve_method_b_device()` 现在会记录 `mps_built / mps_available`，并把 `auto` 顺序固定为 `cuda -> mps -> cpu`。
+  - 当用户显式请求 `mps` 但本机不可用时，runtime 会以 `mps_unavailable_fallback_cpu` 的原因安全回退到 CPU。
+  - `run_baseline_video.py` 与 `run_baseline_frame.py` 的 `--device` help 已更新为 `auto/cpu/mps/cuda/cuda:0`。
+  - GUI 新增 `Device (Method B / GPU)` 下拉框，支持：
+    - `auto (prefer GPU if available)`
+    - `cpu`
+    - `mps (Mac GPU)`
+    - `cuda (NVIDIA GPU)`
+  - GUI 在 Method B 命令构建时会显式透传 `--device`，并把所选 device 写入 `gui_request.json`。
+  - GUI 若用户显式选择非 `cpu` device，会自动取消 `Force CPU`。
+- 验证方式：
+  - `python3 -m py_compile src/stitching/method_b_runtime.py src/stitching/gui_thin_wrapper.py scripts/run_baseline_video.py scripts/run_baseline_frame.py scripts/run_stitching_gui.py`
+  - `python3 scripts/run_baseline_video.py --help | rg -n "mps|device|force_cpu|geometry_mode"`
+  - `python3 scripts/run_baseline_frame.py --help | rg -n "mps|device|force_cpu"`
+  - `python3 scripts/run_stitching_gui.py --help`
+  - `.venv/bin/python` 下读取 `resolve_method_b_device()` 的真实诊断结果
+- 运行结果与验证结果：
+  - 所有相关脚本 `py_compile` 通过。
+  - frame/video CLI help 均已显示 `mps`。
+  - GUI 入口 `--help` 通过。
+  - 在当前机器的正式 `.venv` 中，`resolve_method_b_device()` 返回：
+    - `torch_available=True`
+    - `mps_built=True`
+    - `mps_available=False`
+    - 因此当前机器会自动回落到 CPU，但代码层的 `mps` 支持与 GUI 入口已经正式打通。
+- 遇到的错误和修复：
+  - 初次用 system `python3` 验证 `resolve_method_b_device()` 时，因未把 `src/` 加入 `sys.path`，导致 `ModuleNotFoundError: stitching`。
+  - 修复方式：补充 `Path.cwd() / "src"` 到 `sys.path`，并再用正式 `.venv/bin/python` 做真实运行时验证。
+- 偏差：
+  - 本步没有修改 README，避免偏离当前用户请求。
+  - GUI 仍保留 `Force CPU` 复选框，作为与现有行为兼容的显式覆盖开关。
+- 下一步建议：
+  - 若用户后续要继续打磨 GUI，可考虑让 `Method A` 选中时弱化或禁用 `Device (Method B / GPU)` 的视觉强调；当前版本已满足“可以从 GUI 选 GPU 跑 Method B”的最小目标。

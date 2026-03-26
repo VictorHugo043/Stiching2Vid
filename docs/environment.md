@@ -44,8 +44,11 @@ Recommended use cases:
 - `python scripts/preprocess/split_sbs_stereo.py --dry_run`
 
 Current runtime guidance on Apple Silicon:
-- use `--device cpu` or `--force_cpu`
-- do not assume `mps` is supported by the current project code yet
+- Method B 现在正式支持 `mps`
+- `--device auto` 会按 `cuda -> mps -> cpu` 的顺序自动选择
+- 若你想强制使用 Mac GPU，可显式传 `--device mps`
+- 若你想显式回到 CPU，可传 `--device cpu` 或 `--force_cpu`
+- 实际是否能走 `mps` 仍取决于本机 `torch.backends.mps.is_available()`
 
 ## Weights
 Default behavior:
@@ -106,8 +109,7 @@ python scripts/run_baseline_frame.py \
   --feature_backend superpoint \
   --matcher_backend lightglue \
   --geometry_backend opencv_usac_magsac \
-  --device cpu \
-  --force_cpu \
+  --device auto \
   --run_id envcheck_methodb_nikita
 ```
 
@@ -156,6 +158,7 @@ Notes:
 - it launches `scripts/run_baseline_video.py` as a subprocess and writes a `gui_request.json` into the selected run directory
 - it previews the first left/right frame of the selected pair by reusing the existing I/O layer
 - it keeps `keyframe_every` / `seam_keyframe_every` visible only when the selected geometry mode or seam policy actually uses them
+- it exposes `Device (Method B / GPU)` as a GUI selector with `auto / cpu / mps / cuda`
 - it is safest to launch it from the same environment you use for the target method
 - on headless shells or remote terminals without a display server, the GUI may not launch even though the script imports correctly
 - current upload path only supports registering left/right video files; uploads are copied into `data/raw/Videos/gui_uploads/` and appended to `data/manifests/pairs.yaml` with repo-relative paths

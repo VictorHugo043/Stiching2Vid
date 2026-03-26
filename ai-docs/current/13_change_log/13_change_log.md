@@ -54,6 +54,7 @@
 | CHG-20260325-03 | 2026-03-25 | config+docs+review | 删除 `requirements-methodb.txt`，将 current truth 文档统一到 `.venv + requirements.txt`，并完成一次不改逻辑的全仓 review 记录 | 影响正式环境入口与当前文档口径；不改变核心 stitching / evaluation 算法行为 | README 按用户要求暂未在本步更新；formal compare/export 的 phase 命名残留已记录为非阻塞收尾项 |
 | CHG-20260325-04 | 2026-03-25 | scripts+docs | 收敛 formal compare/export 的阶段命名：新生成 suite id、summary filename 和 markdown/figure 标题去掉 `phase2 / phase3` 前缀；同步 current truth 文档解释历史 `phase*` 结果目录只是冻结产物 | 影响后续新生成 artefact 的命名口径与 current truth 文档说明；不改变算法逻辑，也不回写历史 outputs 目录 | README 按用户要求仍暂不改；现有 `outputs/video_compare/phase2_*` 与 `outputs/phase3/phase3_*` 仍作为历史冻结结果保留 |
 | CHG-20260325-05 | 2026-03-25 | docs | 重写 README 为用户导向入口文档，只保留项目介绍、功能、安装、GUI/CLI 使用和正式评测/图表导出；同步 current truth 文档明确 README 与 ai-docs 的职责边界 | 影响对外文档入口与用户上手方式；不改变任何核心 stitching / evaluation 逻辑 | README 不再承载仓库结构、legacy、开发流程、troubleshooting、roadmap 等开发期信息 |
+| CHG-20260326-01 | 2026-03-26 | code+docs | Method B runtime 正式增加 `mps` 自动探测，并在 GUI 新增 `Device (Method B / GPU)` 下拉框；同步更新环境文档与 current truth | 影响 Method B 的设备解析、GUI 运行配置和 Mac 上的 GPU 使用路径；不改变 Method A / Method B 的核心算法逻辑或正式 baseline 参数 | 当前机器的正式环境验证结果为 `mps_built=True` 但 `mps_available=False`，因此代码已支持 `mps`，但是否实际启用仍取决于本机 PyTorch / macOS 运行时 |
 
 ## 变更文件清单
 | 文件 | 变更说明 | 负责人 | 状态 |
