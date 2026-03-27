@@ -53,26 +53,35 @@
   - `depth_confidence=-1`
   - `width_confidence=-1`
   - `filter_threshold=0.1`
-- 当前不建议再直接沿用：
+  - 当前不建议再直接沿用：
   - 旧 implicit preset：
     - `max_keypoints=2048`
     - `SuperPoint` package default resize `1024`
     - `LightGlue` adaptive defaults
+- 当前 high-resolution 对照结论（2026-03-26 更新）：
+  - `resize_long_edge<=0 + mps` 已完成 full-length 多数据域复验：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/`
+    - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/`
+  - 当前不建议把它升格为正式默认：
+    - overall `mean_inliers` 与 `mean_inlier_ratio` 均低于 `accuracy_v1_mps`
+  - 当前更适合的定位：
+    - 作为“原始分辨率提特征”的 full-length 对照变体
+    - 若后续继续优化高分辨率 `mine_source`，再考虑只针对 `1920x1080` pair 做分数据域 preset，而不是全局替换默认值
 
 ## 当前 Method B CPU / MPS 结果口径（2026-03-26 更新）
 - 历史 `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/`
   - 当前只保留为历史 artefact。
   - 原因：该 suite 运行在 sandbox 内，实际发生了 `requested_device=mps -> resolved_device=cpu` fallback。
 - 当前 authoritative 的 real-MPS formal suite：
-  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
 - 当前 preserved CPU vs real MPS 对照 artefact：
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
 - 当前结论：
   - Method A 没有跑 GPU；当前设备对照只重跑了 Method B。
   - preserved CPU vs real MPS 的 overall 对照显示：
     - `mean_inliers`：`748.88 -> 737.54`
     - `mean_inlier_ratio`：`0.5558 -> 0.5498`
-    - `approx_fps`：`7.355 -> 12.826`
+    - `approx_fps`：`7.355 -> 10.810`
     - `mean_reprojection_error`：`1.4309 -> 1.4215`
   - same-code 代表性回归显示 CPU / MPS 质量一致而 MPS 更快，因此当前仍应把 MPS 视作运行时部署选项，而不是新的算法方法。
 - 当前已知限制：

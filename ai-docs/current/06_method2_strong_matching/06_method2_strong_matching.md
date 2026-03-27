@@ -199,6 +199,15 @@
 - 默认使用预训练 SuperPoint + LightGlue。
 - robust estimator 默认使用 OpenCV `USAC_MAGSAC`。
 - Method B 失败时允许配置化 fallback 到 Method A。
+- 当前正式 baseline 继续保持：
+  - `accuracy_v1`
+- 当前已完成的 high-resolution 对照变体：
+  - `native_res_mps`
+  - 定义：仅把 `resize_long_edge` 改为 `<=0`，其余 accuracy preset 参数保持不变
+  - 当前结论：
+    - overall `mean_inliers` 与 `mean_inlier_ratio` 不如 `accuracy_v1_mps`
+    - 但 `mean_reprojection_error` 和多项 seam/blending 代理指标更好
+  - 因此它只保留为对照变体，不升格为正式默认
 
 ## 依赖与运行时设计
 ### 依赖现状

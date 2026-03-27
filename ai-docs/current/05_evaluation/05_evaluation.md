@@ -166,16 +166,16 @@
     - 因此旧 Phase 3 方法表目前只能作为“旧 preset 下的实验事实”，不能再直接当 final report 的最终 Method B 结论
 
 ### Phase 3 补充：Method B CPU vs real-MPS device compare（2026-03-26）
-- 当前 authoritative 的 real-MPS full-length suite：
-  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_summary.csv`
-  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_method_by_dataset.csv`
-  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/overall_summary.md`
-- preserved-CPU vs real-MPS 对照 artefact：
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/overall_method_compare.csv`
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/by_dataset_method_compare.csv`
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/method_b_device_delta.csv`
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_core_metrics.png`
-  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/figures/device_compare_quality_metrics.png`
+- 当前最新 authoritative 的 real-MPS full-length suite：
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/overall_method_summary.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/overall_method_by_dataset.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/overall_summary.md`
+- 当前最新 preserved-CPU vs real-MPS 对照 artefact：
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/overall_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/by_dataset_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/method_b_device_delta.csv`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/figures/device_compare_core_metrics.png`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/figures/device_compare_quality_metrics.png`
 - 解释口径：
   - `method_a_orb / method_a_sift / method_b_accuracy_v1_cpu` 来自之前已冻结的 CPU 正式 suite：
     - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
@@ -185,7 +185,7 @@
   - preserved CPU vs real MPS 的 overall 对照为：
     - `mean_inliers`: `748.88 -> 737.54`
     - `mean_inlier_ratio`: `0.5558 -> 0.5498`
-    - `approx_fps`: `7.355 -> 12.826`
+    - `approx_fps`: `7.355 -> 10.810`
     - `mean_reprojection_error`: `1.4309 -> 1.4215`
   - 这组 overall delta 不能直接解释成“纯 device 差异”，因为 real-MPS suite 同时包含了本轮安全优化后的 `SuperPoint` 预处理路径。
   - 真正的 same-code CPU vs MPS 代表性回归应看：
@@ -195,6 +195,33 @@
     - `outputs/runs/methodb_mps_real_postgray_walking120_v1/metrics_preview.json`
   - 在上述 same-code 代表性回归里，CPU / MPS 的质量指标一致，而 MPS 明显更快。
   - 因此当前仍应把 `MPS` 视作运行时 device variant，而不是新的算法方法。
+
+### Phase 3 补充：Method B `accuracy_v1_mps` vs `native_res_mps`（2026-03-26）
+- 当前 authoritative 的 raw-resolution real-MPS overall suite：
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/overall_method_summary.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/overall_method_by_dataset.csv`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/overall_summary.md`
+- 当前对照 artefact：
+  - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/overall_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/by_dataset_method_compare.csv`
+  - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/method_b_variant_delta.csv`
+  - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/figures/variant_compare_core_metrics.png`
+  - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/figures/variant_compare_quality_metrics.png`
+- 当前结论：
+  - `native_res_mps` 仅改变 `resize_long_edge<=0`，其余 Method B accuracy preset 参数保持不变。
+  - overall 对照显示：
+    - `mean_inliers`: `737.54 -> 685.81`
+    - `mean_inlier_ratio`: `0.5498 -> 0.5451`
+    - `approx_fps`: `10.810 -> 10.921`
+    - `mean_reprojection_error`: `1.4215 -> 1.3285`
+  - 同时它改善了多项 seam / blending 代理指标：
+    - `mean_overlap_diff_after`
+    - `mean_seam_band_illuminance_diff`
+    - `mean_seam_band_gradient_disagreement`
+    - `mean_seam_band_flicker`
+  - 正式解释：
+    - `native_res_mps` 适合作为“原始分辨率提特征”的对照变体。
+    - 但它当前不替换 `accuracy_v1`，因为 overall `mean_inliers` 与 `mean_inlier_ratio` 均未提升。
 
 ### Phase 2
 - 在最佳方法下比较：

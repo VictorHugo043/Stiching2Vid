@@ -46,18 +46,27 @@
     - `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/`
     - 该目录现在只保留为历史 artefact，不再作为真实 GPU 结论来源。
   - 当前 authoritative 的 real-MPS full-length suite：
-    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v1/`
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
+  - 当前已完成的 raw-resolution real-MPS Method B 对照 artefact：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/`
+    - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/`
   - 当前已完成 preserved CPU vs real MPS 的 device 对照 artefact：
-    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v1/`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
   - 当前结论：
     - Method A 没有跑 GPU；设备层对照只重跑了 Method B。
     - preserved CPU vs real MPS 的 overall 对照显示：
       - `mean_inliers`：`748.88 -> 737.54`
       - `mean_inlier_ratio`：`0.5558 -> 0.5498`
-      - `approx_fps`：`7.355 -> 12.826`
-      - `mean_reprojection_error`：`1.4309 -> 1.4215`
+      - `approx_fps`：`7.355 -> 10.810`
+    - `mean_reprojection_error`：`1.4309 -> 1.4215`
     - 这组 delta 不能被解释成纯 device 差异，因为 real-MPS suite 同时带入了当前的 `SuperPoint` 安全预处理优化。
     - same-code 代表性回归显示 CPU / MPS 质量一致，而 real MPS 明显更快。
+    - 新完成的 `accuracy_v1_mps vs native_res_mps` full-length 对照显示：
+      - `mean_inliers`：`737.54 -> 685.81`
+      - `mean_inlier_ratio`：`0.5498 -> 0.5451`
+      - `approx_fps`：`10.810 -> 10.921`
+      - `mean_reprojection_error`：`1.4215 -> 1.3285`
+    - 因此 `native_res_mps` 更适合作为“原始分辨率提特征”的对照变体，而不是新的正式 Method B baseline。
 
 ### 3. 当前最关键的限制点与耦合点
 - `scripts/run_baseline_video.py` 为单体 orchestrator，承载过多职责。

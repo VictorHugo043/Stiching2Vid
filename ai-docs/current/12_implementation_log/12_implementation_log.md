@@ -4855,3 +4855,245 @@
 - 下一步建议：
   - 若后续还做设备层实验，直接复用新的 device 字段和 `compare_method_device_variants.py`。
   - 若只需要当前结论，正式图表与报告应统一引用 `method_b_accuracy_v1_cpu_vs_mps_real_v1`。
+
+## IMP-20260326-04
+- 状态：done
+- 标题：重跑 real-MPS `method_b_accuracy_v1` 全量 suite，并与 preserved CPU `method_a_orb / method_a_sift / method_b` 生成四基线对照图表
+- 本步目标：
+  - 重新用真实 MPS 跑一轮 `method_b_accuracy_v1` 的全量 full-length suite。
+  - 不重跑 Method A，也不重跑 CPU Method B。
+  - 复用 preserved CPU formal suite，生成四基线：
+    - `method_a_orb`
+    - `method_a_sift`
+    - `method_b_accuracy_v1_cpu`
+    - `method_b_accuracy_v1_mps`
+  - 输出新的对照 CSV 和图表。
+- 关联上一步结论：
+  - `DEC-20260326-04`：真实 MPS 结论只能引用 `resolved_device=mps` 的 suite。
+  - `IMP-20260326-03`：已完成 device 字段导出、SuperPoint 灰度预处理优化与 CPU-vs-real-MPS 对照逻辑。
+  - 当前 preserved CPU 正式基线仍是：
+    - `outputs/phase3/phase3_overall_methods_rich_v3/overall_method_summary.csv`
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+- 本步回读代码：
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+- 准备修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 这一步预计不改核心代码，主要新增输出 artefact 并更新 current-truth 文档与日志。
+  - 需要把新的 authoritative real-MPS suite 和四基线对照表登记为当前正式结果。
+- 风险点：
+  - 若在 sandbox 内运行，会再次发生 `mps -> cpu` fallback，导致结果无效。
+  - 若误用会重跑 Method A，偏离本步“只重跑 Method B”的范围。
+  - 若输出命名不清晰，会与上一轮 real-MPS 结果混淆。
+- 验收标准：
+  - 仅 `method_b` 的 real-MPS full-length suite 跑完 3 个数据域。
+  - 生成新的 overall real-MPS summary。
+  - 生成新的四基线对照表与图。
+  - ai-docs 对 authoritative 输出路径完成回填。
+- 替代方案与不选原因：
+  - 方案：直接复用上一轮 real-MPS artefact。
+  - 不选原因：用户明确要求“再跑一轮”，需要新的 suite 作为最新 authoritative 输出。
+  - 方案：用 `eval_method_compare.py` 重跑所有方法。
+  - 不选原因：会重复运行 Method A，违反本步最小改动目标。
+- 实际修改文件：
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/07_experiments_and_figures/07_experiments_and_figures.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 在真实 MPS 上重新全量运行了 3 个数据域的 `method_b_accuracy_v1`：
+    - `kitti_method_compare_rich_v3_mps_real_accuracy_v2__methods`
+    - `dynamicstereo_method_compare_rich_v3_mps_real_accuracy_v2__methods`
+    - `minesource_method_compare_rich_v3_mps_real_accuracy_v2__methods`
+  - 生成了新的 authoritative overall real-MPS suite：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
+  - 基于 preserved CPU formal suite 生成了新的四基线对照：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
+- 验证方式：
+  - real-MPS full-length suite：
+    - KITTI `6/6`
+    - DynamicStereo `3/3`
+    - `mine_source` `17/17`
+  - 生成：
+    - `overall_method_summary.csv`
+    - `overall_method_compare.csv`
+    - `method_b_device_delta.csv`
+    - `figures/device_compare_core_metrics.png`
+    - `figures/device_compare_quality_metrics.png`
+- 运行结果与验证结果：
+  - 四基线 overall 对照为：
+    - `method_a_orb`
+      - `inliers=468.38`
+      - `ratio=0.7669`
+      - `fps=12.361`
+      - `reproj=1.0521`
+    - `method_a_sift`
+      - `inliers=645.00`
+      - `ratio=0.6835`
+      - `fps=12.634`
+      - `reproj=0.8428`
+    - `method_b_accuracy_v1_cpu`
+      - `inliers=748.88`
+      - `ratio=0.5558`
+      - `fps=7.355`
+      - `reproj=1.4309`
+    - `method_b_accuracy_v1_mps`
+      - `inliers=737.54`
+      - `ratio=0.5498`
+      - `fps=10.810`
+      - `reproj=1.4215`
+  - preserved CPU vs real MPS 的 Method B overall delta：
+    - `mean_inliers`: `748.88 -> 737.54`
+    - `mean_inlier_ratio`: `0.5558 -> 0.5498`
+    - `approx_fps`: `7.355 -> 10.810`
+    - `mean_reprojection_error`: `1.4309 -> 1.4215`
+  - 当前输出图：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/figures/device_compare_core_metrics.png`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/figures/device_compare_quality_metrics.png`
+- 偏差：
+  - 本步没有重跑 Method A 与 CPU Method B。
+  - 因此最终四基线图表依然是“preserved CPU 正式基线 + 新 real-MPS Method B”的组合，不是一次性同批次四方法同时重跑。
+- 下一步建议：
+  - 若后续需要最严格的 same-batch 对照，再补一轮当前代码版本的 CPU `method_b_accuracy_v1` full-length suite。
+  - 若不需要，则当前 `v2` 已可作为最新 authoritative 的 GPU 部署层对照输出。
+
+## IMP-20260326-05
+- 状态：done
+- 标题：Method B 原始分辨率 MPS 全量复验与 accuracy_v1 MPS 对照
+- 本步目标：
+  - 在真实 `mps` 设备上，以 `resize_long_edge<=0` 跑完 Method B 的 3 数据域 full-length suite。
+  - 保持其余 Method B accuracy preset 参数不变，仅隔离 `resize_long_edge=1536` 与 `resize_long_edge<=0` 的差异。
+  - 生成只包含两条 Method B 变体的对照表与图：
+    - `method_b_accuracy_v1_mps`
+    - `method_b_native_res_mps`
+- 关联上一步结论：
+  - `DEC-20260326-04`：真实 GPU 结论只能引用 `resolved_device=mps` 的 suite。
+  - `DEC-20260326-05`：当前 `SuperPoint` 预处理路径已修正，MPS same-code 代表性回归表明质量一致而 MPS 更快。
+  - 当前 review 结论：`resize_long_edge=1536` 对 `1920x1080` 的 `mine_source` 会发生显式下采样，可能压低关键点与内点数量。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码：
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_method_compare.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `src/stitching/features.py`
+  - `src/stitching/method_b_presets.py`
+- 准备修改文件：
+  - `scripts/internal/compare_method_b_variants.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 现有正式脚本缺少“Method B preset 对 Method B preset”的隔离对照入口，只有 CPU-vs-device 对照工具。
+  - 当前需要把 `accuracy_v1_mps` 和 `native_res_mps` 的 full-length 结果落成正式 artefact，并同步 current truth。
+- 风险点：
+  - 若误用 sandbox 内的旧 `mps` 结果，会再次得到无效对照。
+  - `resize_long_edge=0` 会显著增加高分辨率 pair 的运行时间，full-length suite 总耗时可能明显上升。
+  - 若把 Method A 一起重跑，会扩大范围并破坏“只比较 Method B 两个 preset”的隔离性。
+- 验收标准：
+  - 仅 `method_b` 在 3 数据域的 `resize_long_edge=0 + device=mps` full-length suite 全部跑完。
+  - 生成新的 authoritative overall native-res MPS suite。
+  - 生成两条 Method B 变体的 overall / by-dataset compare CSV 与图表。
+  - ai-docs 回填当前推荐解释边界。
+- 替代方案与不选原因：
+  - 方案：直接在现有 CPU-vs-device 脚本上硬套 `accuracy_v1_mps vs native_res_mps`。
+  - 不选原因：脚本当前会固定写出 `method_a_orb / method_a_sift / method_b_accuracy_v1_cpu`，不适合做纯 Method B variant compare。
+  - 方案：只给口头结果，不生成正式 compare artefact。
+  - 不选原因：后续 final report 与 Method B 优化讨论需要可追溯表格与图。
+- 实际修改文件：
+  - `scripts/internal/compare_method_b_variants.py`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 新增内部对照脚本：
+    - `scripts/internal/compare_method_b_variants.py`
+  - 在真实 `mps` 上完成了 `resize_long_edge=0` 的 full-length Method B suite：
+    - `kitti_method_compare_rich_v3_mps_real_native_v1__methods`
+    - `dynamicstereo_method_compare_rich_v3_mps_real_native_v1__methods`
+    - `minesource_method_compare_rich_v3_mps_real_native_v1__methods`
+  - 生成了新的 authoritative overall native-res suite：
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_native_v1/`
+  - 生成了 accuracy-vs-native 的纯 Method B 对照 artefact：
+    - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/`
+- 验证方式：
+  - `python3 -m py_compile`：
+    - `scripts/internal/compare_method_b_variants.py`
+    - `scripts/eval_method_compare_matrix.py`
+    - `scripts/internal/summarize_method_compare_dataset.py`
+    - `scripts/internal/summarize_method_compare_overall.py`
+  - full-length suite：
+    - KITTI `6/6`
+    - DynamicStereo `3/3`
+    - `mine_source` `17/17`
+  - 生成：
+    - `overall_method_summary.csv`
+    - `overall_method_compare.csv`
+    - `method_b_variant_delta.csv`
+    - `figures/variant_compare_core_metrics.png`
+    - `figures/variant_compare_quality_metrics.png`
+- 运行结果与验证结果：
+  - baseline `accuracy_v1_mps` overall：
+    - `mean_inliers=737.54`
+    - `mean_inlier_ratio=0.5498`
+    - `approx_fps=10.810`
+    - `mean_reprojection_error=1.4215`
+  - variant `native_res_mps` overall：
+    - `mean_inliers=685.81`
+    - `mean_inlier_ratio=0.5451`
+    - `approx_fps=10.921`
+    - `mean_reprojection_error=1.3285`
+  - overall delta（variant minus baseline）：
+    - `mean_inliers=-51.73`
+    - `mean_inlier_ratio=-0.0047`
+    - `approx_fps=+0.111`
+    - `mean_reprojection_error=-0.0931`
+    - `mean_overlap_diff_after=-0.9097`
+    - `mean_seam_band_illuminance_diff=-1.4569`
+    - `mean_seam_band_gradient_disagreement=-5.5084`
+    - `mean_seam_band_flicker=-1.0138`
+  - 数据域层面：
+    - KITTI：native-res 明显降低 `mean_inliers`，且 `reprojection` 反而更差；仅 runtime 略快
+    - DynamicStereo：native-res 降低 `mean_inliers`，但改善了多项 seam/blending 指标
+    - `mine_source`：native-res 的 `mean_inliers` 与 `mean_inlier_ratio` 接近 accuracy_v1，但 `reprojection` 和 seam/blending 指标更好，同时 `fps` 略慢
+- 偏差：
+  - 本步没有重跑 CPU 或 Method A。
+  - 因此本次结论只用于 `accuracy_v1_mps` vs `native_res_mps` 的 isolated Method B 变体比较。
+- 下一步建议：
+  - 当前正式 baseline 继续保持 `accuracy_v1`。
+  - 若后续还要继续优化高分辨率 `mine_source`，应更有针对性地做“只对 1920x1080 pair 的 native-res 或分数据域 preset”实验，而不是直接把全局默认改成 `resize_long_edge<=0`。
