@@ -5097,3 +5097,80 @@
 - 下一步建议：
   - 当前正式 baseline 继续保持 `accuracy_v1`。
   - 若后续还要继续优化高分辨率 `mine_source`，应更有针对性地做“只对 1920x1080 pair 的 native-res 或分数据域 preset”实验，而不是直接把全局默认改成 `resize_long_edge<=0`。
+
+## IMP-20260327-01
+- 状态：done
+- 标题：Windows CUDA 迁移说明与跨设备连续性口径固化
+- 本步目标：
+  - 回答“VS Code Codex 是否能跨设备共享聊天记录与上下文”的实际可依赖边界。
+  - 给出从当前 Mac 迁移到 Windows + NVIDIA CUDA 机器所需的最小文件清单与执行步骤。
+  - 将这套迁移方式写入正式环境文档和 current truth。
+- 关联上一步结论：
+  - `DEC-20260326-06`：`native_res_mps` 只保留为 Method B 对照变体。
+  - 当前正式环境入口已收敛为 `.venv + requirements.txt`。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `docs/environment.md`
+- 本步回读代码 / 运行时状态：
+  - `requirements.txt`
+  - `scripts/`
+  - `scripts/internal/`
+  - 本机 `~/.codex/` 目录结构
+  - 本机 `~/.cache/torch/hub/checkpoints/` 权重缓存
+- 准备修改文件：
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+- 为什么改这些文件：
+  - `docs/environment.md` 是正式环境入口，最适合承载 Windows CUDA 迁移清单与新机会话 prompt。
+  - current truth 需要明确：跨设备连续性依赖 ai-docs 和 artefacts，而不是依赖 VS Code 会话线程同步。
+- 风险点：
+  - 若把 `~/.codex` 本地 state 误当成正式迁移方案，Windows 侧连续性会高度不稳定。
+  - 若漏写必须复制的 outputs/phase3 artefacts，会让新机器无法直接对照既有正式结果。
+  - 若给出平台绑定过强的安装命令，可能与用户 Windows CUDA 驱动版本不匹配。
+- 验收标准：
+  - 环境文档中新增 Windows + NVIDIA CUDA 迁移章节。
+  - current truth 中明确写出“repo + ai-docs/current + docs/environment + outputs artefacts + prompt”是正式迁移路径。
+  - 给出新机会话可直接粘贴的 prompt。
+- 替代方案与不选原因：
+  - 方案：指导用户直接复制整个 `~/.codex/`。
+  - 不选原因：本地 state/日志数据库不是稳定、可依赖的项目迁移方案，且 `auth.json` 存在安全风险。
+  - 方案：只给口头说明，不落文档。
+  - 不选原因：用户明确要求若迁移需要，则应计入工作流文档。
+- 实际修改文件：
+  - `docs/environment.md`
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+- 实际新增 / 调整内容：
+  - 在 `docs/environment.md` 中新增：
+    - Windows + NVIDIA CUDA 迁移章节
+    - 必须复制的 repo / ai-docs / manifest / dataset / outputs artefacts 清单
+    - 可选权重缓存清单
+    - 不建议复制 `~/.codex/auth.json` 的说明
+    - Windows CUDA 环境重建步骤
+    - 新机会话 prompt
+  - 在 `08_project_status_and_master_plan` 中固定“跨设备连续性来源”的正式口径。
+  - 新增 `DEC-20260327-01` 记录跨设备迁移决策。
+- 验证方式：
+  - 检查本机 `~/.codex/` 目录确认状态主要是本地文件。
+  - 检查本机 `~/.cache/torch/hub/checkpoints/` 权重缓存确认可选复制的文件名。
+  - 回读 `docs/environment.md` 确认步骤与当前正式环境入口一致。
+- 运行结果与验证结果：
+  - 已确认本机 Codex 状态主要保存在本地 `~/.codex/` 下。
+  - 已确认当前 Method B 缓存权重文件名为：
+    - `superpoint_v1.pth`
+    - `superpoint_lightglue_v0-1_arxiv.pth`
+  - Windows CUDA 迁移步骤和新机会话 prompt 已落入正式文档。
+- 偏差：
+  - 本步没有改代码，也没有尝试把本地 Codex 会话状态迁移到另一台机器。
+- 下一步建议：
+  - 在 Windows + NVIDIA 机器上先按 `docs/environment.md` 重建 `.venv` 和 CUDA PyTorch，再用文档里的 prompt 开新会话继续。

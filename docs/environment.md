@@ -50,6 +50,127 @@ Current runtime guidance on Apple Silicon:
 - 若你想显式回到 CPU，可传 `--device cpu` 或 `--force_cpu`
 - 实际是否能走 `mps` 仍取决于本机 `torch.backends.mps.is_available()`
 
+## Windows + NVIDIA CUDA Migration
+### Important expectation
+- Do not treat the VS Code Codex chat thread as a reliable cross-machine migration channel.
+- The closest official OpenAI statement is that Codex works across surfaces connected by your ChatGPT account, and the Codex app can pick up session history/configuration from the CLI and IDE extension.
+- That is not the same as an explicit guarantee that a VS Code Codex thread on Mac will reopen with full editable context on a different Windows machine.
+- In practice on this project, the actionable continuity source is:
+  - the repo
+  - `ai-docs/current/`
+  - formal output artefacts under `outputs/phase3/`
+  - a carry-over prompt
+
+### Must-copy project files
+Copy these from the Mac repo to the Windows repo:
+- full repository working tree
+- `ai-docs/current/`
+- `docs/environment.md`
+- `requirements.txt`
+- `data/manifests/pairs.yaml`
+- the actual datasets needed for the pairs you plan to test under `data/raw/Videos/`
+
+If you want Windows to compare directly against existing formal results without re-running CPU/MPS history, also copy:
+- `outputs/phase3/phase3_overall_methods_rich_v3/`
+- `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
+- `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
+- `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/`
+
+### Optional cached weights
+To avoid re-downloading Method B weights, copy this cache directory if present:
+
+```text
+~/.cache/torch/hub/checkpoints/
+  superpoint_v1.pth
+  superpoint_lightglue_v0-1_arxiv.pth
+```
+
+This is optional. If omitted, the Windows machine can download the weights again.
+
+### Do not rely on copying local Codex state
+Local Codex state on this Mac currently lives under `~/.codex/`, including files such as:
+- `session_index.jsonl`
+- `state_5.sqlite`
+- `logs_1.sqlite`
+- `config.toml`
+
+These are useful for local inspection, but they are not the recommended migration path for this project.
+Do not copy `auth.json` between machines.
+
+### Windows CUDA setup steps
+1. Install Git and a supported Python version.
+2. Copy or clone the repo to the Windows machine.
+3. Create the formal environment:
+
+```bash
+python -m venv .venv
+.venv\\Scripts\\activate
+python -m pip install --upgrade pip setuptools wheel
+```
+
+4. Install a CUDA-enabled PyTorch build that matches the Windows machine's NVIDIA driver and CUDA runtime.
+5. Then install the rest of the formal project dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+git clone https://github.com/cvg/LightGlue.git external/LightGlue
+python -m pip install -e external/LightGlue
+```
+
+6. Verify CUDA:
+
+```bash
+python - <<'PY'
+import torch
+print("cuda available:", torch.cuda.is_available())
+print("device count:", torch.cuda.device_count())
+if torch.cuda.is_available():
+    print("device 0:", torch.cuda.get_device_name(0))
+PY
+```
+
+7. Run Method B with:
+- `--device cuda`
+- or `--device auto`
+
+### Recommended handoff prompt for a new Codex session on the Windows machine
+Use this as the first prompt in the new VS Code Codex session:
+
+```text
+You are continuing the /Users/fallenwind/Desktop/mine/Stiching2Vid project on a new Windows + NVIDIA CUDA machine.
+
+Before doing anything, strictly follow the ai-docs workflow:
+1. Read:
+- ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md
+- ai-docs/current/10_execution_workflow/10_execution_workflow.md
+- ai-docs/current/11_decision_log/11_decision_log.md
+- ai-docs/current/12_implementation_log/12_implementation_log.md
+- ai-docs/current/13_change_log/13_change_log.md
+- ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md
+- ai-docs/current/05_evaluation/05_evaluation.md
+- ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md
+- docs/environment.md
+
+2. Treat these as current formal Method B artefacts:
+- outputs/phase3/phase3_overall_methods_rich_v3/
+- outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/
+- outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/
+- outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/
+
+3. Current formal Method B baseline:
+- accuracy_v1
+- max_keypoints=4096
+- resize_long_edge=1536
+- depth_confidence=-1
+- width_confidence=-1
+- filter_threshold=0.1
+
+4. Do not assume previous Mac chat history is available.
+Use ai-docs and existing outputs as the source of truth.
+
+5. Before changing code, add a new IMP planned record in ai-docs/current/12_implementation_log/12_implementation_log.md.
+```
+
 ## Weights
 Default behavior:
 - if `--weights_dir` is not provided, `SuperPoint` / `LightGlue` will use their package-default initialization path

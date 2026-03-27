@@ -117,6 +117,14 @@
     - `method_b_resolved_device`
     - `method_b_device_resolution_reason`
     - `avg_geometry_event_total_ms`
+  - 当前跨设备延续口径（2026-03-27）：
+    - 不把 VS Code Codex 的跨机会话同步当成正式迁移路径。
+    - 当前项目的正式连续性来源是：
+      - repo 本身
+      - `ai-docs/current/`
+      - `docs/environment.md`
+      - 冻结的 `outputs/phase3/*` artefacts
+    - 若迁移到 Windows + NVIDIA CUDA 机器，优先按环境文档重建 `.venv` 和 CUDA PyTorch，而不是试图直接复用本机 `~/.codex` 状态数据库。
 
 ## 推荐优先级顺序
 1. `Phase 0` 冻结基线 / 统一运行模式 / 固定评测协议 / 固定导出 artefacts
