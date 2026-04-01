@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import io
 from itertools import combinations
 import json
+import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import time
+import traceback
 from typing import Dict, List, Sequence
 
 
@@ -63,6 +68,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--python_bin",
         default=sys.executable,
         help="Python executable used to invoke scripts/run_baseline_video.py",
+    )
+    parser.add_argument(
+        "--execution_mode",
+        default="auto",
+        choices=["auto", "subprocess", "inprocess"],
+        help=(
+            "How to execute each case. "
+            "'inprocess' reuses one interpreter so Method B caches / CUDA context can persist across pairs. "
+            "'auto' uses inprocess only when --python_bin resolves to the current interpreter."
+        ),
     )
     parser.add_argument(
         "--suite_id",
@@ -271,6 +286,61 @@ def _load_json(path: Path) -> Dict:
         return {}
 
 
+def _same_interpreter(python_bin: str) -> bool:
+    try:
+        requested_resolved = Path(python_bin).resolve(strict=False)
+        current_resolved = Path(sys.executable).resolve(strict=False)
+        return requested_resolved == current_resolved
+    except Exception:
+        return False
+
+
+def _resolve_execution_mode(args: argparse.Namespace) -> str:
+    requested = str(args.execution_mode).strip().lower()
+    if requested in {"subprocess", "inprocess"}:
+        return requested
+    return "inprocess" if _same_interpreter(str(args.python_bin)) else "subprocess"
+
+
+def _run_case_inprocess(repo_root: Path, cmd: List[str]) -> subprocess.CompletedProcess[str]:
+    if len(cmd) < 2:
+        raise ValueError(f"unexpected command shape for inprocess execution: {cmd}")
+    script_path = (repo_root / cmd[1]).resolve()
+    argv = cmd[1:]
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+    return_code = 0
+    old_argv = list(sys.argv)
+    old_cwd = os.getcwd()
+    try:
+        sys.argv = argv
+        os.chdir(repo_root)
+        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+            try:
+                runpy.run_path(str(script_path), run_name="__main__")
+            except SystemExit as exc:
+                code = exc.code
+                if code is None:
+                    return_code = 0
+                elif isinstance(code, int):
+                    return_code = int(code)
+                else:
+                    print(str(code), file=sys.stderr)
+                    return_code = 1
+            except Exception:
+                traceback.print_exc(file=sys.stderr)
+                return_code = 1
+    finally:
+        sys.argv = old_argv
+        os.chdir(old_cwd)
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=int(return_code),
+        stdout=stdout_buffer.getvalue(),
+        stderr=stderr_buffer.getvalue(),
+    )
+
+
 def _extract_result_row(repo_root: Path, suite_id: str, method: str, pair_id: str, run_id: str) -> Dict[str, object]:
     run_dir = repo_root / "outputs" / "runs" / run_id
     metrics = _load_json(run_dir / "metrics_preview.json")
@@ -319,6 +389,9 @@ def _extract_result_row(repo_root: Path, suite_id: str, method: str, pair_id: st
         "init_ms_mean": metrics.get("init_ms_mean"),
         "per_frame_ms_mean": metrics.get("per_frame_ms_mean"),
         "reuse_per_frame_ms_mean": metrics.get("reuse_per_frame_ms_mean"),
+        "steady_frame_ms_mean": metrics.get("steady_frame_ms_mean"),
+        "steady_frame_count": metrics.get("steady_frame_count"),
+        "steady_approx_fps": metrics.get("steady_approx_fps"),
         "avg_feature_runtime_ms_left": metrics.get("avg_feature_runtime_ms_left"),
         "avg_feature_runtime_ms_right": metrics.get("avg_feature_runtime_ms_right"),
         "avg_matching_runtime_ms": metrics.get("avg_matching_runtime_ms"),
@@ -430,6 +503,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     pairs = _resolve_pairs(args.pairs)
     methods = list(dict.fromkeys(args.methods))
+    execution_mode = _resolve_execution_mode(args)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     suite_id = args.suite_id or f"{timestamp}_video_compare"
     suite_dir = repo_root / "outputs" / "video_compare" / suite_id
@@ -462,12 +536,15 @@ def main() -> int:
                 results.append(result)
                 continue
 
-            completed = subprocess.run(
-                cmd,
-                cwd=str(repo_root),
-                text=True,
-                capture_output=True,
-            )
+            if execution_mode == "inprocess":
+                completed = _run_case_inprocess(repo_root, cmd)
+            else:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=str(repo_root),
+                    text=True,
+                    capture_output=True,
+                )
             stdout_path.write_text(completed.stdout, encoding="utf-8")
             stderr_path.write_text(completed.stderr, encoding="utf-8")
 
@@ -496,6 +573,7 @@ def main() -> int:
                 "video_mode": args.video_mode,
                 "reuse_mode": args.reuse_mode,
                 "max_frames": args.max_frames,
+                "execution_mode": execution_mode,
                 "method_b_preset": {
                     "max_keypoints": args.max_keypoints,
                     "resize_long_edge": args.resize_long_edge,
@@ -553,6 +631,9 @@ def main() -> int:
         "init_ms_mean",
         "per_frame_ms_mean",
         "reuse_per_frame_ms_mean",
+        "steady_frame_ms_mean",
+        "steady_frame_count",
+        "steady_approx_fps",
         "avg_feature_runtime_ms_left",
         "avg_feature_runtime_ms_right",
         "avg_matching_runtime_ms",

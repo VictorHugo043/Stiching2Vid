@@ -77,6 +77,11 @@ def compose_frame_quality_preview(
         seam_method=seam_method,
         seam_megapix=seam_megapix,
         seam_dilate=seam_dilate,
+        # Single-frame preview should stay on the static compose path and not
+        # introduce temporal seam smoothing semantics from the video pipeline.
+        seam_smooth_method="none",
+        seam_smooth_alpha=0.8,
+        seam_smooth_window=5,
         blend_mode=blend_mode,
         mb_levels=mb_levels,
         crop_enabled=crop_enabled,
@@ -119,6 +124,9 @@ def compose_frame_quality_preview(
         meta={
             "seam_cli_mode": str(seam_mode),
             "seam_method": seam_method,
+            "seam_smooth_method": "none",
+            "seam_smooth_alpha": 0.8,
+            "seam_smooth_window": 5,
             "blend_mode": str(blend_mode),
             "mb_levels": int(mb_levels),
             "crop_enabled": bool(crop_enabled),

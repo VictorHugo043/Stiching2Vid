@@ -108,6 +108,16 @@ python -m venv .venv
 python -m pip install --upgrade pip setuptools wheel
 ```
 
+If `python` on Windows resolves to the Microsoft Store / `WindowsApps` stub, or if the `py`
+launcher is unavailable, use the full path of a real installed interpreter for this one-time
+bootstrap step instead, for example:
+
+```bash
+C:\\Path\\To\\Python\\python.exe -m venv .venv
+```
+
+After `.venv` exists, switch to `.venv\\Scripts\\python.exe` / `.venv\\Scripts\\activate`.
+
 4. Install a CUDA-enabled PyTorch build that matches the Windows machine's NVIDIA driver and CUDA runtime.
 5. Then install the rest of the formal project dependencies:
 

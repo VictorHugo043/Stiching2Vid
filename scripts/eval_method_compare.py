@@ -53,6 +53,12 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Run the formal full-length Method A vs Method B compare with richer metrics."
     )
     parser.add_argument("--python_bin", default=sys.executable, help="Python executable for child scripts")
+    parser.add_argument(
+        "--execution_mode",
+        default="auto",
+        choices=["auto", "subprocess", "inprocess"],
+        help="Execution mode passed through to eval_method_compare_matrix.py",
+    )
     parser.add_argument("--suite_id", default=None, help="Parent suite id under outputs/phase3/")
     parser.add_argument("--manifest", default="data/manifests/pairs.yaml", help="Path to pairs manifest")
     parser.add_argument("--max_frames", type=int, default=6000, help="Max frames; 6000 means effectively full clips")
@@ -94,6 +100,8 @@ def _build_compare_cmd(
         str(args.manifest),
         "--suite_id",
         suite_id,
+        "--execution_mode",
+        str(args.execution_mode),
         "--video_mode",
         "1",
         "--reuse_mode",
@@ -226,6 +234,7 @@ def main() -> int:
                 "overall_suite_id": overall_suite_id,
                 "max_frames": args.max_frames,
                 "snapshot_every": args.snapshot_every,
+                "execution_mode": args.execution_mode,
                 "weights_dir": args.weights_dir,
                 "force_cpu": bool(args.force_cpu),
                 "datasets": manifest_rows,

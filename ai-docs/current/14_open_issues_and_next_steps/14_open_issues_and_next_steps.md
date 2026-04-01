@@ -26,11 +26,15 @@
 | ISSUE-20260324-02 | closed | `kp3072_v1` 的 full-length 多数据域复验已完成；它虽然略微改善了 overall `inlier_ratio / fps / reprojection`，但 `mean_inliers` 从约 `748.88` 降到约 `609.58`，且在 `mine_source` 上明显回退，因此不能替换正式 `accuracy_v1` | 该问题已不再阻塞当前正式 baseline 选择 | 继续保持 `accuracy_v1` 为正式默认；把 `kp3072_v1` 仅作为候选复验与方法讨论材料保留在 `outputs/phase3/phase3_methodb_accuracy_vs_kp3072_v1/` |
 | ISSUE-20260324-03 | partial | Phase 4 GUI thin wrapper 已补齐 existing pair 首帧预览、条件显示且已重排的 keyframe 参数、注册弹窗和 run 目录打开能力，但范围仍只覆盖桌面 `tkinter` 单 run 流程：新 pair 注册仅支持左右视频文件，不支持 frame directory / batch compare / figure export | 当前可用性已明显提升，但仍不应被误解为完整实验工作台 | 当前先由用户在本机完成一次真实交互确认；后续如继续做 GUI，只做错误提示和 artefact 预览等 polish，不回头侵入核心 pipeline |
 | ISSUE-20260325-01 | closed | 正式 compare/export 脚本与部分结果文件名仍保留 `phase2 / phase3` 命名残留 | 该问题已不再影响当前 formal 入口与新生成 artefact 的命名口径 | 已收敛 formal compare/export 的默认 suite id、summary filename 和 markdown/figure 标题；历史 `phase*` 目录继续仅作为冻结结果保留 |
+| ISSUE-20260401-01 | closed | 当前 Windows 工作区缺失的 formal `outputs/phase3` artefacts 已迁入：`phase3_overall_methods_rich_v3`、`overall_method_compare_rich_v3_mps_real_accuracy_v2`、`method_b_accuracy_v1_cpu_vs_mps_real_v2`、`method_b_accuracy_v1_vs_native_res_mps_v1` | 该问题已不再阻塞本机回读历史正式总表、设备对照和 Method B 高分辨率对照结果 | 已在当前 Windows 工作区恢复这 4 个 formal artefact 目录，并基于它们继续生成新的 CUDA full-length suite |
+| ISSUE-20260401-02 | closed | 当前 Windows 工作区缺失的 `.git/` 已恢复，本机重新具备完整 Git 仓库语义 | 该问题已不再阻塞 `git status / diff / commit` 类工作流 | 后续继续按正式 Git 工作流推进，不再把当前工作区视为纯复制树 |
+| ISSUE-20260401-03 | partial | Windows + CUDA 上的 authoritative CUDA formal suite 已切到新的 `*_cuda_real_accuracy_v2` 口径：它修正了旧 subprocess artefact 的重复冷启动问题，但与 CPU 的 overall 对照仍不是 same-code device-isolated compare | 若直接把 `cpu_vs_cuda_real_v2` 读成“纯 device 差异”，仍会夸大 preserved CPU baseline 与当前 CUDA rerun 之间的代码/口径差异 | 当前对外应优先引用 `*_cuda_real_accuracy_v2`；若要回答最严格的 CPU vs CUDA 设备问题，下一步仍需补 same-code CPU full-length rich-v3 suite |
+| ISSUE-20260401-04 | closed | 旧 subprocess 口径下的 CUDA formal artefact 已被新的 `auto/inprocess` 全量重跑结果替代 | 该问题已不再阻塞 authoritative CUDA summary 的更新 | 新 authoritative CUDA artefact 已切换到：`kitti/dynamicstereo/minesource/overall_method_compare_rich_v3_cuda_real_accuracy_v2` 与 `method_b_accuracy_v1_cpu_vs_cuda_real_v2`；旧 `v1` 仅保留为历史 artefact |
 
 ## 接下来最先做的 3 件事
-1. 若继续优化 Method B，优先探索新的安全候选或新的参数方向；`kp3072_v1` 的 full-length 复验已完成，当前不值得升格为正式默认。
-2. 若继续补评测层，优先决定是否真的需要 `flow-compensated temporal residual`；否则当前 `seam-band flicker` 已可支撑 fixed-geometry 的 MVP temporal artefact 解释。
-3. 若继续做 GUI，只做 polish：更细的参数联动、更完整的 artefact 预览和更友好的错误提示；不回头重写核心 pipeline。
+1. 若需要最严格回答“CPU vs CUDA 是否只体现 device 差异”，在当前代码版本上补 same-code CPU `method_b_accuracy_v1` full-length suite，再与新的 `overall_method_compare_rich_v3_cuda_real_accuracy_v2` 做对照。
+2. 若继续追求更高 steady-state fps，下一层优化重点应转向 `VideoStitcher` 的 fixed-geometry CPU compose / warp / crop path；Method B 的 CUDA geometry 本体在 same-code 与同进程 warm benchmark 中并未显示为当前主瓶颈。
+3. 若后续要把这轮 Windows CUDA 结果迁回 Mac，优先迁移新的 `*_cuda_real_accuracy_v2` 与 `method_b_accuracy_v1_cpu_vs_cuda_real_v2`，不要再优先带旧 `v1`。
 
 ## 当前配置使用建议（2026-03-20 更新）
 - 新 run 优先使用：
@@ -68,7 +72,7 @@
     - 作为“原始分辨率提特征”的 full-length 对照变体
     - 若后续继续优化高分辨率 `mine_source`，再考虑只针对 `1920x1080` pair 做分数据域 preset，而不是全局替换默认值
 
-## 当前 Method B CPU / MPS 结果口径（2026-03-26 更新）
+## 当前 Method B CPU / MPS / CUDA 结果口径（2026-04-01 更新）
 - 历史 `outputs/phase3/overall_method_compare_rich_v3_mps_accuracy_v1/`
   - 当前只保留为历史 artefact。
   - 原因：该 suite 运行在 sandbox 内，实际发生了 `requested_device=mps -> resolved_device=cpu` fallback。
@@ -76,6 +80,13 @@
   - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
 - 当前 preserved CPU vs real MPS 对照 artefact：
   - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
+- 当前 authoritative 的 Windows CUDA formal suite：
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v2/`
+- 当前 authoritative 的 preserved CPU vs CUDA 对照 artefact：
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v2/`
+- 旧 subprocess CUDA artefact（仅历史保留）：
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
 - 当前结论：
   - Method A 没有跑 GPU；当前设备对照只重跑了 Method B。
   - preserved CPU vs real MPS 的 overall 对照显示：
@@ -84,9 +95,26 @@
     - `approx_fps`：`7.355 -> 10.810`
     - `mean_reprojection_error`：`1.4309 -> 1.4215`
   - same-code 代表性回归显示 CPU / MPS 质量一致而 MPS 更快，因此当前仍应把 MPS 视作运行时部署选项，而不是新的算法方法。
+  - preserved CPU vs CUDA `v2` 的 overall 对照显示：
+    - `mean_inliers`：`748.88 -> 733.46`
+    - `mean_inlier_ratio`：`0.5558 -> 0.5506`
+    - `approx_fps`：`7.355 -> 6.091`
+    - `mean_reprojection_error`：`1.4309 -> 1.4335`
+  - 新的 CUDA `v2` 相比旧 subprocess `v1`：
+    - `approx_fps`：`4.409 -> 6.091`
+    - `avg_runtime_ms`：`308.31 -> 264.78`
+    - `init_ms_mean`：`2332.45 -> 535.16`
+    - 质量指标保持不变，说明提升主要来自 orchestration 与冷启动成本修正，而不是算法质量变化。
+  - 在当前 Windows + RTX 3060 Laptop GPU 上，full-length `accuracy_v1` 的 CUDA rerun 已经稳定跑通且 `resolved_device=cuda`；在新的 authoritative `v2` 口径下，它仍未整体超过 preserved CPU formal baseline，但性能差距已显著缩小，因此当前更合理的表述是：CUDA 已经是可用且更接近 CPU baseline 的正式 device artefact，而不是“显著更慢”的失败路径。
+  - 2026-04-01 的复盘补充结论：
+    - same-code `nikita` 代表性回归里，当前代码版本的 CUDA 并没有复现“质量更差”；相反 `mean_inliers / inlier_ratio / reprojection` 均优于 current-code CPU。
+    - 同进程 `dynamicstereo` probe 表明，batch compare 若改用 `execution_mode=inprocess`，dataset `avg_runtime_ms` 可从约 `225.84` 降到约 `163.02`，`approx_fps` 从约 `4.57` 升到约 `7.15`。
+    - 因此旧 preserved CPU vs CUDA artefact 更适合保留为“旧口径历史结果”，不应继续被读成“3060 上 CUDA 本体更慢 / 更差”的充分证据。
 - 当前已知限制：
   - preserved CPU formal suite 早于这轮 `SuperPoint` 预处理优化与 device 字段导出，因此上述 overall delta 是“历史 CPU baseline vs 当前 real MPS”对照，不是纯 device-isolated 对照。
   - 若后续需要最严格的 same-code full-length CPU vs MPS 表，应在当前代码上补一轮 CPU rich-v3 复跑。
+  - preserved CPU vs CUDA 也存在同样限制；若要做严格 same-code device compare，应在当前代码上补一轮 CPU rich-v3 复跑，而不是直接拿 preserved CPU suite 下结论。
+  - 当前新的 `steady_frame_ms_mean / steady_approx_fps` 只会出现在 2026-04-01 之后的新 run / 新 summary 中；旧 formal artefact 不会自动回填这些字段。
 
 ## 当前环境入口（2026-03-25 更新）
 - 正式推荐：
@@ -95,6 +123,7 @@
 - 当前口径：
   - `.venv + requirements.txt + docs/environment.md` 是唯一正式环境入口。
   - 若本机仍保留历史 `.venv-methodb` 目录，只视为旧本地目录名，不再对应单独的依赖文件。
+  - 若 Windows 上的 `python` 指向 `WindowsApps` stub，或本机没有 `py` launcher，可先用真实解释器的绝对路径创建 `.venv`；之后统一切回 `.venv\Scripts\python.exe`
 - 当前 Method B 设备支持（2026-03-26 更新）：
   - 正式支持 `cpu / cuda / mps`
   - `auto` 当前按 `cuda -> mps -> cpu` 顺序自动解析

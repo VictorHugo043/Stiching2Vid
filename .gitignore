@@ -3,6 +3,8 @@
 __pycache__/
 .idea/
 *.pyc
+.pip-cache/
+.tmp/
 
 # data & outputs (你的项目通常很大)
 data/raw/

@@ -5174,3 +5174,565 @@
   - 本步没有改代码，也没有尝试把本地 Codex 会话状态迁移到另一台机器。
 - 下一步建议：
   - 在 Windows + NVIDIA 机器上先按 `docs/environment.md` 重建 `.venv` 和 CUDA PyTorch，再用文档里的 prompt 开新会话继续。
+
+## IMP-20260401-01
+- 状态：done
+- 标题：Windows CUDA 正式环境重建与首轮运行验证
+- 本步目标：
+  - 在当前 Windows + NVIDIA CUDA 机器上按正式工作流重建 `.venv`。
+  - 确定可复用的正式 Python 创建器，绕过当前机器损坏的 `python` / `py` 启动入口。
+  - 安装 `requirements.txt` 与 `external/LightGlue`，验证 Method B 的 `cuda` 可用性。
+  - 跑通至少一条本地 Method A / Method B 验证命令，并记录当前迁移缺口。
+- 关联上一步结论：
+  - `DEC-20260327-01`：跨设备连续性以 `repo + ai-docs/current + docs/environment.md + 关键 outputs artefacts + prompt` 为准。
+  - 当前正式环境入口仍固定为 `.venv + requirements.txt`。
+  - 当前正式 Method B baseline 仍为 `accuracy_v1`：
+    - `max_keypoints=4096`
+    - `resize_long_edge=1536`
+    - `depth_confidence=-1`
+    - `width_confidence=-1`
+    - `filter_threshold=0.1`
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `docs/environment.md`
+- 本步回读代码 / 运行时状态：
+  - `requirements.txt`
+  - `data/manifests/pairs.yaml`
+  - `src/stitching/frame_quality_preview.py`
+  - `src/stitching/video_stitcher.py`
+  - `scripts/run_baseline_frame.py`
+  - 仓库顶层目录结构
+  - `nvidia-smi`
+  - `Get-Command python -All`
+  - `where.exe python`
+- 准备修改文件：
+  - `src/stitching/frame_quality_preview.py`
+  - `docs/environment.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 当前工作主线是 Windows 正式环境重建与首轮验证，因此至少需要留下 `IMP/CHG/ISSUE` 记录。
+  - 实际验证暴露了 `run_baseline_frame.py` 的 compose 回归，需要做最小兼容修复才能完成环境 smoke。
+  - Windows 侧的 `python` 启动器现实与现有文档存在偏差，需要把“用真实解释器绝对路径创建 `.venv`”补回正式环境文档。
+- 风险点：
+  - `pip install torch>=2.10.0` 若走错源可能拿到非 CUDA 轮子，导致 `torch.cuda.is_available()` 为 `False`。
+  - `LightGlue` 权重首次运行时会联网下载，若网络或权限异常会阻塞 Method B smoke。
+  - 当前未迁入 `outputs/phase3` formal artefacts，无法在本机直接回读历史正式总表。
+  - 当前工作区没有 `.git/`，后续若要做 git-based 工作流还需补完整仓库。
+- 验收标准：
+  - 成功创建 `.venv`。
+  - `.venv` 中完成 `requirements.txt` 与 `external/LightGlue` 安装。
+  - `.venv` 中的 `torch.cuda.is_available()` 为 `True`，且能识别当前 NVIDIA GPU。
+  - 至少跑通一条 Method A 验证和一条 Method B 单帧验证命令。
+  - 文档中明确记录缺失 artefacts、坏掉的 `python` 入口以及最终可复现命令。
+- 替代方案与不选原因：
+  - 方案：直接用 `E:\anaconda3` base 环境运行项目。
+  - 不选原因：不符合 `.venv + requirements.txt` 的正式环境口径，且后续不可复现。
+  - 方案：先跳过 `.venv`，只修 `python` PATH。
+  - 不选原因：这只能修启动器，不会形成正式项目环境。
+  - 方案：等 formal artefacts 全部复制后再配环境。
+  - 不选原因：artefact 缺失不阻塞环境重建与本地 smoke。
+- 实际修改文件：
+  - `src/stitching/frame_quality_preview.py`
+  - `docs/environment.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增 / 调整内容：
+  - 用 `E:\anaconda3\python.exe` 成功创建了正式 `.venv`，绕过当前不可用的 `WindowsApps` `python.exe` 与缺失的 `py` launcher。
+  - 由于 `venv` 内置 `ensurepip` 在当前终端权限模型下失败，先从 `E:\anaconda3\Lib\ensurepip\_bundled\pip-24.2-py3-none-any.whl` 手工补入了 `.venv` 的 `pip` 模块，再继续安装正式依赖。
+  - 按 Windows + CUDA 路线安装了：
+    - `torch==2.10.0+cu128`
+    - `torchvision==0.25.0+cu128`
+    - `requirements.txt` 其余依赖
+    - editable `external/LightGlue`
+  - 补充了 `docs/environment.md`：当 Windows 的 `python` 指向 `WindowsApps` stub，或本机没有 `py` launcher 时，允许先用真实解释器绝对路径创建 `.venv`。
+  - 修复了 `src/stitching/frame_quality_preview.py` 漏传 `VideoStitcher` 的 `seam_smooth_method / seam_smooth_alpha / seam_smooth_window` 参数导致的单帧 compose 回归；单帧预览显式固定为静态 `seam_smooth=none` 路径。
+  - 首次 Method B CUDA smoke 已自动下载权重到：
+    - `C:\Users\15287\.cache\torch\hub\checkpoints\superpoint_v1.pth`
+    - `C:\Users\15287\.cache\torch\hub\checkpoints\superpoint_lightglue_v0-1_arxiv.pth`
+- 验证方式：
+  - import 验证：
+    - `cv2`
+    - `yaml`
+    - `ruamel.yaml`
+    - `torch`
+    - `torchvision`
+    - `kornia`
+    - `lightglue`
+  - CUDA 验证：
+    - `torch.__version__ == 2.10.0+cu128`
+    - `torch.cuda.is_available() == True`
+    - `torch.cuda.device_count() == 1`
+    - `torch.cuda.get_device_name(0) == NVIDIA GeForce RTX 3060 Laptop GPU`
+  - I/O 验证：
+    - `python scripts/inspect_pair.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0`
+  - Method A 单帧 smoke：
+    - `python scripts/run_baseline_frame.py --pair mine_source_indoor2_left_right --frame_index 0 --run_id envcheck_methoda_indoor2_win`
+    - `python scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --run_id envcheck_methoda_nikita_win`
+  - Method B CUDA 单帧 smoke：
+    - `python scripts/run_baseline_frame.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --frame_index 0 --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --run_id envcheck_methodb_nikita_cuda_win`
+- 运行结果与验证结果：
+  - `inspect_pair` 成功读出：
+    - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+    - `length_left=83`
+    - `length_right=83`
+    - `resolution=(1280, 720)`
+  - Method A smoke 1：
+    - run: `outputs/runs/envcheck_methoda_indoor2_win/`
+    - `feature_backend_effective=opencv_orb`
+    - `matcher_backend_effective=opencv_bf_ratio`
+    - `geometry_backend=opencv_ransac`
+    - `n_kp_left=1153`
+    - `n_matches_good=280`
+    - `n_inliers=187`
+    - `inlier_ratio=0.6679`
+    - `reprojection_error=1.3795`
+  - Method A smoke 2：
+    - run: `outputs/runs/envcheck_methoda_nikita_win/`
+    - `feature_backend_effective=opencv_orb`
+    - `matcher_backend_effective=opencv_bf_ratio`
+    - `geometry_backend=opencv_ransac`
+    - `n_kp_left=2000`
+    - `n_matches_good=930`
+    - `n_inliers=648`
+    - `inlier_ratio=0.6968`
+    - `reprojection_error=1.3544`
+  - Method B CUDA smoke：
+    - run: `outputs/runs/envcheck_methodb_nikita_cuda_win/`
+    - `feature_backend_effective=superpoint`
+    - `matcher_backend_effective=lightglue`
+    - `geometry_backend=opencv_usac_magsac`
+    - `requested_device=cuda`
+    - `resolved_device=cuda`
+    - `weights_source=package_default`
+    - `n_kp_left=3282`
+    - `n_matches_good=1606`
+    - `n_inliers=686`
+    - `inlier_ratio=0.4271`
+    - `reprojection_error=1.7577`
+  - 当前 `.venv` 已满足 Method A / Method B 单帧、I/O 检查与 CUDA 路径验证。
+- 遇到的错误和修复：
+  - 错误：`python` 实际指向 `C:\Users\15287\AppData\Local\Microsoft\WindowsApps\python.exe`，无法运行；同时没有 `py` launcher。
+  - 修复：改用 `E:\anaconda3\python.exe` 作为一次性 `.venv` 创建器，并在文档中明确这一 Windows fallback。
+  - 错误：`venv` 内置 `ensurepip` 与后续 pip 临时目录写入在当前权限模型下出现 `Permission denied`。
+  - 修复：先手工补入 `.venv` 的 `pip` 模块，再以允许联网 / 提升权限的方式安装正式依赖。
+  - 错误：`run_baseline_frame.py` 的 `frame_quality_preview` 调用 `VideoStitcher` 时缺少 `seam_smooth_*` 参数，导致 compose 阶段失败。
+  - 修复：在 `src/stitching/frame_quality_preview.py` 中显式补齐静态默认值，恢复单帧 smoke。
+- 与原计划相比的偏差：
+  - 本步没有修复全局 `python`/`py` 启动器，只保证正式 `.venv` 工作正常。
+  - 本步没有执行视频级 smoke 或 full-length compare，只完成了环境与单帧级验证。
+  - 本步无法在本机直接回读 formal `outputs/phase3` artefacts，因为这些目录尚未迁入。
+- 下一步建议：
+  - 若要在这台 Windows 机器上直接引用历史正式结论，按 `docs/environment.md` 补拷贝 4 个 formal `outputs/phase3` 目录。
+  - 若后续需要 git-based 开发与提交，优先恢复完整 `.git/` 仓库，而不是继续在纯复制工作树上演进。
+  - 后续命令统一使用 `.venv\Scripts\python.exe` 或 `.venv\Scripts\activate`，不要再依赖当前损坏的系统 `python` 入口。
+## IMP-20260401-02
+- 状态：done
+- 标题：Windows CUDA 上重跑 Method B `accuracy_v1` full-length suite 并生成可迁回 Mac 的正式 artefact
+- 本步目标：
+  - 在当前 Windows + NVIDIA CUDA 机器上按正式 `accuracy_v1` baseline 跑完 Method B 全量 full-length 测试。
+  - 复刻现有 `real-MPS v2` 的 artefact 组织方式，生成 CUDA 版三数据域 dataset summary、overall summary，以及 preserved CPU vs CUDA 对照结果。
+  - 同时保留原始 `outputs/video_compare/*__methods` suite，保证后续迁回 Mac 时既有正式汇总，也有逐 pair 原始运行记录。
+- 关联上一结论：
+  - 当前正式 Method B baseline 仍为 `accuracy_v1`：
+    - `max_keypoints=4096`
+    - `resize_long_edge=1536`
+    - `depth_confidence=-1`
+    - `width_confidence=-1`
+    - `filter_threshold=0.1`
+  - 当前 authoritative Mac artefact 仍以：
+    - `outputs/phase3/phase3_overall_methods_rich_v3/`
+    - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
+    - `outputs/phase3/method_b_accuracy_v1_vs_native_res_mps_v1/`
+    为准；本步新增的是 Windows/CUDA 侧补充 artefact，而不是覆盖既有 current truth。
+  - 当前 Windows `.venv`、CUDA 与 Method B 单帧 smoke 已验证通过，可进入 full-length 阶段。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+  - `docs/environment.md`
+- 本步回读代码 / 产物：
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/eval_method_compare.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `outputs/phase3/overall_method_compare_rich_v3_mps_real_accuracy_v2/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_mps_real_v2/`
+- 准备修改文件：
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 本步主要是正式 full-length 运行与 artefact 产出，原则上不改核心代码，但必须把执行计划、最终结果与新的输出目录记录进 current truth。
+  - 用户明确需要“可直接迁回 Mac 的测试输出”，因此文档里需要明确列出需要带走的 `outputs/phase3` 与 `outputs/video_compare` 目录。
+- 风险点：
+  - full-length suite 运行时间长，单个 pair 失败会中断后续流程；如发生失败，需要优先保留 stdout/stderr 并定位是数据、显存还是单个脚本问题。
+  - `outputs/video_compare/` 当前在这台机器上还是空白，新 suite 会首次批量落盘，需确认磁盘空间与写入稳定性。
+  - preserved CPU suite 来自既有 formal artefact，因此 CPU vs CUDA 对照与之前 CPU vs MPS 一样，属于“preserved CPU baseline vs current device rerun”，不是同代码同批次的纯 device-isolated 对照。
+- 验收标准：
+  - 三个 Method B CUDA 原始 compare suite 成功生成：
+    - `kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods`
+    - `dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods`
+    - `minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods`
+  - 三个 dataset summary 成功生成：
+    - `outputs/phase3/kitti_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/minesource_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - overall summary 成功生成：
+    - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - CPU vs CUDA 对照 artefact 成功生成：
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
+  - `12/13/14` 已回填本次运行结果、关键指标、偏差与后续迁移建议。
+- 替代方案与不选原因：
+  - 方案：直接用 `scripts/eval_method_compare.py` 一次性跑完整 methods compare。
+  - 不选原因：该入口默认会把 `method_a_orb / method_a_sift / method_b` 全部重跑，不符合“只补 Method B accuracy_v1 device suite”的目标，也会显著增加运行时间。
+  - 方案：只生成 `outputs/phase3` 汇总，不保留 `outputs/video_compare` 原始 suite。
+  - 不选原因：用户明确要把结果迁回 Mac，缺少原始 suite 会削弱后续复核、补汇总或重新导图的能力。
+- 实际修改文件：
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增产物：
+  - `outputs/video_compare/kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/phase3/kitti_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/minesource_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
+- 实际执行命令：
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 10 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v1 --method_suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods --pairs ... --fps 10 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 10 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1 --method_suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods --pairs ... --fps 10 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 30 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v1 --method_suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods --pairs ... --fps 30 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_overall.py --suite_id overall_method_compare_rich_v3_cuda_real_accuracy_v1 --source_suites kitti_method_compare_rich_v3_cuda_real_accuracy_v1 dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1 minesource_method_compare_rich_v3_cuda_real_accuracy_v1`
+  - `.\.venv\Scripts\python.exe scripts\internal\compare_method_device_variants.py --suite_id method_b_accuracy_v1_cpu_vs_cuda_real_v1 --cpu_suite_id phase3_overall_methods_rich_v3 --device_suite_id overall_method_compare_rich_v3_cuda_real_accuracy_v1 --device_label cuda`
+- 验证方式：
+  - 检查三个 `outputs/video_compare/*__methods/summary.csv` 全部为 `passed`。
+  - 检查 `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/overall_method_summary.csv` 中：
+    - `method_b_requested_device=cuda`
+    - `method_b_resolved_device=cuda`
+    - `method_b_device_resolution_reason=requested`
+    - `warnings_count=0`
+    - `errors_count=0`
+  - 检查 `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/summary.md`、`overall_method_compare.csv`、`by_dataset_method_compare.csv`、`method_b_device_delta.csv` 与 figures 是否完整生成。
+- 运行结果与验证结果：
+  - 三个数据域共 26 个 pair 全部通过，无失败项：
+    - KITTI：6 / 6 passed
+    - DynamicStereo：3 / 3 passed
+    - `mine_source`：17 / 17 passed
+  - CUDA overall formal summary：
+    - `pair_count=26`
+    - `mean_inliers=733.46`
+    - `mean_inlier_ratio=0.5506`
+    - `approx_fps=4.409`
+    - `mean_reprojection_error=1.4335`
+    - `method_b_requested_device=cuda`
+    - `method_b_resolved_device=cuda`
+  - CUDA by-dataset summary：
+    - KITTI：`mean_inliers=593.67`，`mean_inlier_ratio=0.3965`，`approx_fps=6.614`
+    - DynamicStereo：`mean_inliers=537.33`，`mean_inlier_ratio=0.3978`，`approx_fps=4.565`
+    - `mine_source`：`mean_inliers=817.41`，`mean_inlier_ratio=0.6320`，`approx_fps=3.603`
+  - preserved CPU vs CUDA overall delta：
+    - `mean_inliers`: `748.88 -> 733.46`，delta `-15.42`
+    - `mean_inlier_ratio`: `0.5558 -> 0.5506`，delta `-0.0052`
+    - `approx_fps`: `7.355 -> 4.409`，delta `-2.946`
+    - `mean_reprojection_error`: `1.4309 -> 1.4335`，delta `+0.0026`
+  - 当前这台 Windows + RTX 3060 Laptop GPU 上，`accuracy_v1` 的 full-length CUDA rerun 并没有优于 preserved CPU formal suite；它证明了 CUDA 路径可完整落地，但不支持“CUDA 必然更快/更好”的假设。
+- 遇到的问题与处理：
+  - 本步未出现 pair 级失败、显存错误或脚本异常。
+  - `outputs/video_compare/` 在这台机器上是首次批量生成；已确认三个原始 suite 目录成功落盘。
+- 与原计划相比的偏差：
+  - 本步没有重跑 Method A，也没有生成新的 same-code CPU suite；因此当前 CPU vs CUDA artefact 与 CPU vs MPS 一样，仍是 preserved CPU baseline 对比 current CUDA rerun。
+  - 本步没有回写 `05_evaluation` 或 `08_project_status_and_master_plan`；先把正式 artefact、实施记录和 open issues 收束到位。
+- 下一步建议：
+  - 若需要把这批结果迁回 Mac，至少一起带走：
+    - `outputs/phase3/kitti_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/minesource_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
+    - `outputs/video_compare/kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+    - `outputs/video_compare/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+    - `outputs/video_compare/minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - 若后续需要严格回答“同一代码版本下 CPU vs CUDA 是否只体现 device 差异”，应在当前代码上再补一轮 same-code CPU `method_b_accuracy_v1` full-length suite。
+
+## IMP-20260401-03
+- 状态：done
+- 标题：复盘 Windows + RTX 3060 上 Method B CUDA 慢 / 质量略低的根因，并补 same-code 对照与可落地优化
+- 本步目标：
+  - 系统复盘当前 Windows CUDA `accuracy_v1` formal suite，区分“统计口径问题”“实现问题”“不公平基线对照问题”三类原因。
+  - 在当前代码版本上补充有代表性的 same-code CPU / CUDA 对照，避免继续把 preserved CPU formal suite 误读成纯 device-isolated 结论。
+  - 若确认存在可修复实现问题，直接落地优化，并用代表性 pair / 短视频回归验证质量与速度变化。
+- 关联上一结论：
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/` 已确认 `requested_device=cuda` 且 `resolved_device=cuda`。
+  - preserved CPU vs CUDA artefact 当前仅能说明“历史 CPU baseline vs 当前 CUDA rerun”，不能单独支持“3060 上 CUDA 一定更慢 / 更差”的强结论。
+  - `05_evaluation` 与 `06_method2_strong_matching` 已明确提醒：`fixed_geometry + frame0_all` 的 total `fps` 混合了大量 CPU compose / writer 成本，不等于纯 `SuperPoint / LightGlue` 吞吐。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码 / 产物：
+  - `src/stitching/features.py`
+  - `src/stitching/matching.py`
+  - `src/stitching/method_b_runtime.py`
+  - `src/stitching/frame_pair_pipeline.py`
+  - `scripts/run_baseline_video.py`
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
+  - `outputs/video_compare/kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+- 实际修改文件：
+  - `scripts/eval_method_compare.py`
+  - `scripts/run_baseline_video.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - root cause 复盘证明，当前主要问题不在 `SuperPoint / LightGlue` 算法本体，而在 batch compare 的重复冷启动、`fixed_geometry + frame0_all` 的口径误读，以及 `transforms.csv` 把 geometry-event 阶段时间错误平铺到所有帧。
+  - 因此本步需要同时修正视频 bundle 字段语义、batch compare 执行模式，以及 phase3 汇总链路对新增 steady-state 字段的透传。
+- 风险点：
+  - 若直接优化实现但不先澄清指标定义，容易把“统计修正”误报成“真实性能提升”。
+  - CUDA kernel 计时若不显式同步，GPU 异步执行会让阶段耗时字段失真。
+  - 同一 pair 上 CPU / CUDA 的匹配结果可能存在轻微数值差异；需要区分正常浮动与真正回退。
+- 验收标准：
+  - 给出明确 root-cause 归因，至少回答：
+    - formal suite 的 `approx_fps` 为什么不能直接代表纯 Method B CUDA 吞吐；
+    - `avg_feature_runtime_ms_left` 为什么显著大于 `per_frame_ms_mean`；
+    - 当前质量回退是否超过正常数值浮动范围。
+  - 若有实现缺陷，完成代码修复，并用当前代码版本上的 same-code CPU / CUDA 代表性对照验证。
+  - `12/13/14` 回填本次 root-cause、优化内容、验证结果与剩余限制。
+- 替代方案与不选原因：
+  - 方案：直接把 CUDA full-length rerun 再跑一遍。
+  - 不选原因：若不先修口径与实现问题，只会重复产出同类结果，无法解释根因。
+  - 方案：只看单帧 smoke。
+  - 不选原因：单帧 smoke 不能代表 `fixed_geometry + frame0_all` full-length 下的稳态写帧成本与整体质量指标。
+- 实际执行命令：
+  - `.\.venv\Scripts\python.exe scripts\run_baseline_video.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --feature orb --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cpu --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --video_mode 1 --reuse_mode frame0_all --max_frames 83 --fps 10 --snapshot_every 1000 --run_id review_cpu_nikita83_preopt`
+  - `.\.venv\Scripts\python.exe scripts\run_baseline_video.py --pair dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right --feature orb --feature_backend superpoint --matcher_backend lightglue --geometry_backend opencv_usac_magsac --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --video_mode 1 --reuse_mode frame0_all --max_frames 83 --fps 10 --snapshot_every 1000 --run_id review_cuda_nikita83_preopt`
+  - 同进程 representative micro-benchmark：
+    - 在同一 Python 进程内对 `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right` 的 frame0 连续调用 `estimate_frame_pair_geometry()`，分别测 `cpu / cuda` 的 cold + warm wall time 与 stage runtime。
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 10 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right dynamicstereo_real_000_teddy_static_test_frames_rect_left_right`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe_phase3 --method_suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe --pairs dynamicstereo_real_000_ignacio_waving_test_frames_rect_left_right dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right dynamicstereo_real_000_teddy_static_test_frames_rect_left_right --fps 10 --max_frames 6000`
+- 实际代码改动：
+  - `run_baseline_video.py`
+    - `logging.basicConfig(..., force=True)`，使同进程多 case 执行时每次都能重新绑定 stdout/file handler。
+    - `transforms.csv` 新增 `geometry_event_active` 列，并在非 geometry event 帧上把 `feature_runtime_ms_* / matching_runtime_ms / geometry_runtime_ms` 置空，不再重复平铺上一次 keyframe 的 stage runtime。
+    - `metrics_preview.json` / `debug.time_breakdown_summary` 新增 `steady_frame_ms_mean / steady_frame_count / steady_approx_fps`，显式分离首帧初始化与稳态逐帧成本。
+  - `eval_method_compare_matrix.py`
+    - 新增 `--execution_mode {auto,subprocess,inprocess}`。
+    - `auto` 在 `--python_bin` 与当前解释器相同的时候改走 `inprocess`，复用同一 Python 进程中的 `SuperPoint / LightGlue` cache 与 CUDA context。
+  - `scripts/internal/*summary*.py` 与 `compare_method_device_variants.py`
+    - 汇总链路增加 `steady_frame_ms_mean / steady_frame_count / steady_approx_fps` 字段透传。
+- root-cause 结论：
+  - 口径问题 1：`avg_feature_runtime_ms_left`、`avg_matching_runtime_ms` 等字段是 geometry-event 统计，不是每帧稳态耗时；旧 `transforms.csv` 还把这些值重复写到了所有 non-geometry 帧，极易误读。
+  - 口径问题 2：`fixed_geometry + frame0_all` 的 `approx_fps` 混合了首帧 geometry 初始化与后续 CPU compose / crop / blend / writer 成本，不能直接当成纯 `SuperPoint / LightGlue` 吞吐。
+  - 对照问题：之前的 `method_b_accuracy_v1_cpu_vs_cuda_real_v1` 属于 preserved CPU baseline vs current CUDA rerun，不是 same-code device-isolated compare。
+  - 实现 / orchestration 问题：`eval_method_compare_matrix.py` 旧路径为每个 pair 启一个新 Python 进程，导致 Method B 的 import / model load / CUDA context / cache warming 在 full-length suite 里被重复支付多次。
+- same-code 验证结果：
+  - `dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right`
+    - current-code CPU：`mean_inliers=634`，`mean_inlier_ratio=0.3918`，`approx_fps=2.627`，`mean_reprojection_error=1.7712`
+    - current-code CUDA：`mean_inliers=686`，`mean_inlier_ratio=0.4271`，`approx_fps=3.305`，`mean_reprojection_error=1.7577`
+    - 结论：在当前代码版本上，这个代表性 pair 并没有复现“CUDA 质量更差”；相反 CUDA 的几何质量更好。
+  - 同一 pair 的 frame-level runtime 复盘：
+    - CPU `frame0_ms=16822`，steady `179.63ms/frame`，`steady_fps≈5.57`
+    - CUDA `frame0_ms=8706`，steady `199.60ms/frame`，`steady_fps≈5.01`
+    - 结论：整体 `approx_fps` 的主要差异来自首帧 geometry 初始化；稳态逐帧阶段两者接近，说明 full-length `frame0_all` 下真正主导吞吐的是 CPU compose 链，而不是只看 GPU matching。
+  - 同进程 geometry micro-benchmark：
+    - CPU：cold `~10.62s`，warm `~8.06s`
+    - CUDA：cold `~955ms`，warm `~270ms`
+    - 结论：同进程 warm 状态下，Method B 的纯 geometry event 在 CUDA 上远快于 CPU；“3060 反而更慢”的表象主要来自 batch compare 的冷启动重复与 full-length compose 口径。
+- 优化结果：
+  - `dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods`（旧 subprocess suite）：
+    - dataset mean `avg_runtime_ms=225.84`，`approx_fps=4.565`
+  - `dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe`（新 inprocess probe）：
+    - dataset mean `avg_runtime_ms=163.02`，`approx_fps=7.147`
+    - `steady_frame_ms_mean=130.28`，`steady_approx_fps=8.433`
+  - 代表性 pair 改善：
+    - `nikita`: `avg_runtime_ms 264.86 -> 169.13`，`approx_fps 3.776 -> 5.912`
+    - `teddy`: `avg_runtime_ms 175.22 -> 89.35`，`approx_fps 5.707 -> 11.191`
+  - 原因：第一个 pair 仍支付一次冷启动，但后续 pair 复用了同一解释器中的 Method B backend cache 与 CUDA context，因此不再重复承担大额初始化成本。
+- 验证方式：
+  - `py_compile` 检查：
+    - `scripts/run_baseline_video.py`
+    - `scripts/eval_method_compare_matrix.py`
+    - `scripts/internal/summarize_method_compare_dataset.py`
+    - `scripts/internal/summarize_method_compare_overall.py`
+    - `scripts/internal/compare_method_device_variants.py`
+  - 运行后检查：
+    - `dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe/summary.csv`
+    - `outputs/runs/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1_inprocess_probe__02__method_b__dynamicstereo_real_000_nikita_reading_test_frames_rect_left_right/transforms.csv`
+      - frame0: `geometry_event_active=1`
+      - frame1+ reuse 帧：`geometry_event_active=0` 且 stage runtime 列为空
+- 与原计划相比的偏差：
+  - 本步没有重跑完整 26-pair CUDA formal suite；先用 3-pair `dynamicstereo` probe 验证 root cause 与优化方向。
+  - 本步没有继续改 `features.py / matching.py` 本体，因为 same-code 与 micro-benchmark 已证明核心 Method B geometry path 在 CUDA 上并不慢，真正值得优先修的是 compare runner 的 orchestration 与输出口径。
+- 下一步建议：
+  - 若要更新正式 CUDA artefact，优先用当前 `eval_method_compare_matrix.py` 的 `auto/inprocess` 路径重跑完整 26-pair suite，并生成新的 `phase3` summary。
+  - 若要做最严格 CPU vs CUDA device compare，仍应在当前代码版本上补 same-code CPU full-length rich-v3 suite。
+  - 若仍想继续追求更高 steady-state fps，下一层优化目标应转向 `VideoStitcher` 的 fixed-geometry CPU compose / warp / crop path，而不是继续怀疑 `SuperPoint / LightGlue` 的 CUDA geometry 本体。
+
+## IMP-20260401-04
+- 状态：done
+- 标题：按新 `auto/inprocess` 路径重跑 Windows CUDA 下 Method B `accuracy_v1` 的 26-pair full-length formal suite
+- 本步目标：
+  - 在当前 Windows + RTX 3060 机器上，用新的 `execution_mode=auto` 路径重跑 Method B `accuracy_v1` 的三数据域 full-length CUDA suite。
+  - 生成一套与旧 `cuda_real_accuracy_v1` 并存的新 formal artefact，用于验证 orchestration 优化是否在完整 26-pair 规模上成立。
+  - 重新导出 CPU vs CUDA device compare，避免后续继续引用旧 subprocess 口径。
+- 关联上一结论：
+  - `IMP-20260401-03` 已确认：旧 CUDA formal suite 的“更慢 / 更差”表象主要混入了 preserved CPU baseline、首帧初始化和每 pair 子进程冷启动。
+  - 当前 `eval_method_compare_matrix.py` 已支持 `execution_mode=auto/inprocess`，且 `dynamicstereo` 3-pair probe 已验证明显提速。
+- 本步回读文档：
+  - `ai-docs/current/08_project_status_and_master_plan/08_project_status_and_master_plan.md`
+  - `ai-docs/current/10_execution_workflow/10_execution_workflow.md`
+  - `ai-docs/current/11_decision_log/11_decision_log.md`
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+  - `ai-docs/current/05_evaluation/05_evaluation.md`
+  - `ai-docs/current/06_method2_strong_matching/06_method2_strong_matching.md`
+- 本步回读代码 / 产物：
+  - `scripts/eval_method_compare.py`
+  - `scripts/eval_method_compare_matrix.py`
+  - `scripts/internal/summarize_method_compare_dataset.py`
+  - `scripts/internal/summarize_method_compare_overall.py`
+  - `scripts/internal/compare_method_device_variants.py`
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v1/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v1/`
+  - `outputs/video_compare/kitti_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+  - `outputs/video_compare/minesource_method_compare_rich_v3_cuda_real_accuracy_v1__methods/`
+- 准备修改文件：
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 为什么改这些文件：
+  - 本步目标是生成新的 formal artefact 与结论口径，不再改核心代码；但必须把新的 suite id、运行结果、与旧 subprocess 口径的差异回填到 current truth。
+- 风险点：
+  - 26-pair full-length suite 运行时间较长；若中途中断，需要保留已完成 dataset 的 raw suite 与 summary，避免全量重跑。
+  - `auto` 依赖 `--python_bin` 与当前解释器一致才能转成 `inprocess`；若命令路径写错，会退回 subprocess。
+  - 新口径可能显著提升 CUDA summary；需要避免把它错误解释成“算法改进”，而应明确它主要来自 orchestration 与统计修正。
+- 验收标准：
+  - 新 raw suite 成功生成：
+    - `kitti_method_compare_rich_v3_cuda_real_accuracy_v2__methods`
+    - `dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2__methods`
+    - `minesource_method_compare_rich_v3_cuda_real_accuracy_v2__methods`
+  - 新 phase3 summary 成功生成：
+    - `outputs/phase3/kitti_method_compare_rich_v3_cuda_real_accuracy_v2/`
+    - `outputs/phase3/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2/`
+    - `outputs/phase3/minesource_method_compare_rich_v3_cuda_real_accuracy_v2/`
+    - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v2/`
+    - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v2/`
+  - overall summary 中 `method_b_resolved_device=cuda` 且 `warnings_count/errors_count=0`。
+  - `12/13/14` 回填新 suite 的主要指标，并明确它与旧 `v1` 的口径差异。
+- 替代方案与不选原因：
+  - 方案：继续只保留 `dynamicstereo` probe，不重跑完整 26-pair suite。
+  - 不选原因：probe 只能证明方向，不足以替换 authoritative CUDA formal artefact。
+  - 方案：直接重跑 `scripts/eval_method_compare.py` 的完整三方法 formal suite。
+  - 不选原因：当前目标是更新 Method B CUDA 口径，不需要额外重跑 Method A，避免无谓增加总时长。
+- 实际修改文件：
+  - `ai-docs/current/12_implementation_log/12_implementation_log.md`
+  - `ai-docs/current/13_change_log/13_change_log.md`
+  - `ai-docs/current/14_open_issues_and_next_steps/14_open_issues_and_next_steps.md`
+- 实际新增产物：
+  - `outputs/video_compare/kitti_method_compare_rich_v3_cuda_real_accuracy_v2__methods/`
+  - `outputs/video_compare/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2__methods/`
+  - `outputs/video_compare/minesource_method_compare_rich_v3_cuda_real_accuracy_v2__methods/`
+  - `outputs/phase3/kitti_method_compare_rich_v3_cuda_real_accuracy_v2/`
+  - `outputs/phase3/dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2/`
+  - `outputs/phase3/minesource_method_compare_rich_v3_cuda_real_accuracy_v2/`
+  - `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v2/`
+  - `outputs/phase3/method_b_accuracy_v1_cpu_vs_cuda_real_v2/`
+- 实际执行命令：
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --execution_mode auto --suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v2__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 10 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v2 --method_suite_id kitti_method_compare_rich_v3_cuda_real_accuracy_v2__methods --pairs ... --fps 10 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\\python.exe --execution_mode auto --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 10 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2 --method_suite_id dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2__methods --pairs ... --fps 10 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\eval_method_compare_matrix.py --python_bin .\.venv\Scripts\python.exe --execution_mode auto --suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v2__methods --methods method_b --video_mode 1 --reuse_mode frame0_all --max_frames 6000 --snapshot_every 1000 --fps 30 --device cuda --max_keypoints 4096 --resize_long_edge 1536 --depth_confidence -1 --width_confidence -1 --filter_threshold 0.1 --pairs ...`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_dataset.py --suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v2 --method_suite_id minesource_method_compare_rich_v3_cuda_real_accuracy_v2__methods --pairs ... --fps 30 --max_frames 6000`
+  - `.\.venv\Scripts\python.exe scripts\internal\summarize_method_compare_overall.py --suite_id overall_method_compare_rich_v3_cuda_real_accuracy_v2 --source_suites kitti_method_compare_rich_v3_cuda_real_accuracy_v2 dynamicstereo_method_compare_rich_v3_cuda_real_accuracy_v2 minesource_method_compare_rich_v3_cuda_real_accuracy_v2`
+  - `.\.venv\Scripts\python.exe scripts\internal\compare_method_device_variants.py --suite_id method_b_accuracy_v1_cpu_vs_cuda_real_v2 --cpu_suite_id phase3_overall_methods_rich_v3 --device_suite_id overall_method_compare_rich_v3_cuda_real_accuracy_v2 --device_label cuda`
+- 验证方式：
+  - 检查三套 raw suite 的 `summary.csv` 均为 `passed`，共 26/26 pair 通过。
+  - 检查 `outputs/phase3/overall_method_compare_rich_v3_cuda_real_accuracy_v2/overall_method_summary.csv` 中：
+    - `method_b_requested_device=cuda`
+    - `method_b_resolved_device=cuda`
+    - `method_b_device_resolution_reason=requested`
+    - `warnings_count=0`
+    - `errors_count=0`
+  - 检查 `method_b_accuracy_v1_cpu_vs_cuda_real_v2/summary.md` 与 `method_b_device_delta.csv` 正常生成。
+- 运行结果与验证结果：
+  - 三数据域 26 个 pair 全部通过：
+    - KITTI：6 / 6
+    - DynamicStereo：3 / 3
+    - `mine_source`：17 / 17
+  - 新 authoritative CUDA overall summary：
+    - `mean_inliers=733.46`
+    - `mean_inlier_ratio=0.5506`
+    - `avg_runtime_ms=264.78`
+    - `approx_fps=6.091`
+    - `mean_reprojection_error=1.4335`
+    - `init_ms_mean=535.16`
+    - `steady_frame_ms_mean=250.74`
+    - `steady_approx_fps=6.681`
+  - 与旧 subprocess CUDA `v1` 的关键差异：
+    - 质量指标保持不变：
+      - `mean_inliers=733.46`（不变）
+      - `mean_inlier_ratio=0.5506`（不变）
+      - `mean_reprojection_error=1.4335`（不变）
+    - 运行口径显著改善：
+      - `avg_runtime_ms: 308.31 -> 264.78`
+      - `approx_fps: 4.409 -> 6.091`
+      - `init_ms_mean: 2332.45 -> 535.16`
+      - `avg_feature_runtime_ms_left: 5752.45 -> 890.77`
+      - `avg_matching_runtime_ms: 345.22 -> 132.27`
+    - 结论：`v2` 提升主要来自 compare runner 的同进程复用与统计修正，而不是算法质量变化。
+  - by-dataset CUDA `v2`：
+    - KITTI：`approx_fps=11.52`，`steady_approx_fps=13.15`
+    - DynamicStereo：`approx_fps=6.32`，`steady_approx_fps=7.48`
+    - `mine_source`：`approx_fps=4.13`，`steady_approx_fps=4.26`
+  - preserved CPU vs CUDA `v2` overall：
+    - `mean_inliers`: `748.88 -> 733.46`
+    - `mean_inlier_ratio`: `0.5558 -> 0.5506`
+    - `approx_fps`: `7.355 -> 6.091`
+    - `mean_reprojection_error`: `1.4309 -> 1.4335`
+    - 与旧 `v1` 相比，CUDA overall `fps` 差距已从 `-2.946` 收窄到 `-1.265`。
+- 遇到的问题与处理：
+  - 在一次并行调用里，`compare_method_device_variants.py` 先于 overall summary CSV 落盘执行，报 `missing csv`。
+  - 处理：在 overall summary 完成后单独重跑 compare，最终 artefact 正常生成。
+- 与原计划相比的偏差：
+  - 本步没有补 same-code CPU full-length 26-pair suite；当前 device compare 仍然是 preserved CPU baseline vs current CUDA rerun。
+  - 本步没有重跑 Method A，保持与先前 CUDA 补充 suite 的范围一致，只更新 Method B device artefact。
+- 下一步建议：
+  - 若要得出最严格的 CPU vs CUDA 结论，下一步应在当前代码版本上补 same-code CPU full-length rich-v3 suite。
+  - 若后续对外引用 Windows CUDA 正式结果，应优先引用 `*_cuda_real_accuracy_v2` 与 `method_b_accuracy_v1_cpu_vs_cuda_real_v2`，并把 `v1` 明确视为旧 subprocess artefact。

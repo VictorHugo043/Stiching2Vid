@@ -383,6 +383,7 @@ def _setup_logging(log_path: Path) -> None:
         level=logging.INFO,
         format="%(levelname)s %(message)s",
         handlers=handlers,
+        force=True,
     )
 
 
@@ -929,6 +930,7 @@ def _build_transform_columns() -> List[str]:
             "feature_runtime_ms_right",
             "matching_runtime_ms",
             "geometry_runtime_ms",
+            "geometry_event_active",
             "H_delta_norm",
             "overlap_area_current",
             "seam_policy",
@@ -1440,6 +1442,21 @@ def main() -> int:
             enriched = dict(event)
             enriched["frame_idx"] = int(frame_idx)
             debug["backend_fallback_events"].append(enriched)
+
+    def _runtime_fields_for_row(geometry_event_active: bool) -> Dict[str, Optional[float]]:
+        if not geometry_event_active:
+            return {
+                "feature_runtime_ms_left": None,
+                "feature_runtime_ms_right": None,
+                "matching_runtime_ms": None,
+                "geometry_runtime_ms": None,
+            }
+        return {
+            "feature_runtime_ms_left": last_stats["feature_runtime_ms_left"],
+            "feature_runtime_ms_right": last_stats["feature_runtime_ms_right"],
+            "matching_runtime_ms": last_stats["matching_runtime_ms"],
+            "geometry_runtime_ms": last_stats["geometry_runtime_ms"],
+        }
 
     def _estimate_geometry_for_current_frame(frame_idx: int, left, right):
         matches_img = None
@@ -2068,6 +2085,8 @@ def main() -> int:
                     note_parts.append(f"trigger_armed={trigger_armed_next}")
                     note_parts.append(f"overlap_diff={overlap_diff_before:.2f}->{overlap_diff_after:.2f}")
 
+                    row_runtime_fields = _runtime_fields_for_row(bool(geometry_recomputed))
+
                     row = {
                         "frame_idx": source_idx,
                         "is_keyframe": int(is_keyframe),
@@ -2090,10 +2109,11 @@ def main() -> int:
                         "geometry_update_reason": geometry_update_reason,
                         "reprojection_error": last_stats["reprojection_error"],
                         "inlier_spatial_coverage": last_stats["inlier_spatial_coverage"],
-                        "feature_runtime_ms_left": last_stats["feature_runtime_ms_left"],
-                        "feature_runtime_ms_right": last_stats["feature_runtime_ms_right"],
-                        "matching_runtime_ms": last_stats["matching_runtime_ms"],
-                        "geometry_runtime_ms": last_stats["geometry_runtime_ms"],
+                        "feature_runtime_ms_left": row_runtime_fields["feature_runtime_ms_left"],
+                        "feature_runtime_ms_right": row_runtime_fields["feature_runtime_ms_right"],
+                        "matching_runtime_ms": row_runtime_fields["matching_runtime_ms"],
+                        "geometry_runtime_ms": row_runtime_fields["geometry_runtime_ms"],
+                        "geometry_event_active": int(bool(geometry_recomputed)),
                         "H_delta_norm": float(h_delta),
                         "overlap_area_current": int(overlap_current),
                         "seam_policy": seam_policy_used,
@@ -3133,6 +3153,8 @@ def main() -> int:
                     if crop_method_used != "none":
                         note_parts.append(f"crop_method={crop_method_used}")
 
+                row_runtime_fields = _runtime_fields_for_row(bool(geometry_recomputed))
+
                 row = {
                     "frame_idx": source_idx,
                     "is_keyframe": is_keyframe,
@@ -3155,10 +3177,11 @@ def main() -> int:
                     "geometry_update_reason": geometry_update_reason,
                     "reprojection_error": last_stats["reprojection_error"],
                     "inlier_spatial_coverage": last_stats["inlier_spatial_coverage"],
-                    "feature_runtime_ms_left": last_stats["feature_runtime_ms_left"],
-                    "feature_runtime_ms_right": last_stats["feature_runtime_ms_right"],
-                    "matching_runtime_ms": last_stats["matching_runtime_ms"],
-                    "geometry_runtime_ms": last_stats["geometry_runtime_ms"],
+                    "feature_runtime_ms_left": row_runtime_fields["feature_runtime_ms_left"],
+                    "feature_runtime_ms_right": row_runtime_fields["feature_runtime_ms_right"],
+                    "matching_runtime_ms": row_runtime_fields["matching_runtime_ms"],
+                    "geometry_runtime_ms": row_runtime_fields["geometry_runtime_ms"],
+                    "geometry_event_active": int(bool(geometry_recomputed)),
                     "H_delta_norm": float(h_delta),
                     "overlap_area_current": int(overlap_area_current),
                     "seam_policy": seam_policy_effective,
@@ -3407,10 +3430,20 @@ def main() -> int:
     if int(video_mode_effective) == 1:
         init_vals = [float(v) for v in debug.get("time_breakdown_ms", {}).get("init_ms", [])]
         frame_vals = [float(v) for v in debug.get("time_breakdown_ms", {}).get("per_frame_ms", [])]
+        steady_frame_vals = frame_vals[1:] if len(frame_vals) > 1 else []
         debug["time_breakdown_summary"] = {
             "init_ms_mean": float(sum(init_vals) / len(init_vals)) if init_vals else 0.0,
             "per_frame_ms_mean": float(sum(frame_vals) / len(frame_vals)) if frame_vals else 0.0,
             "init_count": int(len(init_vals)),
+            "steady_frame_ms_mean": (
+                float(sum(steady_frame_vals) / len(steady_frame_vals)) if steady_frame_vals else 0.0
+            ),
+            "steady_frame_count": int(len(steady_frame_vals)),
+            "steady_approx_fps": (
+                1000.0 / float(sum(steady_frame_vals) / len(steady_frame_vals))
+                if steady_frame_vals and float(sum(steady_frame_vals) / len(steady_frame_vals)) > 0.0
+                else 0.0
+            ),
         }
 
     metrics_preview = {
@@ -3482,6 +3515,15 @@ def main() -> int:
         ),
         "reuse_per_frame_ms_mean": float(
             debug.get("time_breakdown_summary", {}).get("per_frame_ms_mean", 0.0)
+        ),
+        "steady_frame_ms_mean": float(
+            debug.get("time_breakdown_summary", {}).get("steady_frame_ms_mean", 0.0)
+        ),
+        "steady_frame_count": int(
+            debug.get("time_breakdown_summary", {}).get("steady_frame_count", 0)
+        ),
+        "steady_approx_fps": float(
+            debug.get("time_breakdown_summary", {}).get("steady_approx_fps", 0.0)
         ),
         "feature_backend_effective": debug.get("feature_backend_effective"),
         "matcher_backend_effective": debug.get("matcher_backend_effective"),

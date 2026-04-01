@@ -184,6 +184,8 @@ def _build_delta_rows(
         "mean_stitched_delta",
         "init_ms_mean",
         "per_frame_ms_mean",
+        "steady_frame_ms_mean",
+        "steady_approx_fps",
     ]
     rows: List[Dict[str, object]] = []
     for field in fields:
